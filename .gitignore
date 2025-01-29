@@ -1,0 +1,12 @@
+# Ignore environment variables
+.env
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore Cursor IDE settings (optional)
+.cursor/
+
+# Ignore VSCode settings (if you use VSCode)
+.vscode/

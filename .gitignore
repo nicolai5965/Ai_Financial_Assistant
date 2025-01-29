@@ -10,3 +10,6 @@ __pycache__/
 
 # Ignore VSCode settings (if you use VSCode)
 .vscode/
+
+# Ignore python-installer.exe
+python-installer.exe

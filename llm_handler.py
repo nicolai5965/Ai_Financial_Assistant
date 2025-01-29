@@ -1,8 +1,8 @@
 import os
 import datetime
 from uuid import uuid4
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI # type: ignore
+from langchain_anthropic import ChatAnthropic # type: ignore
 
 class LLMHandler:
     """

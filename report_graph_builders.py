@@ -14,10 +14,6 @@ from structured_report_nodes import (
     compile_final_report
 )
 
-
-# 🔍 Start of the script
-print("\n🚀 Starting report generation process...\n")
-
 # Build a subgraph for a single section
 print("🔄 Constructing section builder graph...")
 section_builder = StateGraph(SectionState, output=SectionOutputState)
@@ -64,4 +60,3 @@ print("✅ Compilation complete.\n")
 # Assign the compiled graph
 final_report_builder = final_graph
 
-print("\n✅ Report generation pipeline is ready! Execution can now begin. 🚀")

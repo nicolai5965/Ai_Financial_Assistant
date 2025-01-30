@@ -13,3 +13,6 @@ __pycache__/
 
 # Ignore python-installer.exe
 python-installer.exe
+
+# Ignore the test_file.py file
+test_file.py

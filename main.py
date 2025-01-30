@@ -99,9 +99,19 @@ def main():
     from report_graph_builders import final_report_builder  # Delayed import ensures LLM is ready first
     print("✅ Report generation pipeline is ready! Execution can now begin. 🚀\n")
 
+    # Toggle this to enable/disable test mode
+    test_mode = True  # Change to True for testing
+
     # Step 6: Gather user input for report configuration
-    report_topic = input("\nEnter the report topic: ").strip()
-    size_choice = input("Enter report size (Concise, Standard, Detailed, Comprehensive): ").strip()
+    if test_mode:
+        print("\n🧪 Test mode enabled! Using predefined inputs...\n")
+        report_topic = "Give an overview of capabilities and specific use case examples for these processing units: CPU, GPU"
+        size_choice = "Concise"
+        print(f"📌 Report Topic: {report_topic}")
+        print(f"📌 Report Size: {size_choice}")
+    else:
+        report_topic = input("\nEnter the report topic: ").strip()
+        size_choice = input("Enter report size (Concise, Standard, Detailed, Comprehensive): ").strip()
 
     # Get the config for that size
     size_config = get_report_config(size=size_choice)

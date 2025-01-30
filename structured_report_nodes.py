@@ -1,25 +1,22 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.constants import Send
+
+
+from report_models import ReportState, SectionState, Queries, Sections
+from search_results_formatter import deduplicate_and_format_sources, format_sections
+from tavily_search import tavily_search_async
 from fetch_project_prompts import (
     report_planner_query_writer_instructions,
     report_planner_instructions,
     query_writer_instructions,
     section_writer_instructions,
-    final_section_writer_instructions,
-    report_structure
+    final_section_writer_instructions
 )
 
-from tavily_search import tavily_search_async
-from search_results_formatter import (
-    deduplicate_and_format_sources,
-    format_sections
-)
-from report_models import ReportState, SectionState, Queries, Sections
-from llm_handler import LLMHandler
 
 # ====================================================
 # Report Plan Generation Node
-# ===========================
+# ====================================================
 
 async def generate_report_plan(state: ReportState):
     """
@@ -35,7 +32,11 @@ async def generate_report_plan(state: ReportState):
     Returns:
         dict: Contains list of Section objects with empty content fields
     """
+
+    print("\n📝 Generating report plan...")
+
     # Extract inputs from state
+    llm = state["llm"]
     topic = state["topic"]
     report_structure = state["report_structure"]
     number_of_queries = state["number_of_queries"]
@@ -47,6 +48,7 @@ async def generate_report_plan(state: ReportState):
         report_structure = str(report_structure)
 
     # 1. Generate search queries using LLM
+    print("🔍 Generating search queries...")
     structured_llm = llm.with_structured_output(Queries)
     system_instructions_query = report_planner_query_writer_instructions.format(
         topic=topic, 
@@ -57,19 +59,25 @@ async def generate_report_plan(state: ReportState):
         SystemMessage(content=system_instructions_query),
         HumanMessage(content="Generate search queries that will help with planning the sections of the report.")
     ])
+    print("✅ Search queries generated.")
 
     # 2. Execute web searches via Tavily
+    print("🔍 Executing web searches via Tavily...")
     query_list = [query.search_query for query in results.queries]
     search_docs = await tavily_search_async(query_list, tavily_topic, tavily_days)
+    print("✅ Tavily searches completed.")
 
     # 3. Process and format search results
+    print("📜 Formatting and deduplicating search results...")
     source_str = deduplicate_and_format_sources(
         search_docs, 
         max_tokens_per_source=1000, 
         include_raw_content=True
     )
+    print("✅ Search results formatted and deduplicated.")
 
     # 4. Generate report sections using second LLM prompt
+    print("✍️ Generating report sections...")
     system_instructions_sections = report_planner_instructions.format(
         topic=topic,
         report_organization=report_structure,
@@ -80,6 +88,7 @@ async def generate_report_plan(state: ReportState):
         SystemMessage(content=system_instructions_sections),
         HumanMessage(content="Generate the sections of the report. Your response must include a 'sections' field containing a list of sections. Each section must have: name, description, research, and content fields.")
     ])
+    print("✅ Report sections generated.")
 
     # Return list of sections
     return {"sections": report_sections.sections}
@@ -99,7 +108,10 @@ def generate_queries(state: SectionState):
     Returns:
         dict: Contains "search_queries" list of generated queries
     """
-    # Get state
+
+    print(f"\n🔍 Generating queries for section: {state['section'].name}...")
+    # Extract inputs from state
+    llm = state["llm"]
     number_of_queries = state["number_of_queries"]
     section = state["section"]
 
@@ -111,6 +123,8 @@ def generate_queries(state: SectionState):
 
     # Generate queries
     queries = structured_llm.invoke([SystemMessage(content=system_instructions)]+[HumanMessage(content="Generate search queries on the provided topic.")])
+
+    print(f"✅ Queries generated for section: {state['section'].name}.")
 
     return {"search_queries": queries.queries}
 
@@ -124,7 +138,9 @@ async def search_web(state: SectionState):
     Returns:
         dict: Contains "source_str" with formatted search results
     """
-    # Get state
+
+    print(f"\n🌐 Searching the web for section: {state['section'].name}...")
+    # Extract inputs from state
     search_queries = state["search_queries"]
     tavily_topic = state["tavily_topic"]
     tavily_days = state.get("tavily_days", None)
@@ -132,10 +148,10 @@ async def search_web(state: SectionState):
     # Web search
     query_list = [query.search_query for query in search_queries]
     search_docs = await tavily_search_async(query_list, tavily_topic, tavily_days)
-
+    print(f"✅ Tavily searches completed for section: {state['section'].name}.")
     # Deduplicate and format sources
     source_str = deduplicate_and_format_sources(search_docs, max_tokens_per_source=5000, include_raw_content=True)
-
+    print(f"✅ Search results formatted and deduplicated for section: {state['section'].name}.")
     return {"source_str": source_str}
 
 def write_section(state: SectionState):
@@ -148,7 +164,10 @@ def write_section(state: SectionState):
     Returns:
         dict: Contains "completed_sections" with the finalized section
     """
-    # Get state
+
+    print(f"\n✍️ Writing section: {state['section'].name}...")
+    # Extract inputs from state
+    llm = state["llm"]
     section = state["section"]
     source_str = state["source_str"]
 
@@ -157,10 +176,10 @@ def write_section(state: SectionState):
 
     # Generate section
     section_content = llm.invoke([SystemMessage(content=system_instructions)]+[HumanMessage(content="Generate a report section based on the provided sources.")])
-
     # Write content to the section object
     section.content = section_content.content
 
+    print(f"✅ Section: {state['section'].name} written.")
     # Write the updated section to completed sections
     return {"completed_sections": [section]}
 
@@ -179,7 +198,8 @@ def initiate_section_writing(state: ReportState):
     Returns:
         list: List of Send() API calls for sections requiring research
     """
-    return [
+    print("\n🚀 Initiating section writing...")
+    result = [
         Send("build_section_with_web_research", {
             "section": s,
             "number_of_queries": state["number_of_queries"],
@@ -189,6 +209,10 @@ def initiate_section_writing(state: ReportState):
         for s in state["sections"]
         if s.research
     ]
+
+    print("✅ Section writing initiated.")
+
+    return result
 
 def write_final_sections(state: SectionState):
     """
@@ -201,9 +225,14 @@ def write_final_sections(state: SectionState):
     Returns:
         dict: Contains completed section
     """
+
+    print(f"\n✍️ Writing final section: {state['section'].name}...")
+    # Extract inputs from state
+    llm = state["llm"]
     section = state["section"]
     completed_report_sections = state["report_sections_from_research"]
 
+    # Format system instructions
     system_instructions = final_section_writer_instructions.format(
         section_title=section.name,
         section_topic=section.description,
@@ -217,6 +246,8 @@ def write_final_sections(state: SectionState):
 
     section.content = section_content.content
 
+    print(f"✅ Section: {state['section'].name} written.")
+
     return {"completed_sections": [section]}
 
 def gather_completed_sections(state: ReportState):
@@ -229,8 +260,12 @@ def gather_completed_sections(state: ReportState):
     Returns:
         dict: Contains formatted string of completed sections
     """
+    print("\n📦 Gathering completed sections...")
+    # Extract inputs from state
     completed_sections = state["completed_sections"]
+
     completed_report_sections = format_sections(completed_sections)
+    print("✅ Completed sections gathered.")
     return {"report_sections_from_research": completed_report_sections}
 
 def initiate_final_section_writing(state: ReportState):
@@ -244,6 +279,7 @@ def initiate_final_section_writing(state: ReportState):
     Returns:
         list: List of Send() API calls for non-research sections
     """
+    print("\n🚀 Initiating final section writing...")
     return [
         Send("write_final_sections", {
             "section": s,
@@ -263,6 +299,9 @@ def compile_final_report(state: ReportState):
     Returns:
         dict: Contains final compiled report
     """
+    print("\n🔄 Compiling final report...")
+
+    # Extract inputs from state
     sections = state["sections"]
     completed_sections = {s.name: s.content for s in state["completed_sections"]}
 
@@ -271,24 +310,7 @@ def compile_final_report(state: ReportState):
         section.content = completed_sections[section.name]
 
     all_sections = "\n\n".join([s.content for s in sections])
+    print("✅ Final report compiled.")
     return {"final_report": all_sections}
 
 
-class SectionState(TypedDict):
-    tavily_topic: Literal["general", "news"] # Tavily search topic
-    tavily_days: Optional[int] # Only applicable for news topic
-    number_of_queries: int # Number web search queries to perform per section
-    section: Section # Report section
-    search_queries: list[SearchQuery] # List of search queries
-    source_str: str # String of formatted source content from web search
-    report_sections_from_research: str # String of any completed sections from research to write final sections
-    completed_sections: list[Section] # Final key we duplicate in outer state for Send() API
-
-class SectionOutputState(TypedDict):
-    completed_sections: list[Section] # Final key we duplicate in outer state for Send() API
-
-
-**What this does**
-
-* **`SectionState`**: Captures everything needed to produce one report section.
-* **`SectionOutputState`**: The output shape containing the updated sections.

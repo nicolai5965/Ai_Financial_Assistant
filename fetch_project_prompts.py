@@ -156,9 +156,9 @@ def get_report_config(size="Standard", overrides=None):
 client = Client()
 
 # Pull your 6 prompts by name
-report_planner_query_writer_instructions_prompt = hub.pull("report_planner_query_writer_instructions")
-report_planner_instructions_prompt = hub.pull("report_planner_instructions")
-query_writer_instructions_prompt = hub.pull("query_writer_instructions")
-section_writer_instructions_prompt = hub.pull("section_writer_instructions")
-final_section_writer_instructions_prompt = hub.pull("final_section_writer_instructions")
-report_structure_prompt = hub.pull("report_structure")
+report_planner_query_writer_instructions = hub.pull("report_planner_query_writer_instructions")
+report_planner_instructions = hub.pull("report_planner_instructions")
+query_writer_instructions = hub.pull("query_writer_instructions")
+section_writer_instructions = hub.pull("section_writer_instructions")
+final_section_writer_instructions = hub.pull("final_section_writer_instructions")
+report_structure = hub.pull("report_structure")

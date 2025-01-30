@@ -1,6 +1,15 @@
 import sys
 import os
 import subprocess
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Set up LangSmith tracing for LangChain
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_PROJECT"] = "Structured_Report_Generator"
+os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 
 from llm_handler import LLMHandler
 from validate_api_keys import validate_api_keys
@@ -51,17 +60,15 @@ def main():
         return
 
     # Step 3: Initialize LLM Handler and display settings
-    print("\n🚀 Initializing LLM Handler...\n")
+    print(f"🚀 LLM Handler initialized with provider: {llm_handler['llm_provider']} using model {llm_handler['language_model']['model_name']}...")
     llm_handler = LLMHandler("openai")
     print(llm_handler.show_settings())
+    print("\n✅ LLM Handler initialized.\n")
 
-    # -------------------------------------------------------------------
-    # ADDITIONAL CODE BELOW TO RUN YOUR FINAL REPORT GRAPH
-    # -------------------------------------------------------------------
 
     # Step 4: Gather user input and set the report configuration
     import asyncio
-    from fetch_project_prompts import report_structure_prompt, get_report_config
+    from fetch_project_prompts import report_structure, get_report_config
     from report_graph_builders import final_report_builder
     from report_models import Section, ReportState
 
@@ -72,7 +79,7 @@ def main():
     # Get the config for that size (controls number_of_queries, etc.)
     size_config = get_report_config(size=size_choice)
 
-    rendered_prompt = report_structure_prompt.format(
+    rendered_prompt = report_structure.format(
         min_architecture_sentences=size_config["min_architecture_sentences"],
         max_architecture_sentences=size_config["max_architecture_sentences"],
         min_use_case_sentences=size_config["min_use_case_sentences"],
@@ -94,7 +101,7 @@ def main():
     }
 
     # Step 5: Run the final report builder
-    final_output = asyncio.run(final_report_builder.run(initial_state))
+    final_output = asyncio.run(final_report_builder.invoke(initial_state))
 
     # Step 6: Show the final report
     print("\n=== FINAL REPORT ===")

@@ -64,5 +64,4 @@ print("✅ Compilation complete.\n")
 # Assign the compiled graph
 final_report_builder = final_graph
 
-# 🎯 End of the script
-print("\n🎉 Report generation process setup complete!\n")
+print("\n✅ Report generation pipeline is ready! Execution can now begin. 🚀")

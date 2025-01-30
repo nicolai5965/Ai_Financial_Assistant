@@ -1,15 +1,7 @@
-from report_models import (
-    SectionState, 
-    SectionOutputState, 
-    ReportState, 
-    ReportStateOutput,
-)
-
-# The main graph classes
 from langgraph.graph import StateGraph, END, START
-from typing import TypeVar, Dict, Any
+from IPython.display import Image
 
-from llm_handler import LLMHandler
+from report_models import ReportState, ReportStateOutput, SectionState, SectionOutputState
 from structured_report_nodes import (
     generate_report_plan,
     generate_queries,
@@ -34,11 +26,6 @@ section_builder.add_edge("generate_queries", "search_web")
 section_builder.add_edge("search_web", "write_section")
 section_builder.add_edge("write_section", END)
 
-section_builder_graph = section_builder.compile()
-
-# If you're outside Jupyter or don't need to visualize, you can remove display logic:
-display(Image(section_builder_graph.get_graph(xray=1).draw_mermaid_png()))
-
 # Build the final report graph
 final_builder = StateGraph(ReportState, output=ReportStateOutput)
 final_builder.add_node("generate_report_plan", generate_report_plan)
@@ -55,7 +42,5 @@ final_builder.add_edge("write_final_sections", "compile_final_report")
 final_builder.add_edge("compile_final_report", END)
 
 final_graph = final_builder.compile()
-display(Image(final_graph.get_graph(xray=1).draw_mermaid_png()))
 
-# If you want to export final_graph for usage in main.py:
 final_report_builder = final_graph

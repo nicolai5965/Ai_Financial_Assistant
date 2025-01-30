@@ -1,6 +1,17 @@
+from IPython.display import Image
+
+from report_models import (
+    SectionState, 
+    SectionOutputState, 
+    ReportState, 
+    ReportStateOutput,
+    Section,
+    Sections,
+    SearchQuery,
+    Queries
+)
 from langgraph.graph import StateGraph, END, START
 from typing import TypeVar, Dict, Any
-from IPython.display import Image
 
 from llm_handler import LLMHandler
 from structured_report_nodes import (
@@ -28,10 +39,8 @@ from search_results_formatter import (
     format_sections
 )
 from report_models import ReportState, SectionState, Queries, Sections
+    
 
-# Define state types for graph compilation
-SectionOutputState = TypeVar("SectionOutputState", bound=Dict[str, Any])
-ReportStateOutput = TypeVar("ReportStateOutput", bound=Dict[str, Any])
 
 # Initialize the LLM handler
 llm = LLMHandler(

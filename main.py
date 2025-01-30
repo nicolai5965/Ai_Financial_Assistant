@@ -129,7 +129,7 @@ def main():
 
     # Step 7: Execute report generation
     print("\n🛠️ Generating the final report...\n")
-    final_output = asyncio.run(final_report_builder.invoke(initial_state))
+    final_output = asyncio.run(final_report_builder.ainvoke(initial_state))
 
     # Step 8: Show the final report
     print("\n🎯 === FINAL REPORT === 🎯")

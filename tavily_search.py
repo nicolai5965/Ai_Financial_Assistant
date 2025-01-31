@@ -38,15 +38,25 @@ async def tavily_search_async(search_queries, tavily_topic, tavily_days, max_res
 
     search_tasks = []
     for query in search_queries:
-        search_tasks.append(
-            tavily_async_client.search(
-                query,
-                max_results=max_results,
-                include_raw_content=True,
-                topic=tavily_topic,
-                days=tavily_days if tavily_topic == "news" else None
+        if tavily_topic == "news":
+            search_tasks.append(
+                tavily_async_client.search(
+                    query,
+                    max_results=5,
+                    include_raw_content=True,
+                    topic="news",
+                    days=tavily_days
+                )
             )
-        )
+        else:
+            search_tasks.append(
+                tavily_async_client.search(
+                    query,
+                    max_results=5,
+                    include_raw_content=True,
+                    topic="general"
+                )
+            )
 
     # Execute all searches concurrently
     return await asyncio.gather(*search_tasks)

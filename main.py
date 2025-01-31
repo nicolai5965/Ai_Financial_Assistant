@@ -134,8 +134,11 @@ def main():
         "completed_sections": [],
         "report_sections_from_research": "",
         "final_report": "",
-        "llm": llm_handler  # The key: pass the LLM in the state so node functions can do `llm = state["llm"]`
+        "llm": llm_handler.language_model  # The key: pass the LLM in the state so node functions can do `llm = state["llm"]`
     }
+
+    print("\n🔍 DEBUG: Checking initial state before execution:")
+    print(initial_state.keys())  # Print only keys to avoid long output
 
     # Step 7: Execute report generation
     print("\n🛠️ Generating the final report...\n")

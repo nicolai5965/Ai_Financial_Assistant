@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal, Annotated
+from typing import List, Optional, Literal, Annotated, Any
 from typing_extensions import TypedDict
 import operator
 
@@ -45,6 +45,7 @@ class ReportState(TypedDict):
     completed_sections: Annotated[List[Section], operator.add]  # Send() API key
     report_sections_from_research: str  # String of any completed sections from research to write final sections
     final_report: str  # Final report output
+    llm: Any
 
 class SectionState(TypedDict):
     """Tracks the state of an individual report section during processing."""
@@ -56,6 +57,7 @@ class SectionState(TypedDict):
     source_str: str  # Formatted content from web search
     report_sections_from_research: str  # Contextual information from previous sections
     completed_sections: List[Section]  # Final output sections
+    llm: Any
 
 class SectionOutputState(TypedDict):
     """Defines the output shape for a completed report section."""

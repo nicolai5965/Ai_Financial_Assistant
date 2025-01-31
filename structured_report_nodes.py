@@ -64,6 +64,10 @@ async def generate_report_plan(state: ReportState):
     # 2. Execute web searches via Tavily
     print("🔍 Executing web searches via Tavily...")
     query_list = [query.search_query for query in results.queries]
+
+    if not query_list or not all(isinstance(q, str) and q.strip() for q in query_list):
+        raise ValueError("❌ ERROR: Query list is empty or contains invalid data.")
+    
     search_docs = await tavily_search_async(query_list, tavily_topic, tavily_days)
     print("✅ Tavily searches completed.")
 

@@ -4,9 +4,11 @@
 
 from langchain import hub
 from langsmith import Client
-
+from langchain.prompts import ChatPromptTemplate
+import re
 from dotenv import load_dotenv
 import os
+
 
 load_dotenv()  # This loads the variables from .env
 
@@ -149,16 +151,103 @@ def get_report_config(size="Standard", overrides=None):
     return config
 
 
+def format_prompt(prompt, size_choice):
+    """
+    Automatically formats any prompt by filling in placeholders
+    with values from the report configuration.
+
+    :param prompt: The prompt (either a string or a ChatPromptTemplate)
+    :param size_choice: The report size ("Concise", "Standard", etc.)
+    :return: The formatted prompt with values inserted.
+    """
+    
+    # Convert ChatPromptTemplate to string if needed
+    if isinstance(prompt, ChatPromptTemplate):
+        prompt = prompt.messages[0].prompt.template  # Extract the actual text
+
+    # Get the appropriate config for the selected size
+    size_config = get_report_config(size=size_choice)
+    
+    # Find all placeholders in the prompt (e.g., {min_word_limit})
+    placeholders = re.findall(r"\{(\w+)\}", prompt)
+    
+    # Replace only known placeholders (leave unknown ones unchanged)
+    for placeholder in placeholders:
+        if placeholder in size_config:
+            prompt = prompt.replace(f"{{{placeholder}}}", str(size_config[placeholder]))
+    
+    return prompt  # Return with unknown placeholders intact
+
+
 ###############################################################
 # 3) Pulling All Prompts from LangSmith
 ###############################################################
 
-client = Client()
 
-# Pull your 6 prompts by name
-report_planner_query_writer_instructions = hub.pull("report_planner_query_writer_instructions")
-report_planner_instructions = hub.pull("report_planner_instructions")
-query_writer_instructions = hub.pull("query_writer_instructions")
-section_writer_instructions = hub.pull("section_writer_instructions")
-final_section_writer_instructions = hub.pull("final_section_writer_instructions")
-report_structure = hub.pull("report_structure")
+# Pull raw prompts (before formatting)
+raw_prompts = {
+    "report_structure": hub.pull("report_structure"),
+    "query_writer_instructions": hub.pull("query_writer_instructions"),
+    "section_writer_instructions": hub.pull("section_writer_instructions"),
+    "final_section_writer_instructions": hub.pull("final_section_writer_instructions"),
+    "report_planner_instructions": hub.pull("report_planner_instructions"),
+    "report_planner_query_writer_instructions": hub.pull("report_planner_query_writer_instructions"),
+}
+
+# Global dictionary for formatted prompts
+formatted_prompts = {}
+
+def set_report_size(report_size):
+    """
+    Formats all prompts based on the selected report size.
+    This function should be called from `main.py` before importing formatted prompts.
+    """
+    global formatted_prompts  # Ensure we modify the global dictionary
+
+    size_config = get_report_config(report_size)
+
+    for prompt_name, prompt_template in raw_prompts.items():
+        formatted_prompts[prompt_name] = format_prompt(prompt_template, report_size)
+
+    print(f"Prompts formatted for report size: {report_size}")
+
+
+# Ensure formatted_prompts is initialized with default size to avoid errors
+#set_report_size("Standard")
+
+# # Export formatted prompts as individual variables
+# report_structure = formatted_prompts["report_structure"]
+# query_writer_instructions = formatted_prompts["query_writer_instructions"]
+# section_writer_instructions = formatted_prompts["section_writer_instructions"]
+# final_section_writer_instructions = formatted_prompts["final_section_writer_instructions"]
+# report_planner_instructions = formatted_prompts["report_planner_instructions"]
+# report_planner_query_writer_instructions = formatted_prompts["report_planner_query_writer_instructions"]
+
+
+
+
+
+
+
+
+
+
+
+# ------------------------------------------------------------------------------------------------
+
+# # 1) Pull your 6 prompts by name
+# report_structure_prompt = hub.pull("report_structure")
+# report_planner_query_writer_instructions_prompt = hub.pull("report_planner_query_writer_instructions")
+# report_planner_instructions_prompt = hub.pull("report_planner_instructions")
+# query_writer_instructions_prompt = hub.pull("query_writer_instructions")
+# section_writer_instructions_prompt = hub.pull("section_writer_instructions")
+# final_section_writer_instructions_prompt = hub.pull("final_section_writer_instructions")
+
+
+# # 2) Format the prompt dynamically
+# report_structure = format_prompt(report_structure_prompt, size_choice)
+# report_planner_query_writer_instructions = format_prompt(report_planner_query_writer_instructions_prompt, size_choice)
+# report_planner_instructions = format_prompt(report_planner_instructions_prompt, size_choice)
+# query_writer_instructions = format_prompt(query_writer_instructions_prompt, size_choice)
+# section_writer_instructions = format_prompt(section_writer_instructions_prompt, size_choice)
+# final_section_writer_instructions = format_prompt(final_section_writer_instructions_prompt, size_choice)

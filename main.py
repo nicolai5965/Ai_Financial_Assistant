@@ -19,7 +19,6 @@ os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
 # ===========================
 from validate_api_keys import validate_api_keys
 from llm_handler import LLMHandler
-from fetch_project_prompts import report_structure, get_report_config
 from report_models import ReportState
 
 
@@ -85,7 +84,6 @@ def main():
 
     # Get LLM settings (which is likely a dictionary)
     llm_settings = llm_handler.show_settings()
-    # print("\n", llm_settings)
 
     # ✅ Correctly access the values
     llm_provider = llm_settings.get("llm_provider", "Unknown Provider")
@@ -93,18 +91,13 @@ def main():
 
     print(f"\n✅ LLM Handler initialized with provider: {llm_provider} using model {model_name}.")
 
-
-    # Step 5: Import and set up the report builder **only after LLM is ready**
-    print("\n🔄 Setting up report generation pipeline builders...\n")
-    from report_graph_builders import final_report_builder  # Delayed import ensures LLM is ready first
-    print("✅ Report generation pipeline is ready! Execution can now begin. 🚀\n")
-
     # Toggle this to enable/disable test mode
     test_mode = True  # Change to True for testing
 
-    # Step 6: Gather user input for report configuration
+    # Step 5: Gather user input for report configuration **BEFORE GRAPH BUILDER SETUP**
     if test_mode:
         print("\n🧪 Test mode enabled! Using predefined inputs...\n")
+        print("\n llm_settings: ", llm_settings)
         report_topic = "Give an overview of capabilities and specific use case examples for these processing units: CPU, GPU"
         size_choice = "Concise"
         print(f"📌 Report Topic: {report_topic}")
@@ -113,22 +106,32 @@ def main():
         report_topic = input("\nEnter the report topic: ").strip()
         size_choice = input("Enter report size (Concise, Standard, Detailed, Comprehensive): ").strip()
 
-    # Get the config for that size
-    size_config = get_report_config(size=size_choice)
+    # Step 6: Set report size and import formatted prompts  
+    # 🚨 Set report size BEFORE importing any graph-related code!
+    import fetch_project_prompts  
+    fetch_project_prompts.set_report_size(size_choice)
 
-    rendered_prompt = report_structure.format(
-        min_architecture_sentences=size_config["min_architecture_sentences"],
-        max_architecture_sentences=size_config["max_architecture_sentences"],
-        min_use_case_sentences=size_config["min_use_case_sentences"],
-        max_use_case_sentences=size_config["max_use_case_sentences"]
-    )
+    # 🚨 Now import the formatted prompts AFTER they are correctly set
+    from fetch_project_prompts import formatted_prompts, get_report_config
+
+    print("\n✅ Report generation pipeline is ready! Execution can now begin. 🚀\n")
+
+    # 🚨 Test: Print formatted prompt
+    print(formatted_prompts["final_section_writer_instructions"])
+
+    # 🚨 **STOP EXECUTION AFTER TESTING**
+    sys.exit("🛑 Test complete: Exiting script after printing report_structure.")
+
+    print("\n🔄 Setting up report generation pipeline builders...\n")
+    from report_graph_builders import final_report_builder  # Delayed import ensures LLM is ready first
+    print("✅ Report generation pipeline is ready! Execution can now begin. 🚀\n")
 
     # Build the initial state
     initial_state: ReportState = {
         "topic": report_topic,
         "tavily_topic": "general",
         "tavily_days": None,
-        "report_structure": rendered_prompt,
+        "report_structure": report_structure,
         "number_of_queries": size_config["number_of_queries"],
         "sections": [],
         "completed_sections": [],
@@ -141,7 +144,6 @@ def main():
     print(initial_state.keys())  # Print only keys to avoid long output
 
     # Step 7: Execute report generation
-    print("\n🛠️ Generating the final report...\n")
     final_output = asyncio.run(final_report_builder.ainvoke(initial_state))
 
     # Step 8: Show the final report

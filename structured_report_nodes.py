@@ -5,13 +5,26 @@ from langgraph.constants import Send
 from report_models import ReportState, SectionState, Queries, Sections
 from search_results_formatter import deduplicate_and_format_sources, format_sections
 from tavily_search import tavily_search_async
-from fetch_project_prompts import (
-    report_planner_query_writer_instructions,
-    report_planner_instructions,
-    query_writer_instructions,
-    section_writer_instructions,
-    final_section_writer_instructions
-)
+# from fetch_project_prompts import (
+#     report_planner_query_writer_instructions,
+#     report_planner_instructions,
+#     query_writer_instructions,
+#     section_writer_instructions,
+#     final_section_writer_instructions, 
+#     get_report_config
+# )
+
+from fetch_project_prompts import formatted_prompts
+
+# Access formatted prompts dynamically
+report_planner_query_writer_instructions = formatted_prompts["report_planner_query_writer_instructions"]
+report_planner_instructions = formatted_prompts["report_planner_instructions"]
+query_writer_instructions = formatted_prompts["query_writer_instructions"]
+section_writer_instructions = formatted_prompts["section_writer_instructions"]
+final_section_writer_instructions = formatted_prompts["final_section_writer_instructions"]
+
+
+
 
 
 # ====================================================
@@ -208,7 +221,8 @@ def initiate_section_writing(state: ReportState):
             "section": s,
             "number_of_queries": state["number_of_queries"],
             "tavily_topic": state["tavily_topic"],
-            "tavily_days": state.get("tavily_days", None)
+            "tavily_days": state.get("tavily_days", None),
+            "llm": state["llm"]
         })
         for s in state["sections"]
         if s.research

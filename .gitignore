@@ -16,3 +16,8 @@ python-installer.exe
 
 # Ignore the test_file.py file
 test_file.py
+
+# Ignore .cursorrules file
+.cursorrules
+
+

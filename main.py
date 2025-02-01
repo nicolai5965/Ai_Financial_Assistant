@@ -114,24 +114,15 @@ def main():
     # 🚨 Now import the formatted prompts AFTER they are correctly set
     from fetch_project_prompts import formatted_prompts, get_report_config
 
-    print("\n✅ Report generation pipeline is ready! Execution can now begin. 🚀\n")
+    size_config = get_report_config(size_choice)    
 
-    # 🚨 Test: Print formatted prompt
-    print(formatted_prompts["final_section_writer_instructions"])
-
-    # 🚨 **STOP EXECUTION AFTER TESTING**
-    sys.exit("🛑 Test complete: Exiting script after printing report_structure.")
-
-    print("\n🔄 Setting up report generation pipeline builders...\n")
-    from report_graph_builders import final_report_builder  # Delayed import ensures LLM is ready first
-    print("✅ Report generation pipeline is ready! Execution can now begin. 🚀\n")
 
     # Build the initial state
     initial_state: ReportState = {
         "topic": report_topic,
         "tavily_topic": "general",
         "tavily_days": None,
-        "report_structure": report_structure,
+        "report_structure": formatted_prompts["report_structure"],
         "number_of_queries": size_config["number_of_queries"],
         "sections": [],
         "completed_sections": [],
@@ -140,9 +131,18 @@ def main():
         "llm": llm_handler.language_model  # The key: pass the LLM in the state so node functions can do `llm = state["llm"]`
     }
 
-    print("\n🔍 DEBUG: Checking initial state before execution:")
-    print(initial_state.keys())  # Print only keys to avoid long output
+    if test_mode:
+        print("\n🔍 DEBUG: Checking initial state before execution:")
+        print(initial_state.keys())
 
+
+
+    print("\n🔄 Setting up report generation pipeline builders...\n")
+    from report_graph_builders import final_report_builder  # Delayed import ensures LLM is ready first
+    print("✅ Report generation pipeline is ready! Execution can now begin. 🚀\n")
+
+    # # 🚨 **STOP EXECUTION AFTER TESTING**
+    # sys.exit("🛑 Test complete: Exiting script after printing report_structure.")
     # Step 7: Execute report generation
     final_output = asyncio.run(final_report_builder.ainvoke(initial_state))
 

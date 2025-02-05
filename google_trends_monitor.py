@@ -1,5 +1,4 @@
 from pytrends.request import TrendReq
-import time
 import asyncio
 from llm_handler import LLMHandler
 from datetime import datetime, timezone, timedelta
@@ -8,6 +7,7 @@ from dotenv import load_dotenv
 import pandas as pd
 import warnings
 from tabulate import tabulate
+from datetime import timedelta
 
 # ===========================
 # Load Environment Variables
@@ -18,37 +18,70 @@ load_dotenv()
 warnings.simplefilter("ignore", category=FutureWarning)
 
 # ===========================
-# Predefined Keywords List
+# Predefined Keywords by Sector
 # ===========================
-TRENDING_KEYWORDS = [
+TRENDING_KEYWORDS = {
     # AI & Machine Learning
-    "Artificial Intelligence", "Machine Learning", "Deep Learning", "Neural Networks", 
-    "GPT", "LLM", "OpenAI", "Anthropic", "Stable Diffusion", "AI Ethics", "Reinforcement Learning", 
-    "NLP", "Computer Vision", "AI Regulation", "AI Bias", "AGI", "Federated Learning", 
-    "AutoGPT", "AI Agents", "AI Hardware",
-
+    "AI & Machine Learning": [
+        "Artificial Intelligence", "Machine Learning", "Deep Learning", "Neural Networks", 
+        "GPT", "LLM", "OpenAI", "Anthropic", "Stable Diffusion", "AI Ethics", "Reinforcement Learning", 
+        "NLP", "Computer Vision", "AI Regulation", "AI Bias", "AGI", "Federated Learning", 
+        "AutoGPT", "AI Agents", "AI Hardware"
+    ],
     # Tech & Semiconductors
-    "NVIDIA", "AMD", "Intel", "TSMC", "ARM", "RISC-V", "Chip Shortage", "AI Chips", "Quantum Processors", 
-    "Moore's Law", "5nm Chips", "3nm Chips", "Edge Computing", "Cloud Computing", "Meta", "Google DeepMind", 
-    "Apple AI", "AI Smartphones", "Tesla FSD", "AI in Healthcare",
-
+    "Tech & Semiconductors": [
+        "NVIDIA", "AMD", "Intel", "TSMC", "ARM", "RISC-V", "Chip Shortage", "AI Chips", "Quantum Processors", 
+        "Moore's Law", "5nm Chips", "3nm Chips", "Edge Computing", "Cloud Computing", "Meta", "Google DeepMind", 
+        "Apple AI", "AI Smartphones", "Tesla FSD", "AI in Healthcare"
+    ],
     # Nuclear Energy & Fusion
-    "Nuclear Fusion", "ITER", "Tokamak", "Plasma Confinement", "Helion Energy", "General Fusion", 
-    "Small Modular Reactors", "Thorium Reactors", "Fusion Breakthrough", "Neutron Capture",
-
+    "Nuclear Energy & Fusion": [
+        "Nuclear Fusion", "ITER", "Tokamak", "Plasma Confinement", "Helion Energy", "General Fusion", 
+        "Small Modular Reactors", "Thorium Reactors", "Fusion Breakthrough", "Neutron Capture"
+    ],
     # Quantum Computing
-    "Quantum Computing", "Qubit", "Quantum Supremacy", "IBM Quantum", "Google Quantum", 
-    "Quantum Cryptography", "Quantum Entanglement", "Quantum Key Distribution", "Superconducting Qubits",
-    "Trapped Ion Qubits", "Photonic Quantum Computing"
-]
+    "Quantum Computing": [
+        "Quantum Computing", "Qubit", "Quantum Supremacy", "IBM Quantum", "Google Quantum", 
+        "Quantum Cryptography", "Quantum Entanglement", "Quantum Key Distribution", "Superconducting Qubits",
+        "Trapped Ion Qubits", "Photonic Quantum Computing", "IonQ", "Rigetti Computing Inc", "Quantum Computing Inc", "D-Wave Quantum Inc"
+    ]
+}
 
 class GoogleTrendsMonitor:
     def __init__(self, config):
+        self.debug_mode = config.get('debug_mode', False)
         print("[INFO] Initializing GoogleTrendsMonitor...")
         self.config = config
+        
+        # Process sectors if provided in config. Default to ["All"].
+        sectors = self.config.get("sectors", ["All"])
+        if isinstance(sectors, list) and len(sectors) == 1 and sectors[0].lower() == "all":
+            # Flatten all keywords from all sectors
+            self.config["keywords"] = []
+            for sector_keywords in TRENDING_KEYWORDS.values():
+                self.config["keywords"].extend(sector_keywords)
+        elif isinstance(sectors, list):
+            # Use only the keywords from the specified sectors
+            self.config["keywords"] = []
+            for sector in sectors:
+                if sector.lower() == "all":
+                    # If "All" is included, add all keywords
+                    for sector_keywords in TRENDING_KEYWORDS.values():
+                        self.config["keywords"].extend(sector_keywords)
+                elif sector in TRENDING_KEYWORDS:
+                    self.config["keywords"].extend(TRENDING_KEYWORDS[sector])
+                else:
+                    if self.debug_mode:
+                        print(f"[WARNING] Sector '{sector}' not found. Skipping.")
+        else:
+            # Fallback: use all sectors
+            self.config["keywords"] = []
+            for sector_keywords in TRENDING_KEYWORDS.values():
+                self.config["keywords"].extend(sector_keywords)
+
+        
         self.pytrends = TrendReq(hl='en-US', tz=360)
         self.previous_trend_data = {}
-        self.debug_mode = config.get('debug_mode', False)
         # Initialize LLMHandler
         self.llm_handler = LLMHandler(
             llm_provider=config.get('llm_provider', 'openai'),
@@ -62,40 +95,43 @@ class GoogleTrendsMonitor:
     
     async def fetch_batch(self, batch):
         """Fetches Google Trends data for a batch of keywords asynchronously."""
-        print(f"[INFO] Fetching trends for batch: {batch}")
-        max_retries = 3
-        retry_delay = 0.5  # seconds
-        
+        if self.debug_mode:
+            print(f"[INFO] Fetching trends for batch: {batch}")
+        max_retries = self.config.get('max_retries', 4)
+        retry_delay = self.config.get('retry_delay', 0.75)  # seconds
+
         for attempt in range(max_retries):
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 result = await loop.run_in_executor(None, self._sync_fetch_batch, batch)
-                # Add delay between successful batches
                 await asyncio.sleep(1)  # 1 second delay between batches
                 return result
             except Exception as e:
                 if "429" in str(e):
                     wait_time = (attempt + 1) * retry_delay
-                    print(f"[WARNING] Rate limit hit. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
+                    if self.debug_mode:
+                        print(f"[WARNING] Rate limit hit. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
                     await asyncio.sleep(wait_time)
                 else:
-                    print(f"[ERROR] Unexpected error in fetch_batch: {e}")
+                    if self.debug_mode:
+                        print(f"[ERROR] Unexpected error in fetch_batch: {e}")
                     raise e
-                
-        print(f"[ERROR] Failed to fetch batch after {max_retries} retries: {batch}")
+
+        if self.debug_mode:
+            print(f"[ERROR] Failed to fetch batch after {max_retries} retries: {batch}")
         return None
 
     def _sync_fetch_batch(self, batch):
         """Synchronous function for fetching Google Trends data in a batch."""
         try:
-            self.pytrends.build_payload(batch, cat=0, timeframe='now 7-d', geo=self.config['region'], gprop='')
+            self.pytrends.build_payload(batch, cat=0, timeframe=self.fixed_timeframe, geo=self.config['region'], gprop='')
             trends = self.pytrends.interest_over_time()
             if not trends.empty:
                 return trends.drop(columns=['isPartial'], errors='ignore')
         except Exception as e:
             raise Exception(f"The request failed: {str(e)}")
         return None
-    
+
     async def fetch_trends(self):
         """Fetches Google Trends data asynchronously in batches of 5 keywords."""
         print("[INFO] Fetching trends data...")
@@ -157,15 +193,22 @@ class GoogleTrendsMonitor:
         debug_df = debug_df.sort_values('Change (%)', ascending=False).head(10)
         print(tabulate(debug_df, headers='keys', tablefmt='pretty', showindex=False))
 
+
     def detect_spike(self, trends):
         """Detects a search spike based on the defined threshold and logs spike scores."""
         print("[INFO] Detecting spikes...")
         spikes_detected = []
         spike_details = {}
         
-        for keyword in trends.columns:  # Changed from self.config['keywords'] to trends.columns
+        # Use a minimum baseline for calculation to avoid huge percentages on near-zero values.
+        min_baseline = 1.0
+        # Skip processing keywords with very low average search volume.
+        min_avg_threshold = self.config.get("min_avg_threshold", 5)  # default threshold of 5
+        
+        for keyword in trends.columns:
             col_data = trends[keyword]
             
+            # If the column is a DataFrame, collapse it by taking the mean of each row.
             if isinstance(col_data, pd.DataFrame):
                 col_data = col_data.mean(axis=1)
             
@@ -178,28 +221,36 @@ class GoogleTrendsMonitor:
                 if not past_values.empty:
                     avg_past_value = past_values.mean()
                     
-                    if avg_past_value == 0:
-                        spike_score = 0
-                    else:
-                        spike_score = (current_value - avg_past_value) / avg_past_value
+                    # If the overall average is below our minimum threshold, skip this keyword.
+                    if avg_past_value < min_avg_threshold:
+                        if self.debug_mode:
+                            print(f"[DEBUG] Skipping {keyword} due to low average volume: {avg_past_value}")
+                        continue
                     
-                    # Store all spike scores, not just those above threshold
+                    # Use the larger of avg_past_value or min_baseline for stable calculation.
+                    baseline = avg_past_value if avg_past_value > min_baseline else min_baseline
+                    spike_score = (current_value - baseline) / baseline
+                    
+                    # Save the spike percentage (spike_score * 100)
                     spike_details[keyword] = round(spike_score * 100, 2)
                     
                     if spike_score > self.config['spike_threshold']:
                         spikes_detected.append(keyword)
-
+        
         if self.debug_mode:
             self._print_debug_spikes(spike_details)
-
+        
         return spikes_detected
+
+
+
 
     def _print_debug_spikes(self, spike_details):
         """Print debug information about detected spikes."""
         print("\n=== DEBUG: Top 10 Trending Keywords by Spike Score ===")
         if spike_details:
             spike_df = pd.DataFrame([
-                {'Keyword': k, 'Spike Score (%)': v, 'Above Threshold': v > self.config['spike_threshold'] * 100}
+                {'Keyword': k, 'Spike Score (%)': v, f'Above Threshold: {self.config["spike_threshold"] * 100}%': v > self.config['spike_threshold'] * 100}
                 for k, v in spike_details.items()
             ])
             spike_df = spike_df.sort_values('Spike Score (%)', ascending=False).head(10)
@@ -208,17 +259,99 @@ class GoogleTrendsMonitor:
         else:
             print("No trend data available")
 
-    def generate_report_topic(self, spikes):
-        """Generate a short textual report topic based on detected spikes."""
-        if not spikes:
-            return "No significant spikes detected"
-        return f"AI/Tech Discussion Spike Detected in: {', '.join(spikes)}"
+
+    def generate_report_topic(self, trending_keywords):
+        """Generates a report topic based on trending keywords with an emphasis on stock market effects.
+        
+        Args:
+            trending_keywords (list): List of keywords that are currently trending
+            
+        Returns:
+            str: Generated report topic that focuses on how the trends impact the stock market.
+        """
+        if not trending_keywords:
+            return "No significant trends detected."
+
+        current_date = datetime.now(timezone.utc)
+        date_limit = current_date - timedelta(days=self.time_interval)
+        formatted_date = date_limit.strftime('%Y-%m-%d')
+
+        system_prompt = SystemMessage(
+            content=f"""You are an AI that generates concise and insightful report topics focused on stock market implications. 
+            Your output should analyze how recent trends influence investor sentiment, stock price movements, and market dynamics. 
+            Today's date is {current_date.strftime('%Y-%m-%d')}. Ensure the topic is relevant within the past {self.time_interval} days (since {formatted_date}) unless stated otherwise."""
+                )
+
+        human_prompt = HumanMessage(
+            content=f"""Based on recent trends, generate a short, focused report topic that examines how the following trending keywords may affect the stock market:
+            {', '.join(trending_keywords)}.
+            Ensure that your topic is centered on market impact—such as shifts in stock valuations, investor sentiment, trading strategies, or overall market performance—within the past {self.time_interval} days (since {formatted_date}).
+
+            Example search topics:
+            1) "NVIDIA's AI Innovations and Their Impact on Stock Valuations Over the Past {self.time_interval} Days."
+            2) "How Recent Semiconductor Developments Are Shaping Market Sentiment in Tech Stocks Over the Past {self.time_interval} Days."
+            3) "Stock Market Reactions to the Latest Trends in Quantum Computing and AI Over the Past {self.time_interval} Days."
+            4) "Evaluating the Influence of Recent Google Trends Spikes on the Performance of Stock Market Leaders Over the Past {self.time_interval} Days."
+            5) "The Effect of Advances in Nuclear Fusion Technology on Energy Stocks Over the Past {self.time_interval} Days."
+
+            These examples are for inspiration; generate one unified search topic that highlights the stock market's response to these trends and only the past {self.time_interval} days.. 
+            If some keywords naturally cluster together, create a topic that reflects their combined market impact."""
+                )
+
+        response = self.llm_handler.language_model.invoke([system_prompt, human_prompt])
+        return response.content if response and response.content else "No relevant topic could be generated."
     
+    def _print_all_keywords_avg(self, trends_df):
+        """Prints a table of all keywords and their average search volume (and current value),
+        along with a count of the total configured keywords versus those fetched."""
+        print("\n=== DEBUG: All Keywords and Their Average Values ===")
+        
+        # Step 1: Calculate the total number of keywords you configured for the search.
+        total_keywords_configured = len(self.config["keywords"])
+        print(f"[DEBUG] Total Keywords Configured: {total_keywords_configured}")
+        
+        # Step 2: Count the number of keywords that were successfully fetched (i.e., columns in trends_df).
+        total_keywords_fetched = trends_df.shape[1]
+        print(f"[DEBUG] Total Keywords Fetched: {total_keywords_fetched}")
+        
+        # Step 3: Build a table with the current and average values for each fetched keyword.
+        all_data = []
+        for column in trends_df.columns:
+            current_value = trends_df[column].iloc[-1]
+            past_values = trends_df[column].iloc[:-1]
+            avg_value = past_values.mean() if not past_values.empty else 0
+            all_data.append({
+                'Keyword': column,
+                'Current Value': round(current_value, 2),
+                'Average Value': round(avg_value, 2)
+            })
+        
+        # Convert the data to a DataFrame and print as a formatted table.
+        all_df = pd.DataFrame(all_data)
+        print(tabulate(all_df, headers='keys', tablefmt='pretty', showindex=False))
+
+
+
     async def run_monitor(self):
         """Main function to fetch trends asynchronously and check for spikes."""
         print("[INFO] Running Google Trends Monitor...")
+        # Get the fixed timeframe as before...
+        self.run_end_time = datetime.now(timezone.utc)
+        time_window_minutes = self.config.get("time_window_minutes", 60)
+        self.run_start_time = self.run_end_time - timedelta(minutes=time_window_minutes)
+        run_start_hour = self.run_start_time.strftime('%Y-%m-%dT%H')
+        run_end_hour = self.run_end_time.strftime('%Y-%m-%dT%H')
+        self.fixed_timeframe = f"{run_start_hour} {run_end_hour}"
+        
+        if self.debug_mode:
+            print(f"[DEBUG] Fixed Timeframe: {self.fixed_timeframe}")
+
         trends = await self.fetch_trends()
         if trends is not None:
+            # New: Print a table of all keywords and their averages
+            if self.debug_mode:
+                self._print_all_keywords_avg(trends)
+                
             spikes = self.detect_spike(trends)
             
             if spikes:
@@ -229,24 +362,32 @@ class GoogleTrendsMonitor:
                     "trending_keywords": spikes,
                     "generated_topic": report_topic
                 }
-                print("[SUCCESS] Output Data:", output_data)  # Later, this can be stored in a database
+                print("[SUCCESS] Report Topic Generated")
+                if self.debug_mode:
+                    print("[SUCCESS] Output Data:", output_data)
+                    print("[INFO] Report Topic:", report_topic)
+                    print("[INFO] Trending Keywords:", spikes)
+                # else:
+                #     print("[SUCCESS] Output Data:", output_data)  
+
 
 def main():
-    print("[INFO] Starting Google Trends Monitor...")  # Ensure script starts
+    print("[INFO] Starting Google Trends Monitor...")
     config = {
-        "keywords": TRENDING_KEYWORDS,
+        "keywords": [],  # Will be set based on sectors below
         "region": "US",
-        "spike_threshold": 0.15,  # Adjusted to 15% increase threshold
-        "refresh_interval_minutes": 15,  # In minutes
-        "time_interval": 3,
+        "spike_threshold": 0.75,  # How much the trend has to increase to be considered a spike
+        "time_window_minutes": 180,  # Query time window in minutes
+        "time_interval": 3, # 3 days how long to look back for the trends
+        "min_avg_threshold": 30,  # Only consider keywords with an average above a minimum threshold
         "llm_provider": "openai",
         "max_tokens": 1024,
         "temperature": 0.2,
-        "debug_mode": True
+        "debug_mode": True,
+        "sectors": ["All"],  # Change to a list like ["Tech & Semiconductors", "AI & Machine Learning"] to filter by sectors
+        "max_retries": 4,    # Maximum number of retry attempts for failed requests
+        "retry_delay": 1.5  # Base delay between retries in seconds
     }
-
-    # Convert refresh_interval from minutes to milliseconds
-    config["refresh_interval"] = config["refresh_interval_minutes"] * 60 * 1000
 
     monitor = GoogleTrendsMonitor(config)
     

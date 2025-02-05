@@ -21,6 +21,8 @@ from validate_api_keys import validate_api_keys
 from llm_handler import LLMHandler
 from report_models import ReportState
 
+# Import the Google Trends Monitor module
+from google_trends_monitor import GoogleTrendsMonitor, TRENDING_KEYWORDS
 
 # ===========================
 # Python & Package Validation
@@ -92,19 +94,47 @@ def main():
     print(f"\n✅ LLM Handler initialized with provider: {llm_provider} using model {model_name}.")
 
     # Toggle this to enable/disable test mode
-    test_mode = True  # Change to True for testing
+    test_mode = False  # Change to True for testing
+
+    # ---------------------------
+    # New Step: Generate report topic from trends
+    # ---------------------------
+    # Set up configuration for the Google Trends Monitor
+    monitor_config = {
+        "keywords": TRENDING_KEYWORDS,
+        "region": "US",
+        "spike_threshold": 0.75,  # Adjusted to 15% increase threshold
+        "refresh_interval_minutes": 3600,  # In minutes
+        "time_interval": 3, # 3 days how long to look back for the trends
+        "llm_provider": "openai",
+        "max_tokens": 1024,
+        "temperature": 0.2,
+        "debug_mode": test_mode
+    }
+    # Convert refresh_interval from minutes to milliseconds
+    monitor_config["refresh_interval"] = monitor_config["refresh_interval_minutes"] * 60 * 1000
+    trends_monitor = GoogleTrendsMonitor(monitor_config)
+    
+
+    # Generate the report topic based on trending keywords
+    trends_monitor_output = asyncio.run(trends_monitor.run_monitor())
+    report_topic = trends_monitor_output["generated_topic"]
+    
+    print(f"📌 Generated Report Topic: {report_topic}")
+
+
+    # ---------------------------
+    # End of trend integration
+    # ---------------------------
 
     # Step 5: Gather user input for report configuration **BEFORE GRAPH BUILDER SETUP**
     if test_mode:
         print("\n🧪 Test mode enabled! Using predefined inputs...\n")
         print("\n llm_settings: ", llm_settings)
-        report_topic = "Give an overview of capabilities and specific use case examples for these processing units: CPU, GPU"
-        size_choice = "Concise"
-        print(f"📌 Report Topic: {report_topic}")
+        size_choice = input("Enter report size (Concise, Standard, Detailed, Comprehensive): ").strip()
         print(f"📌 Report Size: {size_choice}")
     else:
-        report_topic = input("\nEnter the report topic: ").strip()
-        size_choice = input("Enter report size (Concise, Standard, Detailed, Comprehensive): ").strip()
+        size_choice = "Concise"
 
     # Step 6: Set report size and import formatted prompts  
     # 🚨 Set report size BEFORE importing any graph-related code!

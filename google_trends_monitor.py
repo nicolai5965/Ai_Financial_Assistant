@@ -8,6 +8,7 @@ import pandas as pd
 import warnings
 from tabulate import tabulate
 from datetime import timedelta
+import time
 
 # ===========================
 # Load Environment Variables
@@ -21,31 +22,36 @@ warnings.simplefilter("ignore", category=FutureWarning)
 # Predefined Keywords by Sector
 # ===========================
 TRENDING_KEYWORDS = {
-    # AI & Machine Learning
-    "AI & Machine Learning": [
-        "Artificial Intelligence", "Machine Learning", "Deep Learning", "Neural Networks", 
-        "GPT", "LLM", "OpenAI", "Anthropic", "Stable Diffusion", "AI Ethics", "Reinforcement Learning", 
-        "NLP", "Computer Vision", "AI Regulation", "AI Bias", "AGI", "Federated Learning", 
-        "AutoGPT", "AI Agents", "AI Hardware"
+    # Tech Giants
+    "Tech Giants": [
+        "Apple", "Microsoft", "Amazon", "Alphabet", "Meta"
     ],
-    # Tech & Semiconductors
-    "Tech & Semiconductors": [
-        "NVIDIA", "AMD", "Intel", "TSMC", "ARM", "RISC-V", "Chip Shortage", "AI Chips", "Quantum Processors", 
-        "Moore's Law", "5nm Chips", "3nm Chips", "Edge Computing", "Cloud Computing", "Meta", "Google DeepMind", 
-        "Apple AI", "AI Smartphones", "Tesla FSD", "AI in Healthcare"
+    # Semiconductor Leaders
+    "Semiconductor Leaders": [
+        "NVIDIA", "AMD", "Intel", "TSMC", "Qualcomm"
     ],
-    # Nuclear Energy & Fusion
-    "Nuclear Energy & Fusion": [
-        "Nuclear Fusion", "ITER", "Tokamak", "Plasma Confinement", "Helion Energy", "General Fusion", 
-        "Small Modular Reactors", "Thorium Reactors", "Fusion Breakthrough", "Neutron Capture"
+    # AI Innovators
+    "AI Innovators": [
+        "OpenAI", "Anthropic", "DeepMind", "Cerebras", "Hugging Face"
+    ],
+    # Cloud & Software
+    "Cloud & Software": [
+        "Salesforce", "Oracle", "Adobe", "SAP", "ServiceNow"
+    ],
+    # Automotive & Autonomous
+    "Automotive & Autonomous": [
+        "Tesla", "Waymo", "NIO", "Lucid Motors", "GM Cruise"
     ],
     # Quantum Computing
     "Quantum Computing": [
-        "Quantum Computing", "Qubit", "Quantum Supremacy", "IBM Quantum", "Google Quantum", 
-        "Quantum Cryptography", "Quantum Entanglement", "Quantum Key Distribution", "Superconducting Qubits",
-        "Trapped Ion Qubits", "Photonic Quantum Computing", "IonQ", "Rigetti Computing Inc", "Quantum Computing Inc", "D-Wave Quantum Inc"
+        "IBM Quantum", "D-Wave", "IonQ", "Rigetti Computing Inc", "Google Quantum"
+    ],
+    # Renewable Energy
+    "Renewable Energy": [
+        "NextEra Energy", "Enphase Energy", "SolarEdge", "First Solar", "SunPower"
     ]
 }
+
 
 class GoogleTrendsMonitor:
     def __init__(self, config):
@@ -104,7 +110,8 @@ class GoogleTrendsMonitor:
             try:
                 loop = asyncio.get_running_loop()
                 result = await loop.run_in_executor(None, self._sync_fetch_batch, batch)
-                await asyncio.sleep(1)  # 1 second delay between batches
+                # Add sleep after successful fetch to avoid rate limiting
+                await asyncio.sleep(2)  # Wait for 2 seconds between batches
                 return result
             except Exception as e:
                 if "429" in str(e):
@@ -129,8 +136,9 @@ class GoogleTrendsMonitor:
             if not trends.empty:
                 return trends.drop(columns=['isPartial'], errors='ignore')
         except Exception as e:
-            raise Exception(f"The request failed: {str(e)}")
-        return None
+            print(f"Error fetching batch {batch}: {e}")
+            return None
+
 
     async def fetch_trends(self):
         """Fetches Google Trends data asynchronously in batches of 5 keywords."""
@@ -242,9 +250,6 @@ class GoogleTrendsMonitor:
         
         return spikes_detected
 
-
-
-
     def _print_debug_spikes(self, spike_details):
         """Print debug information about detected spikes."""
         print("\n=== DEBUG: Top 10 Trending Keywords by Spike Score ===")
@@ -303,34 +308,64 @@ class GoogleTrendsMonitor:
     
     def _print_all_keywords_avg(self, trends_df):
         """Prints a table of all keywords and their average search volume (and current value),
-        along with a count of the total configured keywords versus those fetched."""
+        along with counts:
+            - Total keywords configured.
+            - Total keywords fetched.
+            - Keywords with no data returned.
+            - Keywords passing the minimum average threshold.
+            - Keywords removed due to low average.
+        """
         print("\n=== DEBUG: All Keywords and Their Average Values ===")
         
-        # Step 1: Calculate the total number of keywords you configured for the search.
-        total_keywords_configured = len(self.config["keywords"])
-        print(f"[DEBUG] Total Keywords Configured: {total_keywords_configured}")
+        # Step 1: Total keywords originally configured.
+        total_configured = len(self.config["keywords"])
+        configured_set = set(self.config["keywords"])
         
-        # Step 2: Count the number of keywords that were successfully fetched (i.e., columns in trends_df).
-        total_keywords_fetched = trends_df.shape[1]
-        print(f"[DEBUG] Total Keywords Fetched: {total_keywords_fetched}")
+        # Step 2: Total keywords fetched (columns in trends_df).
+        total_fetched = trends_df.shape[1]
+        fetched_set = set(trends_df.columns)
         
-        # Step 3: Build a table with the current and average values for each fetched keyword.
+        # Step 3: Determine which configured keywords did not return any data.
+        missing_keywords = list(configured_set - fetched_set)
+        missing_count = len(missing_keywords)
+        
+        # Step 4: Process fetched keywords to build the table and filter based on average.
+        min_avg_threshold = self.config.get("min_avg_threshold", 5)
+        passed_keywords = []
+        removed_keywords = []
         all_data = []
+        
         for column in trends_df.columns:
             current_value = trends_df[column].iloc[-1]
             past_values = trends_df[column].iloc[:-1]
             avg_value = past_values.mean() if not past_values.empty else 0
+            
             all_data.append({
                 'Keyword': column,
                 'Current Value': round(current_value, 2),
                 'Average Value': round(avg_value, 2)
             })
+            
+            if avg_value >= min_avg_threshold:
+                passed_keywords.append(column)
+            else:
+                removed_keywords.append(column)
         
-        # Convert the data to a DataFrame and print as a formatted table.
+        passed_count = len(passed_keywords)
+        removed_count = len(removed_keywords)
+        
+        # Step 5: Print out the counts.
+        print(f"[DEBUG] Total Keywords Configured: {total_configured}")
+        print(f"[DEBUG] Total Keywords Fetched: {total_fetched}")
+        print(f"[DEBUG] Missing Keywords (No Data Returned): {missing_count}")
+        if missing_keywords:
+            print(f"[DEBUG] Missing Keywords: {', '.join(missing_keywords)}")
+        print(f"[DEBUG] Keywords passing min average threshold ({min_avg_threshold}): {passed_count}")
+        print(f"[DEBUG] Keywords removed due to low average: {removed_count}")
+        
+        # Step 6: Print the table of fetched keywords with their current and average values.
         all_df = pd.DataFrame(all_data)
         print(tabulate(all_df, headers='keys', tablefmt='pretty', showindex=False))
-
-
 
     async def run_monitor(self):
         """Main function to fetch trends asynchronously and check for spikes."""
@@ -367,8 +402,6 @@ class GoogleTrendsMonitor:
                     print("[SUCCESS] Output Data:", output_data)
                     print("[INFO] Report Topic:", report_topic)
                     print("[INFO] Trending Keywords:", spikes)
-                # else:
-                #     print("[SUCCESS] Output Data:", output_data)  
 
 
 def main():
@@ -376,18 +409,21 @@ def main():
     config = {
         "keywords": [],  # Will be set based on sectors below
         "region": "US",
-        "spike_threshold": 0.75,  # How much the trend has to increase to be considered a spike
-        "time_window_minutes": 180,  # Query time window in minutes
+        "spike_threshold": 0.10,  # How much the trend has to increase to be considered a spike
+        "time_window_minutes": 3600,  # Query time window in minutes
         "time_interval": 3, # 3 days how long to look back for the trends
         "min_avg_threshold": 30,  # Only consider keywords with an average above a minimum threshold
         "llm_provider": "openai",
         "max_tokens": 1024,
         "temperature": 0.2,
         "debug_mode": True,
-        "sectors": ["All"],  # Change to a list like ["Tech & Semiconductors", "AI & Machine Learning"] to filter by sectors
+        "sectors": ["Semiconductor Leaders"],  # Change to a list like ["Tech & Semiconductors", "AI & Machine Learning"] to filter by sectors
         "max_retries": 4,    # Maximum number of retry attempts for failed requests
-        "retry_delay": 1.5  # Base delay between retries in seconds
+        "retry_delay": 1.5,  # Base delay between retries in seconds
+        "request_sleep": 2
     }
+
+
 
     monitor = GoogleTrendsMonitor(config)
     

@@ -101,26 +101,36 @@ def main():
     # ---------------------------
     # Set up configuration for the Google Trends Monitor
     monitor_config = {
-        "keywords": TRENDING_KEYWORDS,
+        "keywords": [],  # Will be set based on sectors below
         "region": "US",
-        "spike_threshold": 0.75,  # Adjusted to 15% increase threshold
-        "refresh_interval_minutes": 3600,  # In minutes
+        "spike_threshold": 0.10,  # How much the trend has to increase to be considered a spike
+        "time_window_minutes": 3600,  # Query time window in minutes
         "time_interval": 3, # 3 days how long to look back for the trends
+        "min_avg_threshold": 30,  # Only consider keywords with an average above a minimum threshold
         "llm_provider": "openai",
         "max_tokens": 1024,
         "temperature": 0.2,
-        "debug_mode": test_mode
+        "debug_mode": False,
+        "sectors": ["Semiconductor Leaders"],  # Change to a list like ["Tech & Semiconductors", "AI & Machine Learning"] to filter by sectors
+        "max_retries": 4,    # Maximum number of retry attempts for failed requests
+        "retry_delay": 1.5,  # Base delay between retries in seconds
+        "request_sleep": 2
     }
     # Convert refresh_interval from minutes to milliseconds
-    monitor_config["refresh_interval"] = monitor_config["refresh_interval_minutes"] * 60 * 1000
+
     trends_monitor = GoogleTrendsMonitor(monitor_config)
     
-
     # Generate the report topic based on trending keywords
     trends_monitor_output = asyncio.run(trends_monitor.run_monitor())
-    report_topic = trends_monitor_output["generated_topic"]
     
+    if trends_monitor_output is None or trends_monitor_output["generated_topic"] == "":
+        print("❌ No report topic generated. Exiting.")
+        sys.exit(1)
+
+    report_topic = trends_monitor_output["generated_topic"]
+
     print(f"📌 Generated Report Topic: {report_topic}")
+
 
 
     # ---------------------------

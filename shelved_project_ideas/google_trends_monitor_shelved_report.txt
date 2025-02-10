@@ -1,0 +1,28 @@
+**Report on the Decision to Discontinue Google Trends-based Report Generation**
+
+**Background:**
+The original implementation of the Google Trends-based report generation aimed to identify trending financial topics for enhanced stock market analysis. By leveraging the Pytrends package, the system attempted to gather search trend data for various sectors, including technology, AI, quantum computing, and renewable energy.
+
+**Reasons for Discontinuation:**
+
+1. **Persistent HTTP 429 Errors (Rate Limiting by Google):**
+   - The primary reason for shelving this approach was the frequent occurrence of HTTP 429 errors.
+   - This error indicates that Google flagged the requests as scraping behavior and consistently denied access to trend data.
+   - Despite implementing retry logic and throttling mechanisms, the issue persisted, making the method unreliable for continuous operation.
+
+2. **Inconsistent Data Compared to Google Trends Website:**
+   - The trends data retrieved via Pytrends often did not align with the actual trends displayed on the Google Trends website.
+   - This discrepancy raised concerns about the accuracy and reliability of the data being used for financial reports.
+   - As a result, the output could not be trusted for making informed stock market predictions.
+
+**Alternative Approaches Considered:**
+- Exploring alternative data sources such as:
+  - **Official APIs:** If Google releases an official API with higher reliability and compliance, it may be reconsidered.
+  - **Financial News Aggregators:** APIs like Alpha Vantage, Yahoo Finance, or Bloomberg for more accurate real-time financial trends.
+  - **Social Media Analysis:** Using sentiment analysis from platforms like Twitter, Reddit, or alternative trend-tracking tools.
+
+**Conclusion:**
+Due to the unreliable nature of Pytrends data retrieval and the high likelihood of being blocked by Google, this implementation has been shelved. Although it provided an interesting concept for generating market-driven topics, the execution faced fundamental roadblocks. The approach may be revisited in the future if Google introduces a more stable and compliant data retrieval method.
+
+For now, focus will shift toward exploring more reliable data sources for financial trend analysis and investment decision-making.
+

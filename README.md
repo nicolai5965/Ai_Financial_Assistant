@@ -77,7 +77,7 @@ It uses **LLMs** (initially OpenAI and Anthropic) to craft reports and a **web s
 
 # Current File Structure
 
-Here’s an overview of the present files and directories (this may grow or change as functionality is added):
+Here's an overview of the present files and directories (this may grow or change as functionality is added):
 
 1. **main.py**: Orchestrates the overall code flow (report generation, searching, etc.).  
 2. **validate_api_keys.py**: Validates environment variables and API keys.  
@@ -87,7 +87,11 @@ Here’s an overview of the present files and directories (this may grow or chan
 6. **report_models.py**: Defines typed dictionaries and Pydantic models for sections, states, etc.  
 7. **structured_report_nodes.py**: Node functions (writing sections, searching, final compilation).  
 8. **search_results_formatter.py**: Deduplicates and formats web search results.  
-9. **requirements.txt**: Lists Python dependencies.  
-10. **.env**: Stores API keys and environment variables (excluded from version control).
+9. **url_topic_analyzer.py**: Analyzes URLs to extract and categorize topics.
+10. **hackernews_tracker.py**: Tracks and analyzes Hacker News posts and discussions.
+11. **.cursorrules**: Configuration rules for the Cursor IDE.
+12. **.gitignore**: Specifies which files Git should ignore.
+13. **requirements.txt**: Lists Python dependencies.  
+14. **.env**: Stores API keys and environment variables (excluded from version control).
 
 Additional modules or reorganized directories may emerge as the project expands (e.g., a `database.py` for future integrations, or a `docs/` folder for more extensive project documentation).

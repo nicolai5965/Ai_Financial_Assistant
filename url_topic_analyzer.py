@@ -56,7 +56,7 @@ class InvestmentTopicAnalyzer:
     """
     A class that uses a Language Model to analyze an article and generate investment topics.
     """
-    def __init__(self, model="gemini-2.0-flash", time_interval="7", google_api_key=None):
+    def __init__(self, model="gemini-2.0-flash", time_interval="3", google_api_key=None):
         """
         Initialize the analyzer.
 

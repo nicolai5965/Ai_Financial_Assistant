@@ -21,8 +21,6 @@ from validate_api_keys import validate_api_keys
 from llm_handler import LLMHandler
 from report_models import ReportState
 
-# Import the Google Trends Monitor module
-from google_trends_monitor import GoogleTrendsMonitor, TRENDING_KEYWORDS
 
 # ===========================
 # Python & Package Validation
@@ -103,6 +101,7 @@ def main():
         print("\n llm_settings: ", llm_settings)
         size_choice = input("Enter report size (Concise, Standard, Detailed, Comprehensive): ").strip()
         print(f"📌 Report Size: {size_choice}")
+        report_topic = input("Enter report topic: ").strip()
     else:
         size_choice = "Concise"
 

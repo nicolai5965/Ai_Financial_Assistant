@@ -1,8 +1,9 @@
 import os
 import datetime
 from uuid import uuid4
-from langchain_openai import ChatOpenAI # type: ignore
-from langchain_anthropic import ChatAnthropic # type: ignore
+from langchain_openai import ChatOpenAI  # type: ignore
+from langchain_anthropic import ChatAnthropic  # type: ignore
+from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore
 
 class LLMHandler:
     """
@@ -14,7 +15,7 @@ class LLMHandler:
         Initialize the language model handler.
 
         Parameters:
-        - llm_provider (str): The name of the language model provider ('openai' or 'anthropic').
+        - llm_provider (str): The name of the language model provider ('openai', 'anthropic', or 'google').
         - max_tokens (int): Maximum number of tokens for the generated response.
         - temperature (float): Sampling temperature for the language model.
         - model_name (str, optional): The name of the model to use. If not provided, defaults will be used.
@@ -31,7 +32,7 @@ class LLMHandler:
         }
         self.common_tags = ["user_interaction", "query_handling", self.llm_provider]
 
-        # Set default model names if not provided
+        # Set default model names if not provided and initialize the language model
         if self.llm_provider == "openai":
             default_model_name = 'gpt-4o-mini'
             model_name = model_name or default_model_name
@@ -43,7 +44,7 @@ class LLMHandler:
                 temperature=self.temperature,
                 tags=self.common_tags,
                 metadata=self.common_metadata,
-                name="CustomChainName"
+                name="LLMChainOpenAI"
             )
         elif self.llm_provider == "anthropic":
             default_model_name = 'claude-3-haiku-20240307'
@@ -56,11 +57,27 @@ class LLMHandler:
                 temperature=self.temperature,
                 tags=self.common_tags,
                 metadata=self.common_metadata,
-                name="CustomChainName"
+                name="LLMChainAnthropic"
+            )
+        elif self.llm_provider == "google":
+            default_model_name = 'gemini-2.0-flash'
+            model_name = model_name or default_model_name
+            google_api_key = os.getenv("GEMINI_API_KEY")
+
+            # Initialize Google's ChatGenerative model with additional tags and metadata
+            self.language_model = ChatGoogleGenerativeAI(
+                model=model_name,
+                google_api_key=google_api_key,
+                temperature=self.temperature,
+                tags=self.common_tags,
+                metadata=self.common_metadata,
+                name="LLMChainGoogle"
             )
         else:
             # Raise error for invalid provider
-            raise ValueError(f"Invalid llm_provider '{llm_provider}'. Must be either 'openai' or 'anthropic'.")
+            raise ValueError(
+                f"Invalid llm_provider '{llm_provider}'. Must be either 'openai', 'anthropic', or 'google'."
+            )
 
     def show_settings(self):
         """
@@ -101,4 +118,3 @@ class LLMHandler:
             }
         }
         return settings
-

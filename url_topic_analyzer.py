@@ -3,7 +3,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from llm_handler import LLMHandler
 import sys
 import argparse
 
@@ -68,7 +68,7 @@ class InvestmentTopicAnalyzer:
         # Ensure environment variables are loaded
         load_dotenv()
         self.google_api_key = google_api_key or os.getenv("GEMINI_API_KEY")
-        self.llm = ChatGoogleGenerativeAI(model=model, google_api_key=self.google_api_key, temperature=0)
+        self.llm = LLMHandler(llm_provider="google", model_name=model, temperature=0).language_model
         self.time_interval = time_interval
 
         # System prompt instructs the LLM on its role and desired output format.

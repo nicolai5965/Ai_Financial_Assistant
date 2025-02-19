@@ -89,9 +89,10 @@ Here's an overview of the present files and directories (this may grow or change
 8. **search_results_formatter.py**: Deduplicates and formats web search results.  
 9. **url_topic_analyzer.py**: Analyzes URLs to extract and categorize topics.
 10. **hackernews_tracker.py**: Tracks and analyzes Hacker News posts and discussions.
-11. **.cursorrules**: Configuration rules for the Cursor IDE.
-12. **.gitignore**: Specifies which files Git should ignore.
-13. **requirements.txt**: Lists Python dependencies.  
-14. **.env**: Stores API keys and environment variables (excluded from version control).
+11. **hackernews_url_analyzer_pipeline.py**: Integrates HN tracking and URL analysis in a parallel processing pipeline.
+12. **.cursorrules**: Configuration rules for the Cursor IDE.
+13. **.gitignore**: Specifies which files Git should ignore.
+14. **requirements.txt**: Lists Python dependencies.  
+15. **.env**: Stores API keys and environment variables (excluded from version control).
 
 Additional modules or reorganized directories may emerge as the project expands (e.g., a `database.py` for future integrations, or a `docs/` folder for more extensive project documentation).

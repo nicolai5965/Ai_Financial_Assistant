@@ -182,7 +182,7 @@ async def main():
     # Configuration dictionary for non-hardcoded values.
     config = {
         "num_stories": 10,
-        "min_trending_score": 5.0,
+        "min_trending_score": 1.0,
         "back_in_time_hours": 24  # Only consider stories from the past 24 hours.
     }
     

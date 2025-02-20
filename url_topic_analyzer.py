@@ -1,74 +1,50 @@
 import os
 import time
-import requests
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from llm_handler import LLMHandler
 import sys
 import argparse
+import logging
+from typing import Dict, Union, Optional
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
-
-class ArticleFetcher:
-    """
-    A class responsible for fetching and extracting article text from a URL.
-    """
-    def __init__(self):
-        self.headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/98.0.4758.102 Safari/537.36"
-            ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5"
-        }
-    
-    def fetch_article_text(self, url):
-        """
-        Fetch the text content from an article URL.
-
-        Args:
-            url (str): The URL to fetch.
-            
-        Returns:
-            str: The extracted article text.
-            
-        Raises:
-            requests.exceptions.RequestException: If there's an error fetching the article.
-            ValueError: If the article text cannot be extracted.
-        """
-        response = requests.get(url, headers=self.headers)
-        response.raise_for_status()  # Raises an exception for bad status codes
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        article_text = soup.get_text(strip=True)
-        
-        if not article_text:
-            raise ValueError("Could not extract text from the article")
-            
-        return article_text
-
-
 class InvestmentTopicAnalyzer:
     """
-    A class that uses a Language Model to analyze an article and generate investment topics.
+    A class that uses a Language Model to analyze article content and generate investment topics.
     """
-    def __init__(self, model="gemini-2.0-flash", time_interval="3", google_api_key=None):
+    def __init__(
+        self, 
+        model: str = "gemini-2.0-flash", 
+        time_interval: str = "3", 
+        llm_provider: str = "google",
+        google_api_key: Optional[str] = None
+    ):
         """
         Initialize the analyzer.
 
         Args:
-            model (str): The model name.
-            time_interval (str): The time window (in days) used in search topic prompts.
-            google_api_key (str): Your API key for the LLM.
+            model (str): The model name to use for analysis
+            time_interval (str): The time window (in days) used in search topic prompts
+            llm_provider (str): The LLM provider to use (e.g., "google", "openai")
+            google_api_key (str, optional): Your API key for the LLM
         """
         # Ensure environment variables are loaded
         load_dotenv()
         self.google_api_key = google_api_key or os.getenv("GEMINI_API_KEY")
-        self.llm = LLMHandler(llm_provider="google", model_name=model, temperature=0).language_model
+        self.llm = LLMHandler(
+            llm_provider=llm_provider, 
+            model_name=model, 
+            temperature=0
+        ).language_model
         self.time_interval = time_interval
 
         # System prompt instructs the LLM on its role and desired output format.
@@ -108,15 +84,15 @@ Follow the system instructions: generate a concise summary, create a unified sea
         )
 
 
-    def generate_analysis(self, article_text):
+    def generate_analysis(self, article_text: str) -> Dict[str, Union[str, float]]:
         """
         Generate an analysis based on the article text.
 
         Args:
-            article_text (str): The text content of the article.
+            article_text (str): The text content of the article
             
         Returns:
-            dict: A dictionary containing the LLM response along with metadata.
+            Dict[str, Union[str, float]]: A dictionary containing the LLM response along with metadata
         """
         # Fill in the human prompt with the article text.
         human_prompt = self.human_prompt_template.format(article_text=article_text)
@@ -137,64 +113,72 @@ Follow the system instructions: generate a concise summary, create a unified sea
         }
 
 
-def analyze_article(url, time_interval="3", test_mode=False):
+def analyze_article_content(
+    article_text: str, 
+    time_interval: str = "3", 
+    llm_provider: str = "google",
+    test_mode: bool = False
+) -> Union[Dict, str]:
     """
-    Fetches an article from the given URL, analyzes it using the InvestmentTopicAnalyzer, 
-    and returns the result.
+    Analyzes the provided article content using the InvestmentTopicAnalyzer.
 
     Args:
-        url (str): The URL of the article to analyze.
-        time_interval (str): Time interval (in days) for context in analysis.
-        test_mode (bool): If True, returns detailed analysis (including metadata), otherwise returns only the content.
+        article_text (str): The text content to analyze
+        time_interval (str): Time interval (in days) for context in analysis
+        llm_provider (str): The LLM provider to use (e.g., "google", "openai")
+        test_mode (bool): If True, returns detailed analysis (including metadata)
 
     Returns:
-        dict or str: Analysis result as a dictionary (if test_mode is True) or string (if test_mode is False).
+        Union[Dict, str]: Analysis result as a dictionary (if test_mode is True) or string (if test_mode is False)
 
     Raises:
-        Exception: Propagates any exceptions from fetching or analyzing the article.
+        Exception: Propagates any exceptions from analyzing the article
     """
-    fetcher = ArticleFetcher()
-    article_text = fetcher.fetch_article_text(url)
-    
-    analyzer = InvestmentTopicAnalyzer(time_interval=time_interval)
+    analyzer = InvestmentTopicAnalyzer(time_interval=time_interval, llm_provider=llm_provider)
     analysis_result = analyzer.generate_analysis(article_text)
     
-    if test_mode == True:
-        print("Test mode is on!")
-        print("--------------------------------")
-        print("JSON: "  , analysis_result["json"])
-        print("Metadata: ", analysis_result["metadata"])
-        print("Usage: ", analysis_result["usage"])
-        print("Run ID: ", analysis_result["run_id"])
-        print("Latency: ", analysis_result["latency"])
+    if test_mode:
+        logger.info("Test mode is on!")
+        logger.info("--------------------------------")
+        logger.info(f"JSON: {analysis_result['json']}")
+        logger.info(f"Metadata: {analysis_result['metadata']}")
+        logger.info(f"Usage: {analysis_result['usage']}")
+        logger.info(f"Run ID: {analysis_result['run_id']}")
+        logger.info(f"Latency: {analysis_result['latency']}")
         return "--------------------------------"
-        
-    else:
-        content = analysis_result["content"]
-        # Remove markdown formatting if present
-        if content.startswith('```json'):
-            content = content[7:-3]  # Strip out markdown markers
-        return content
+    
+    content = analysis_result["content"]
+    # Remove markdown formatting if present
+    if content.startswith('```json'):
+        content = content[7:-3]  # Strip out markdown markers
+    return content
 
 
 def main():
     """
     CLI entry point for running the investment topic analyzer.
     """
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--url', type=str, required=True,
-                        help='URL of the article to analyze')
+    parser = argparse.ArgumentParser(description='Analyze article content for investment topics')
+    parser.add_argument('--content', type=str, required=True,
+                      help='Article content to analyze')
     parser.add_argument('--time_interval', type=str, default="3",
-                        help='Time interval (in days) for generating the analysis')
+                      help='Time interval (in days) for generating the analysis')
+    parser.add_argument('--llm_provider', type=str, default="google",
+                      help='LLM provider to use (e.g., "google", "openai")')
     parser.add_argument('--test', action='store_true', default=False,
-                        help='Run in test mode with detailed output')
+                      help='Run in test mode with detailed output')
     args = parser.parse_args()
 
     try:
-        result = analyze_article(url=args.url, time_interval=args.time_interval, test_mode=args.test)
+        result = analyze_article_content(
+            article_text=args.content,
+            time_interval=args.time_interval,
+            llm_provider=args.llm_provider,
+            test_mode=args.test
+        )
         print(result)
-    except (requests.exceptions.RequestException, ValueError) as e:
-        print(f"Error: {e}")
+    except Exception as e:
+        logger.error(f"Error during analysis: {e}")
         sys.exit(1)
 
 

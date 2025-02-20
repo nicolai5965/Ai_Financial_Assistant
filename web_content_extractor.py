@@ -6,6 +6,15 @@ from typing import Optional, Dict, Any, List
 from bs4 import BeautifulSoup
 
 # -----------------------------
+# Logging Configuration
+# -----------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+# -----------------------------
 # Crawl4AIScraper Definition
 # -----------------------------
 from crawl4ai import AsyncWebCrawler
@@ -108,7 +117,6 @@ class RequestsScraper:
     """
     def __init__(self, wait_time: float = 0.0):
         # Configure headers to mimic a real browser
-        # NOTE: These headers can be customized if needed
         self.headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -147,12 +155,21 @@ class RequestsScraper:
                 "text_content": text_content,
                 "extraction_method": "requests"
             }
-        except Exception as e:
+        except requests.RequestException as e:
+            status_code = response.status_code if 'response' in locals() and response is not None else None
             logging.error("Error fetching content from URL %s: %s", url, e)
             return {
                 "success": False,
                 "error": str(e),
-                "status_code": response.status_code if 'response' in locals() else None,
+                "status_code": status_code,
+                "url": url
+            }
+        except Exception as e:
+            logging.error("Unexpected error fetching content from URL %s: %s", url, e)
+            return {
+                "success": False,
+                "error": str(e),
+                "status_code": None,
                 "url": url
             }
 
@@ -164,18 +181,9 @@ async def process_url(url: str, config: Dict[str, Any]) -> Dict[str, Any]:
     Process a single URL using the configured primary method,
     and optionally a fallback if the primary fails.
     
-    Args:
-        url: The URL to process.
-        config: A dict with keys such as:
-            - primary_method: "crawl4ai" or "requests"
-            - fallback_enabled: bool
-            - word_count_threshold: int (for crawl4ai)
-            - page_timeout: int (for crawl4ai)
-            - wait_time: float (for requests)
-    
-    Returns:
-        A dictionary containing the output from whichever scraper succeeds.
+    Logs key checkpoints for processing.
     """
+    logging.info("Starting processing for URL: %s", url)
     primary_method = config.get("primary_method", "crawl4ai").lower()
     fallback_enabled = config.get("fallback_enabled", True)
     result = None
@@ -189,16 +197,28 @@ async def process_url(url: str, config: Dict[str, Any]) -> Dict[str, Any]:
     
     # Try primary method first
     if primary_method == "crawl4ai":
+        logging.info("Using primary method Crawl4AIScraper for URL: %s", url)
         scraper = Crawl4AIScraper(config=config)
         result = await scraper.fetch_content(url)
         # Fallback to requests if needed
         if not (result and result.get("success")) and fallback_enabled:
+            error_detail = result.get("error") if result else "Unknown error"
+            logging.warning("Crawl4AIScraper failed for URL %s with error: %s. Falling back to RequestsScraper.", url, error_detail)
             result = await fetch_with_requests(url)
     else:  # primary_method is "requests"
+        logging.info("Using primary method RequestsScraper for URL: %s", url)
         result = await fetch_with_requests(url)
         if not (result and result.get("success")) and fallback_enabled:
+            error_detail = result.get("error") if result else "Unknown error"
+            logging.warning("RequestsScraper failed for URL %s with error: %s. Falling back to Crawl4AIScraper.", url, error_detail)
             scraper = Crawl4AIScraper(config=config)
             result = await scraper.fetch_content(url)
+    
+    if result.get("success"):
+        logging.info("Successfully processed URL: %s using method: %s", url, result.get("extraction_method"))
+    else:
+        logging.error("Failed to process URL: %s after trying both Crawl4AIScraper and RequestsScraper.", url)
+    logging.info("Completed processing for URL: %s", url)
     return result
 
 # -----------------------------
@@ -209,26 +229,15 @@ async def main() -> Dict[str, Any]:
     Main function that reads a configuration dictionary and processes
     one or multiple URLs concurrently.
     
-    The configuration dictionary can include:
-      - primary_method: "crawl4ai" or "requests"
-      - fallback_enabled: bool
-      - word_count_threshold: int
-      - page_timeout: int
-      - wait_time: float (for requests)
-      - urls: List of URL strings
-    
-    Returns:
-        A dictionary mapping each URL to its scraping result.
+    Logs the overall progress.
     """
     # Configuration dictionary.
-    # (In a real application, you might load this from a file or environment.)
     config = {
-        "primary_method": "crawl4ai",    # or "crawl4ai"
+        "primary_method": "requests", # "crawl4ai" or "requests"
         "fallback_enabled": True,
         "word_count_threshold": 10, # Minimum 10 words required for content extraction
         "page_timeout": 5000, # Wait up to 5 seconds for page load (crawl4ai)
         "wait_time": 0.0, # Wait 0 seconds between requests (requests)
-        # List of URLs to process. (This list may have 1 or several URLs.)
         "urls": [
             "https://www.cea.fr/english/Pages/News/nuclear-fusion-west-beats-the-world-record-for-plasma-duration.aspx",
             "https://www.bitecode.dev/p/a-year-of-uv-pros-cons-and-should"
@@ -239,18 +248,17 @@ async def main() -> Dict[str, Any]:
     results: Dict[str, Any] = {}
 
     if not urls:
-        # If no URLs provided, return an empty dict
-        print("No URLs provided.")
+        logging.info("No URLs provided in configuration.")
         return results
 
-    # Process all URLs concurrently
+    logging.info("Starting processing of %d URL(s).", len(urls))
     tasks = [process_url(url, config) for url in urls]
     processed_results = await asyncio.gather(*tasks)
 
-    # Map each URL to its result.
+    # Map each URL to its result and log the outcome.
     for url, result in zip(urls, processed_results):
         results[url] = result
-
+    logging.info("Completed processing of all URLs.")
     return results
 
 # -----------------------------
@@ -258,14 +266,17 @@ async def main() -> Dict[str, Any]:
 # -----------------------------
 if __name__ == "__main__":
     final_results = asyncio.run(main())
-    # Print detailed information about the results
+    # Enhanced summary output for readability
     print("\n=== Web Content Extraction Results ===")
-    print(f"\nNumber of URLs processed: {len(final_results)}")
-    print("\nDetailed results for each URL:")
-    print("-----------------------------------")
+    print(f"Number of URLs processed: {len(final_results)}\n")
     for url, result in final_results.items():
-        print(f"\nURL: {url}")
-        print("Result type:", type(result))
-        print("Content length:", len(str(result)) if result else 0)
-        print("Content preview:", str(result)[:200] + "..." if result else "No content")
-        print("-----------------------------------")
+        print(f"URL: {url}")
+        if result.get("success"):
+            print("✅ Success | Extraction Method:", result["extraction_method"])
+            preview = str(result.get("text_content", ""))[:200] + "..." if result.get("text_content") else "No content"
+            print("📄 Content length:", len(str(result)) if result else 0)
+            print("📄 Content Preview:", preview)
+        else:
+            print("❌ Failed to extract content")
+            print("🛑 Error:", result.get("error", "Unknown error"))
+        print("-" * 50)

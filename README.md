@@ -24,15 +24,22 @@ It uses **LLMs** (initially OpenAI and Anthropic) to craft reports and a **web s
 2. **LLM Handler**  
    - A centralized class (`LLMHandler`) to manage different LLM providers (OpenAI, Anthropic, etc.) with customizable settings (model name, temperature, max tokens, etc.).
 
-3. **API Keys & Environment**  
+3. **Configuration Management**
+   - Centralized configuration system in `hackernews_url_analyzer_pipeline.py`
+   - Structured settings for global, content extraction, HackerNews, and analysis parameters
+   - Command-line overrides for all major configuration options
+   - Validation system to ensure configuration integrity
+   - Easy modification of system behavior through a single configuration dictionary
+
+4. **API Keys & Environment**  
    - Uses a `.env` file for storing and validating API keys.  
    - Also loads other environment variables. The file `validate_api_keys.py` already handles environment-based checks.
 
-4. **Pipeline-Oriented Architecture**  
+5. **Pipeline-Oriented Architecture**  
    - `StateGraph` and node-based approach for controlling the flow: from planning sections → searching the web → drafting each section.  
    - Allows easy extension or modification of the workflow.
 
-5. **(Planned) Databases & Logging**  
+6. **(Planned) Databases & Logging**  
    - Potential integration with a graph database (e.g., Neo4j) or SQL for storing large amounts of financial data.  
    - Integrate with Langsmith for advanced prompt and LLM logging, versioning, and debugging.
 
@@ -55,6 +62,10 @@ It uses **LLMs** (initially OpenAI and Anthropic) to craft reports and a **web s
    - **`report_models.py`**: Defines typed dictionaries and Pydantic models for sections, states, and final output.  
    - **`structured_report_nodes.py`**: Contains individual node functions (e.g., generating queries, searching the web, writing sections).  
 - **`search_results_formatter.py`**: Utility for deduplicating and formatting Tavily search results.
+- **`hackernews_url_analyzer_pipeline.py`**: Integrates HN tracking and URL analysis in a parallel processing pipeline. Houses the centralized configuration system for all components in the following files:
+- **`web_content_extractor.py`**: Handles URL content extraction with configurable primary/fallback scrapers.
+- **`url_topic_analyzer.py`**: Analyzes content using configurable LLM providers.
+- **`hackernews_tracker.py`**: Tracks and analyzes Hacker News posts with configurable parameters.
 
 ## Deployment/Distribution
 - **Future Dockerization**: Not currently a priority, but planned for better portability and potential cloud deployment.  

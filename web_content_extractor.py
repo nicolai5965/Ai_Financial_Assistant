@@ -226,7 +226,7 @@ async def main() -> Dict[str, Any]:
         "primary_method": "crawl4ai",    # or "crawl4ai"
         "fallback_enabled": True,
         "word_count_threshold": 10, # Minimum 10 words required for content extraction
-        "page_timeout": 1, # Wait up to 5 seconds for page load (crawl4ai)
+        "page_timeout": 5000, # Wait up to 5 seconds for page load (crawl4ai)
         "wait_time": 0.0, # Wait 0 seconds between requests (requests)
         # List of URLs to process. (This list may have 1 or several URLs.)
         "urls": [

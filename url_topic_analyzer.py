@@ -26,7 +26,7 @@ class InvestmentTopicAnalyzer:
         model: str = "gemini-2.0-flash", 
         time_interval: str = "3", 
         llm_provider: str = "google",
-        google_api_key: Optional[str] = None
+        llm_api_key: Optional[str] = None
     ):
         """
         Initialize the analyzer.
@@ -35,11 +35,11 @@ class InvestmentTopicAnalyzer:
             model (str): The model name to use for analysis
             time_interval (str): The time window (in days) used in search topic prompts
             llm_provider (str): The LLM provider to use (e.g., "google", "openai")
-            google_api_key (str, optional): Your API key for the LLM
+            llm_api_key (str, optional): Your API key for the LLM
         """
         # Ensure environment variables are loaded
         load_dotenv()
-        self.google_api_key = google_api_key or os.getenv("GEMINI_API_KEY")
+        self.llm_api_key = llm_api_key
         self.llm = LLMHandler(
             llm_provider=llm_provider, 
             model_name=model, 
@@ -53,8 +53,12 @@ class InvestmentTopicAnalyzer:
 
 Your task is to analyze the provided article, generate a concise summary of its key points, and then create a unified search topic that highlights the potential investment implications of the article.
 Evaluate whether the article contains signals that warrant further investigation for potential future investment opportunities.
-Output your answer as valid JSON with the following keys:
 
+You should be really critical when determining if the article should be investigated. If the article is not related to investing, you should return "No".
+If you find that any of the article's content relates to any of the following topics, you should return "Yes", but again be critical:
+[NVIDIA, AI, Semiconductor, Quantum Computing, IonQ, Amazon, Microsoft]
+
+Output your answer as valid JSON with the following keys:
 - "summary": A brief paragraph summarizing the article.
 - "search_topic": A unified topic statement that encapsulates the article's implications. (For inspiration, consider examples like:
     1) "NVIDIA's AI Innovations and Their Impact on Stock Valuations Over the Past {self.time_interval} Days."

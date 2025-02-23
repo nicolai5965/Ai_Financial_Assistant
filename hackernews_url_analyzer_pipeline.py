@@ -48,8 +48,8 @@ DEFAULT_CONFIG = {
         "num_stories": 10,           # Number of stories to fetch
         "min_trending_score": 5.0,   # Minimum score for a story to be considered
         "back_in_time_hours": 24,    # Only consider stories newer than this
-        "cache_duration": 300,       # Cache duration in seconds
-        "gravity": 1.8,             # Score decay factor for trending calculation
+        "cache_duration": 300,       # Duration in seconds for which the fetched data is stored in cache. Increasing this value allows for longer retention of data, reducing the frequency of API calls and improving performance, but may lead to stale data if the underlying information changes frequently.
+        "gravity": 1.8,             # Decay factor used in the trending score calculation. A higher value results in a steeper decline in score over time, making it harder for older stories to maintain high scores. Adjusting this value can influence how quickly stories lose their trending status, affecting visibility and engagement.
     },
     
     # LLM Analysis settings
@@ -108,6 +108,9 @@ def parse_command_line_args() -> Dict[str, Any]:
     """
     parser = argparse.ArgumentParser(description='Run the HackerNews analysis pipeline')
     
+    # Add test-url argument first
+    parser.add_argument('--test-url', type=str, help='Test a single URL')
+    
     # Global settings
     parser.add_argument('--test-mode', action='store_true', help='Enable test mode')
     parser.add_argument('--max-workers', type=int, help='Maximum number of worker threads')
@@ -130,10 +133,10 @@ def parse_command_line_args() -> Dict[str, Any]:
     
     args = parser.parse_args()
     
-    # Convert args to dict, excluding None values
+    # Convert args to dict, excluding None values and test-url
     overrides = {}
     for arg, value in vars(args).items():
-        if value is not None:
+        if value is not None and arg != 'test_url':
             # Convert arg names to config structure
             if arg in ['test_mode', 'max_workers']:
                 if 'global' not in overrides:
@@ -252,14 +255,13 @@ async def process_story(
         "author": author,
         "url": url or "No URL",
         "analysis": None,
-        "trending_score": story.get("trending_score"),
-        "fetched_time": story.get("time")
+        "trending_score": story.get("trending_score")
     }
     
     if not url:
         logger.warning(f"No URL provided for story: {title}")
         return result
-        
+         
     try:
         # Extract content using the web content extractor
         loop = asyncio.get_event_loop()
@@ -345,7 +347,52 @@ def pipeline_runner() -> List[Dict[str, Any]]:
     
     return asyncio.run(run_pipeline(config))
 
+async def test_single_url(url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Test the pipeline with a single URL.
+    
+    Args:
+        url (str): The URL to test
+        config: Configuration dictionary
+        
+    Returns:
+        Dict[str, Any]: Analysis results for the URL
+    """
+    test_story = {
+        "url": url,
+        "title": "Test Article",
+        "by": "Test User",
+        "trending_score": 10.0,
+        "time": time.time()
+    }
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=config["global"]["max_workers"]) as executor:
+        result = await process_story(test_story, executor, config)
+    return result
+
+def test_url_runner(url: str) -> Dict[str, Any]:
+    """
+    Runner function for testing a single URL.
+    
+    Args:
+        url (str): The URL to test
+        
+    Returns:
+        Dict[str, Any]: Analysis results
+    """
+    config = update_config(DEFAULT_CONFIG, parse_command_line_args())
+    validate_config(config)
+    return asyncio.run(test_single_url(url, config))
+
 if __name__ == "__main__":
-    # When run from the command line, execute the pipeline and print the JSON output
-    results = pipeline_runner()
-    print(json.dumps(results, indent=2))
+    # Parse arguments once
+    parser = argparse.ArgumentParser(description='Run the HackerNews analysis pipeline')
+    parser.add_argument('--test-url', type=str, help='Test a single URL')
+    args, remaining_args = parser.parse_known_args()
+    
+    if args.test_url:
+        results = test_url_runner(args.test_url)
+        print(json.dumps(results, indent=2))
+    else:
+        results = pipeline_runner()
+        print(json.dumps(results, indent=2))

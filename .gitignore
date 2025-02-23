@@ -20,4 +20,7 @@ test_file.py
 # Ignore .cursorrules file
 .cursorrules
 
+# Ignore to-do list
+to_do_list.md
+
 

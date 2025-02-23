@@ -5,7 +5,7 @@ from llm_handler import LLMHandler
 import sys
 import argparse
 import logging
-from typing import Dict, Union, Optional
+from typing import Dict, Union, Optional, List
 
 # Configure logging
 logging.basicConfig(
@@ -26,7 +26,8 @@ class InvestmentTopicAnalyzer:
         model: str = "gemini-2.0-flash", 
         time_interval: str = "3", 
         llm_provider: str = "google",
-        llm_api_key: Optional[str] = None
+        llm_api_key: Optional[str] = None,
+        target_companies: Optional[List[str]] = None
     ):
         """
         Initialize the analyzer.
@@ -36,6 +37,7 @@ class InvestmentTopicAnalyzer:
             time_interval (str): The time window (in days) used in search topic prompts
             llm_provider (str): The LLM provider to use (e.g., "google", "openai")
             llm_api_key (str, optional): Your API key for the LLM
+            target_companies (List[str], optional): List of companies to track for investment opportunities
         """
         # Ensure environment variables are loaded
         load_dotenv()
@@ -47,6 +49,9 @@ class InvestmentTopicAnalyzer:
         ).language_model
         self.time_interval = time_interval
 
+        # Default companies if none provided
+        self.target_companies = target_companies
+        
         # System prompt instructs the LLM on its role and desired output format.
         self.system_prompt = (
             f"""You are a financial analysis assistant with expertise in generating research topics for investment reports.
@@ -55,16 +60,20 @@ Your task is to analyze the provided article, generate a concise summary of its 
 Evaluate whether the article contains signals that warrant further investigation for potential future investment opportunities.
 
 You should be really critical when determining if the article should be investigated. If the article is not related to investing, you should return "No".
-If you find that any of the article's content relates to any of the following topics, you should return "Yes", but again be critical:
-[NVIDIA, AI, Semiconductor, Quantum Computing, IonQ, Amazon, Microsoft]
+
+If any of the articles are talking about any of the following companies, you should return "Yes", if you that the article could have a impact on the stock price, but be critical:
+{self.target_companies}
+
+The articles dont necessarily need to be talking about these companies, but if you that the content could on the companies, you should return "Yes".
+And if you find a similarity without mentioning the company, write it as a short sentence in the summary and relate it into the search topic.
 
 Output your answer as valid JSON with the following keys:
 - "summary": A brief paragraph summarizing the article.
 - "search_topic": A unified topic statement that encapsulates the article's implications. (For inspiration, consider examples like:
-    1) "NVIDIA's AI Innovations and Their Impact on Stock Valuations Over the Past {self.time_interval} Days."
-    2) "How Recent Semiconductor Developments Are Shaping Market Sentiment in Tech Stocks Over the Past {self.time_interval} Days."
-    3) "Stock Market Reactions to the Latest Trends in Quantum Computing and AI Over the Past {self.time_interval} Days."
-Use these as inspiration to generate a topic that reflects the article's implications over the past {self.time_interval} days.)
+    1) "NVIDIA's AI Innovations and Their Impact on Stock Valuations, over the past {self.time_interval} days."
+    2) "How Recent Semiconductor Developments Are Shaping Market Sentiment in Tech Stocks, over the past {self.time_interval} days."
+    3) "Stock Market Reactions to the Latest Trends in Quantum Computing and AI, over the past {self.time_interval} days."
+Use these as inspiration to generate a topic that reflects the article's implications, over the past {self.time_interval} days.)
 - "should_investigate": "Yes" if the article suggests that a deeper investigation might uncover promising future investment opportunities, otherwise "No".
 
 JSON output:
@@ -121,7 +130,8 @@ def analyze_article_content(
     article_text: str, 
     time_interval: str = "3", 
     llm_provider: str = "google",
-    test_mode: bool = False
+    test_mode: bool = False,
+    target_companies: Optional[List[str]] = None
 ) -> Union[Dict, str]:
     """
     Analyzes the provided article content using the InvestmentTopicAnalyzer.
@@ -131,6 +141,7 @@ def analyze_article_content(
         time_interval (str): Time interval (in days) for context in analysis
         llm_provider (str): The LLM provider to use (e.g., "google", "openai")
         test_mode (bool): If True, returns detailed analysis (including metadata)
+        target_companies (List[str], optional): List of companies to track
 
     Returns:
         Union[Dict, str]: Analysis result as a dictionary (if test_mode is True) or string (if test_mode is False)
@@ -138,7 +149,11 @@ def analyze_article_content(
     Raises:
         Exception: Propagates any exceptions from analyzing the article
     """
-    analyzer = InvestmentTopicAnalyzer(time_interval=time_interval, llm_provider=llm_provider)
+    analyzer = InvestmentTopicAnalyzer(
+        time_interval=time_interval, 
+        llm_provider=llm_provider,
+        target_companies=target_companies
+    )
     analysis_result = analyzer.generate_analysis(article_text)
     
     if test_mode:

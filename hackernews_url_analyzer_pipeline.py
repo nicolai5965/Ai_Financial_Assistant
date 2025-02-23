@@ -1,11 +1,3 @@
-"""
-pipeline_runner.py
-
-This module integrates hackernews_tracker, web_content_extractor, and url_topic_analyzer functionalities.
-It fetches Hacker News stories, extracts content from their URLs using the web content extractor,
-and then analyzes the content using the topic analyzer.
-"""
-
 import asyncio
 import concurrent.futures
 import json
@@ -45,11 +37,22 @@ DEFAULT_CONFIG = {
     
     # HackerNews tracker settings
     "hackernews": {
-        "num_stories": 10,           # Number of stories to fetch
-        "min_trending_score": 5.0,   # Minimum score for a story to be considered
-        "back_in_time_hours": 24,    # Only consider stories newer than this
-        "cache_duration": 300,       # Duration in seconds for which the fetched data is stored in cache. Increasing this value allows for longer retention of data, reducing the frequency of API calls and improving performance, but may lead to stale data if the underlying information changes frequently.
-        "gravity": 1.8,             # Decay factor used in the trending score calculation. A higher value results in a steeper decline in score over time, making it harder for older stories to maintain high scores. Adjusting this value can influence how quickly stories lose their trending status, affecting visibility and engagement.
+        "num_stories": 60,           
+        "back_in_time_hours": 48,    
+        "topics": [
+            "artificial intelligence",
+            "machine learning",
+            "deep learning",
+            "neural networks",
+            "computer vision",
+            "llm",
+            "nasa",
+            "apple",
+        ],  
+        "keywords": ["nvidia", "ai", "gpu", "meta", "apple"], 
+        "similarity_threshold": 0.2,
+        "search_fields": ["title", "url"],
+        "include_similarity_score": True
     },
     
     # LLM Analysis settings
@@ -58,6 +61,14 @@ DEFAULT_CONFIG = {
         "llm_provider": "google",    # LLM provider to use
         "model": "gemini-2.0-flash", # Default model name
         "temperature": 0,            # LLM temperature (0 = more deterministic)
+        "target_companies": [        # Companies to track for investment opportunities
+            "NVIDIA",
+            "IonQ", 
+            "Microsoft",
+            "TSMC",
+            "Apple",
+            "Meta"
+        ]
     }
 }
 
@@ -86,18 +97,26 @@ def validate_config(config: Dict[str, Any]) -> None:
     # HackerNews settings validation
     if config["hackernews"]["num_stories"] < 1:
         raise ValueError("num_stories must be positive")
-    if config["hackernews"]["min_trending_score"] < 0:
-        raise ValueError("min_trending_score must be non-negative")
     if config["hackernews"]["back_in_time_hours"] < 1:
         raise ValueError("back_in_time_hours must be positive")
-    if config["hackernews"]["cache_duration"] < 0:
-        raise ValueError("cache_duration must be non-negative")
+
         
     # Analysis settings validation
     try:
         int(config["analysis"]["time_interval"])
     except ValueError:
         raise ValueError("time_interval must be a valid integer string")
+    
+    # Add validation for new HackerNews settings
+    hn_config = config["hackernews"]
+    if hn_config["keywords"] is not None and not isinstance(hn_config["keywords"], list):
+        raise ValueError("keywords must be None or a list of strings")
+    if hn_config["topics"] is not None and not isinstance(hn_config["topics"], list):
+        raise ValueError("topics must be None or a list of strings")
+    if not isinstance(hn_config["similarity_threshold"], (int, float)) or not 0 <= hn_config["similarity_threshold"] <= 1:
+        raise ValueError("similarity_threshold must be a float between 0 and 1")
+    if not isinstance(hn_config["search_fields"], list):
+        raise ValueError("search_fields must be a list of strings")
 
 def parse_command_line_args() -> Dict[str, Any]:
     """
@@ -122,14 +141,20 @@ def parse_command_line_args() -> Dict[str, Any]:
     
     # HackerNews settings
     parser.add_argument('--num-stories', type=int, help='Number of stories to analyze')
-    parser.add_argument('--min-trending-score', type=float, 
-                       help='Minimum trending score threshold')
     parser.add_argument('--back-in-time-hours', type=int,
                        help='Hours to look back for stories')
     
     # Analysis settings
     parser.add_argument('--llm-provider', help='LLM provider to use')
     parser.add_argument('--time-interval', help='Time interval for analysis in days')
+    
+    # Add new arguments for HackerNews filtering
+    parser.add_argument('--keywords', type=str, nargs='+', 
+                       help='List of keywords to filter stories')
+    parser.add_argument('--topics', type=str, nargs='+',
+                       help='List of topics for semantic filtering')
+    parser.add_argument('--similarity-threshold', type=float,
+                       help='Threshold for semantic similarity (0-1)')
     
     args = parser.parse_args()
     
@@ -146,7 +171,7 @@ def parse_command_line_args() -> Dict[str, Any]:
                 if 'content_extractor' not in overrides:
                     overrides['content_extractor'] = {}
                 overrides['content_extractor'][arg.replace('-', '_')] = value
-            elif arg in ['num_stories', 'min_trending_score', 'back_in_time_hours']:
+            elif arg in ['num_stories', 'back_in_time_hours']:
                 if 'hackernews' not in overrides:
                     overrides['hackernews'] = {}
                 overrides['hackernews'][arg.replace('-', '_')] = value
@@ -255,7 +280,7 @@ async def process_story(
         "author": author,
         "url": url or "No URL",
         "analysis": None,
-        "trending_score": story.get("trending_score")
+        "similarity_score": story.get("similarity_score")
     }
     
     if not url:
@@ -283,7 +308,8 @@ async def process_story(
             content,
             config["analysis"]["time_interval"],
             config["analysis"]["llm_provider"],
-            config["global"]["test_mode"]
+            config["global"]["test_mode"],
+            config["analysis"]["target_companies"]
         )
         
         # Try to parse the analysis as JSON
@@ -300,30 +326,26 @@ async def process_story(
 
 async def run_pipeline(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Main asynchronous pipeline function that fetches Hacker News stories, filters them,
-    and performs URL analysis in parallel.
-    
-    Args:
-        config: Configuration dictionary
-        
-    Returns:
-        List[Dict[str, Any]]: A list of dictionaries containing story info and analysis output
+    Main asynchronous pipeline function that fetches and processes Hacker News stories.
     """
-    # Fetch trending stories asynchronously
-    trending_stories = await hackernews_tracker.get_trending_stories_async(
-        config["hackernews"]["num_stories"]
+    # Fetch filtered stories using new function
+    filtered_stories = await hackernews_tracker.get_filtered_stories(
+        num_stories=config["hackernews"]["num_stories"],
+        keywords=config["hackernews"]["keywords"],
+        topics=config["hackernews"]["topics"],
+        similarity_threshold=config["hackernews"]["similarity_threshold"],
+        search_fields=config["hackernews"]["search_fields"]
     )
     
-    # Filter stories by recency and trending score
+    # Filter only by time
     current_time = time.time()
     time_threshold = current_time - (config["hackernews"]["back_in_time_hours"] * 3600)
     filtered_stories = [
-        story for story in trending_stories
-        if story.get("time", 0) >= time_threshold and 
-        story.get("trending_score", 0) >= config["hackernews"]["min_trending_score"]
+        story for story in filtered_stories
+        if story.get("time", 0) >= time_threshold
     ]
     
-    # Process URL analysis in parallel using a ThreadPoolExecutor
+    # Process URL analysis in parallel
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor(max_workers=config["global"]["max_workers"]) as executor:
         tasks = [process_story(story, executor, config) for story in filtered_stories]
@@ -362,7 +384,6 @@ async def test_single_url(url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         "url": url,
         "title": "Test Article",
         "by": "Test User",
-        "trending_score": 10.0,
         "time": time.time()
     }
     

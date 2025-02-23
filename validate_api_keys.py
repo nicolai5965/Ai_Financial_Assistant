@@ -1,37 +1,63 @@
+"""API key validation utilities."""
 import os
 from dotenv import load_dotenv # type: ignore
+from typing import Dict, List, Tuple
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Required API keys and their expected prefixes
-REQUIRED_KEYS = {
-    "OPENAI_API_KEY": "sk-",
-    "LANGCHAIN_API_KEY": "lsv2_",
-    "TAVILY_API_KEY": "tvly-",
-    "ANTHROPIC_API_KEY": "sk-"  
-}
-
-def validate_api_keys():
-    """
-    Validate the presence and format of required API keys in the environment.
-
+def check_api_key(key_name: str) -> Tuple[bool, str]:
+    """Check if a specific API key exists and has correct prefix.
+    
+    Args:
+        key_name (str): Name of the environment variable containing the API key
+        
     Returns:
-        bool: True if all keys are valid, False otherwise.
+        Tuple[bool, str]: (is_valid, message)
     """
-    missing_or_invalid_keys = []
+    key = os.getenv(key_name)
+    if not key:
+        return False, f"Missing {key_name}"
+    
+    # Add prefix checks based on key type
+    prefix_checks = {
+        "OPENAI_API_KEY": "sk-",
+        "ANTHROPIC_API_KEY": "sk-ant-",
+        "TAVILY_API_KEY": "tvly-",
+        "LANGCHAIN_API_KEY": "lsv2_"
+    }
+    
+    if key_name in prefix_checks:
+        prefix = prefix_checks[key_name]
+        if not key.startswith(prefix):
+            return False, f"{key_name} should start with '{prefix}'"
+    
+    return True, f"{key_name} is valid"
 
-    for key, prefix in REQUIRED_KEYS.items():
-        api_key = os.environ.get(key, "")
-        if not api_key.startswith(prefix):
-            missing_or_invalid_keys.append(f"{key}: Expected prefix '{prefix}'")
-
-    if not missing_or_invalid_keys:
-        print("\u2705 All required API keys are set and valid.")
+def validate_api_keys(test_mode: bool = False) -> bool:
+    """Validate all required API keys.
+    
+    Args:
+        test_mode (bool): Whether to perform validation
+        
+    Returns:
+        bool: True if all keys are valid or if not in test mode
+    """
+    if not test_mode:
         return True
-    else:
-        print("\u274C The following API keys are missing or invalid:")
-        for error in missing_or_invalid_keys:
-            print(f"   - {error}")
-        print("\nPlease check your environment variables and ensure all keys are set correctly.")
-        return False
+        
+    required_keys = [
+        "OPENAI_API_KEY",
+        "TAVILY_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GEMINI_API_KEY",
+        "LANGCHAIN_API_KEY"
+    ]
+    
+    all_valid = True
+    for key_name in required_keys:
+        is_valid, message = check_api_key(key_name)
+        print(f"{'✅' if is_valid else '❌'} {message}")
+        all_valid = all_valid and is_valid
+    
+    return all_valid

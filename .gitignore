@@ -23,4 +23,17 @@ test_file.py
 # Ignore to-do list
 to_do_list.md
 
+# Ignore frontend documentation
+FRONTEND_DOCS.md
+
+# Frontend specific ignores
+frontend/node_modules
+frontend/.next
+frontend/build
+frontend/.env*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
 

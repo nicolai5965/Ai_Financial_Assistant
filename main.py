@@ -6,11 +6,12 @@ from validate_api_keys import validate_api_keys
 from llm_handler import LLMHandler
 from report_models import ReportState
 
-def get_user_input(test_mode: bool) -> tuple[str, str]:
+def get_user_input(test_mode: bool, config: dict) -> tuple[str, str]:
     """Get user input for report configuration.
     
     Args:
         test_mode (bool): Whether to use test mode defaults
+        config (dict): Application configuration
         
     Returns:
         tuple[str, str]: Report size and topic
@@ -20,10 +21,11 @@ def get_user_input(test_mode: bool) -> tuple[str, str]:
         size_choice = input("Enter report size (Concise, Standard, Detailed, Comprehensive): ").strip()
         report_topic = input("Enter report topic: ").strip()
     else:
-        size_choice = "Concise"
-        report_topic = "AI Financial Analysis"  # Default topic
+        size_choice = config["DEFAULT_REPORT_SIZE"]
+        report_topic = input("Enter report topic: ").strip()
         
     print(f"📌 Report Size: {size_choice}")
+    print(f"📌 Report Topic: {report_topic}")
     return size_choice, report_topic
 
 async def main():
@@ -46,8 +48,8 @@ async def main():
     llm_handler = LLMHandler(config["llm_provider"])
     llm_settings = llm_handler.show_settings()
     
-    # Get user input
-    size_choice, report_topic = get_user_input(config["test_mode"])
+    # Get user inputCon
+    size_choice, report_topic = get_user_input(config["test_mode"], config)
 
     # Import and configure report generation components
     import fetch_project_prompts

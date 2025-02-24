@@ -21,5 +21,5 @@ def get_config():
     return {
         "test_mode": os.getenv("TEST_MODE", TEST_MODE),
         "default_report_size": os.getenv("DEFAULT_REPORT_SIZE", DEFAULT_REPORT_SIZE),
-        "llm_provider": os.getenv("LLM_PROVIDER", "openai"),
+        "llm_provider": os.getenv("LLM_PROVIDER", "google"),
     } 

@@ -1,7 +1,7 @@
 import os
 import time
 from dotenv import load_dotenv
-from llm_handler import LLMHandler
+from app.services.llm_handler import LLMHandler
 import sys
 import argparse
 import logging
@@ -16,6 +16,79 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+
+class URLTopicAnalyzer:
+    """
+    A class for analyzing URLs to determine their topics and relevance.
+    Wraps the InvestmentTopicAnalyzer functionality.
+    """
+    
+    def __init__(
+        self, 
+        model: str = "gemini-2.0-flash", 
+        time_interval: str = "3", 
+        llm_provider: str = "google",
+        llm_api_key: Optional[str] = None,
+        target_companies: Optional[List[str]] = None
+    ):
+        """
+        Initialize the URLTopicAnalyzer.
+        
+        Args:
+            model: The LLM model to use
+            time_interval: Time interval for analysis
+            llm_provider: The LLM provider to use
+            llm_api_key: Optional API key for the LLM provider
+            target_companies: Optional list of target companies to focus on
+        """
+        self.analyzer = InvestmentTopicAnalyzer(
+            model=model,
+            time_interval=time_interval,
+            llm_provider=llm_provider,
+            llm_api_key=llm_api_key,
+            target_companies=target_companies
+        )
+    
+    def analyze_content(self, article_text: str) -> Dict[str, Union[str, float]]:
+        """
+        Analyze article content to determine topics and relevance.
+        
+        Args:
+            article_text: The article text to analyze
+            
+        Returns:
+            Dictionary with analysis results
+        """
+        return self.analyzer.generate_analysis(article_text)
+    
+    @staticmethod
+    def analyze_article(
+        article_text: str, 
+        time_interval: str = "3", 
+        llm_provider: str = "google",
+        test_mode: bool = False,
+        target_companies: Optional[List[str]] = None
+    ) -> Union[Dict, str]:
+        """
+        Static method to analyze an article without creating an instance.
+        
+        Args:
+            article_text: The article text to analyze
+            time_interval: Time interval for analysis
+            llm_provider: The LLM provider to use
+            test_mode: Whether to run in test mode
+            target_companies: Optional list of target companies to focus on
+            
+        Returns:
+            Analysis results
+        """
+        return analyze_article_content(
+            article_text=article_text,
+            time_interval=time_interval,
+            llm_provider=llm_provider,
+            test_mode=test_mode,
+            target_companies=target_companies
+        )
 
 class InvestmentTopicAnalyzer:
     """

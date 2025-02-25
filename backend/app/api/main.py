@@ -1,10 +1,10 @@
 """Main entry point for the application."""
 import asyncio
-from config.settings import initialize_environment, get_config
-from utils.system_checks import run_system_checks
-from validate_api_keys import validate_api_keys
-from llm_handler import LLMHandler
-from report_models import ReportState
+from app.core.settings import initialize_environment, get_config
+from app.utils.system_checks import run_system_checks
+from app.core.validate_api_keys import validate_api_keys
+from app.services.llm_handler import LLMHandler
+from app.models.report_models import ReportState
 
 def get_user_input(test_mode: bool, config: dict) -> tuple[str, str]:
     """Get user input for report configuration.
@@ -48,13 +48,13 @@ async def main():
     llm_handler = LLMHandler(config["llm_provider"])
     llm_settings = llm_handler.show_settings()
     
-    # Get user inputCon
+    # Get user input
     size_choice, report_topic = get_user_input(config["test_mode"], config)
 
     # Import and configure report generation components
-    import fetch_project_prompts
+    from app.services import fetch_project_prompts
     fetch_project_prompts.set_report_size(size_choice)
-    from fetch_project_prompts import formatted_prompts, get_report_config
+    from app.services.fetch_project_prompts import formatted_prompts, get_report_config
     size_config = get_report_config(size_choice)
 
     # Build initial state
@@ -73,7 +73,7 @@ async def main():
 
     # Execute report generation
     print("\n🔄 Generating report...")
-    from report_graph_builders import final_report_builder
+    from app.services.report_graph_builders import final_report_builder
     final_output = await final_report_builder.ainvoke(initial_state)
 
     # Display results

@@ -1,8 +1,8 @@
 from langgraph.graph import StateGraph, END, START
 from IPython.display import Image
 
-from report_models import ReportState, ReportStateOutput, SectionState, SectionOutputState
-from structured_report_nodes import (
+from app.models.report_models import ReportState, ReportStateOutput, SectionState, SectionOutputState
+from app.models.structured_report_nodes import (
     generate_report_plan,
     generate_queries,
     search_web,

@@ -1,5 +1,5 @@
 from typing import List
-from report_models import Section
+from app.models.report_models import Section
 
 def deduplicate_and_format_sources(search_response, max_tokens_per_source, include_raw_content=True):
     """

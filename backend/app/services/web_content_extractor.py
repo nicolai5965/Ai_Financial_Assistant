@@ -174,6 +174,60 @@ class RequestsScraper:
             }
 
 # -----------------------------
+# WebContentExtractor Class
+# -----------------------------
+class WebContentExtractor:
+    """
+    Main class for extracting content from web pages.
+    Provides a unified interface for different extraction methods.
+    """
+    def __init__(self, config: Dict[str, Any] = None):
+        self.config = config or {
+            "primary_method": "crawl4ai",
+            "fallback_enabled": True,
+            "word_count_threshold": 10,
+            "page_timeout": 5000,
+            "wait_time": 0.0
+        }
+    
+    async def extract_from_url(self, url: str) -> Dict[str, Any]:
+        """
+        Extract content from a single URL.
+        
+        Args:
+            url (str): The URL to extract content from.
+            
+        Returns:
+            Dict[str, Any]: The extraction result.
+        """
+        return await process_url(url, self.config)
+    
+    async def extract_from_urls(self, urls: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Extract content from multiple URLs concurrently.
+        
+        Args:
+            urls (List[str]): List of URLs to extract content from.
+            
+        Returns:
+            Dict[str, Dict[str, Any]]: Dictionary mapping URLs to their extraction results.
+        """
+        if not urls:
+            logging.info("No URLs provided.")
+            return {}
+            
+        logging.info("Starting processing of %d URL(s).", len(urls))
+        tasks = [process_url(url, self.config) for url in urls]
+        processed_results = await asyncio.gather(*tasks)
+        
+        results = {}
+        for url, result in zip(urls, processed_results):
+            results[url] = result
+            
+        logging.info("Completed processing of all URLs.")
+        return results
+
+# -----------------------------
 # Helper: Process a Single URL
 # -----------------------------
 async def process_url(url: str, config: Dict[str, Any]) -> Dict[str, Any]:

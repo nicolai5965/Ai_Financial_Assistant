@@ -1,10 +1,25 @@
 import asyncio
+import os
 from tavily import TavilyClient, AsyncTavilyClient
 from langsmith import traceable
 
-# Initialize Tavily Clients
-tavily_client = TavilyClient()
-tavily_async_client = AsyncTavilyClient()
+# Lazy initialization of clients
+_tavily_client = None
+_tavily_async_client = None
+
+def get_tavily_client():
+    """Get or initialize the Tavily client."""
+    global _tavily_client
+    if _tavily_client is None:
+        _tavily_client = TavilyClient()
+    return _tavily_client
+
+def get_tavily_async_client():
+    """Get or initialize the Tavily async client."""
+    global _tavily_async_client
+    if _tavily_async_client is None:
+        _tavily_async_client = AsyncTavilyClient()
+    return _tavily_async_client
 
 @traceable
 def tavily_search(query, max_results=5):
@@ -19,7 +34,8 @@ def tavily_search(query, max_results=5):
         dict: Tavily search response containing:
             - results (list): List of search result dictionaries.
     """
-    return tavily_client.search(query, max_results=max_results, include_raw_content=True)
+    client = get_tavily_client()
+    return client.search(query, max_results=max_results, include_raw_content=True)
 
 @traceable
 async def tavily_search_async(search_queries, tavily_topic, tavily_days, max_results=5):
@@ -35,12 +51,12 @@ async def tavily_search_async(search_queries, tavily_topic, tavily_days, max_res
     Returns:
         List[dict]: List of search results from Tavily API, one per query.
     """
-
+    client = get_tavily_async_client()
     search_tasks = []
     for query in search_queries:
         if tavily_topic == "news":
             search_tasks.append(
-                tavily_async_client.search(
+                client.search(
                     query,
                     max_results=5,
                     include_raw_content=True,
@@ -50,7 +66,7 @@ async def tavily_search_async(search_queries, tavily_topic, tavily_days, max_res
             )
         else:
             search_tasks.append(
-                tavily_async_client.search(
+                client.search(
                     query,
                     max_results=5,
                     include_raw_content=True,

@@ -7,9 +7,9 @@ import argparse
 from typing import Dict, Any, Optional, List
 
 # Import the modules
-import hackernews_tracker
-import url_topic_analyzer
-from web_content_extractor import RequestsScraper, Crawl4AIScraper
+from app.services import hackernews_tracker
+from app.services import url_topic_analyzer
+from app.services.web_content_extractor import RequestsScraper, Crawl4AIScraper, WebContentExtractor
 
 # Configure logging
 logging.basicConfig(
@@ -404,6 +404,58 @@ def test_url_runner(url: str) -> Dict[str, Any]:
     config = update_config(DEFAULT_CONFIG, parse_command_line_args())
     validate_config(config)
     return asyncio.run(test_single_url(url, config))
+
+# Class to wrap the pipeline functionality
+class HackerNewsURLAnalyzerPipeline:
+    """
+    A class that wraps the HackerNews URL analyzer pipeline functionality.
+    Provides methods to run the pipeline and test individual URLs.
+    """
+    
+    @staticmethod
+    def run_pipeline(config: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Run the complete pipeline with optional configuration overrides.
+        
+        Args:
+            config: Optional configuration dictionary to override defaults
+            
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing the integrated output
+        """
+        return pipeline_runner()
+    
+    @staticmethod
+    def test_url(url: str) -> Dict[str, Any]:
+        """
+        Test the pipeline with a single URL.
+        
+        Args:
+            url: The URL to test
+            
+        Returns:
+            Dict[str, Any]: Analysis results for the URL
+        """
+        return test_url_runner(url)
+    
+    @staticmethod
+    async def process_story_async(
+        story: Dict[str, Any], 
+        executor: concurrent.futures.ThreadPoolExecutor,
+        config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Process a single story asynchronously.
+        
+        Args:
+            story: The story to process
+            executor: ThreadPoolExecutor for parallel processing
+            config: Configuration dictionary
+            
+        Returns:
+            Dict[str, Any]: Processed story with analysis
+        """
+        return await process_story(story, executor, config)
 
 if __name__ == "__main__":
     # Parse arguments once

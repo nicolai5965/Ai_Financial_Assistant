@@ -2,11 +2,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.constants import Send
 
 
-from report_models import ReportState, SectionState, Queries, Sections
-from search_results_formatter import deduplicate_and_format_sources, format_sections
-from tavily_search import tavily_search_async
-# from fetch_project_prompts import (
-#     report_planner_query_writer_instructions,
+from app.models.report_models import ReportState, SectionState, Queries, Sections
+from app.services.search_results_formatter import deduplicate_and_format_sources, format_sections
+from app.services.tavily_search import tavily_search_async
+# from app.services.fetch_project_prompts import (
 #     report_planner_instructions,
 #     query_writer_instructions,
 #     section_writer_instructions,
@@ -14,14 +13,15 @@ from tavily_search import tavily_search_async
 #     get_report_config
 # )
 
-from fetch_project_prompts import formatted_prompts
+from app.services.fetch_project_prompts import formatted_prompts
 
 # Access formatted prompts dynamically
-report_planner_query_writer_instructions = formatted_prompts["report_planner_query_writer_instructions"]
-report_planner_instructions = formatted_prompts["report_planner_instructions"]
-query_writer_instructions = formatted_prompts["query_writer_instructions"]
-section_writer_instructions = formatted_prompts["section_writer_instructions"]
-final_section_writer_instructions = formatted_prompts["final_section_writer_instructions"]
+# Make sure these keys match what's in the raw_prompts dictionary
+report_planner_query_writer_instructions = formatted_prompts.get("report_planner_query_writer_instructions", "")
+report_planner_instructions = formatted_prompts.get("report_planner_instructions", "")
+query_writer_instructions = formatted_prompts.get("query_writer_instructions", "")
+section_writer_instructions = formatted_prompts.get("section_writer_instructions", "")
+final_section_writer_instructions = formatted_prompts.get("final_section_writer_instructions", "")
 
 
 

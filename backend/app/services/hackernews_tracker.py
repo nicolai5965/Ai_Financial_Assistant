@@ -21,6 +21,108 @@ tqdm.pandas(disable=True)
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # --------------------
+# HackerNewsTracker Class
+# --------------------
+class HackerNewsTracker:
+    """
+    A class for tracking and filtering Hacker News stories.
+    Provides methods to get top stories, filter by keywords or topics,
+    and analyze stories for relevance.
+    """
+    
+    def __init__(self):
+        """Initialize the HackerNewsTracker."""
+        pass
+        
+    async def get_filtered_stories(
+        self,
+        num_stories: int = 30,
+        keywords: Optional[List[str]] = None,
+        topics: Optional[List[str]] = None,
+        similarity_threshold: float = 0.3,
+        search_fields: Optional[List[str]] = None
+    ) -> List[Dict[Any, Any]]:
+        """
+        Get filtered Hacker News stories based on keywords and/or topics.
+        
+        Args:
+            num_stories: Number of top stories to fetch
+            keywords: List of keywords to filter by
+            topics: List of topics to filter by semantic similarity
+            similarity_threshold: Minimum similarity score for topic filtering
+            search_fields: Fields to search in (title, text, url)
+            
+        Returns:
+            List of filtered stories
+        """
+        return await get_filtered_stories(
+            num_stories=num_stories,
+            keywords=keywords,
+            topics=topics,
+            similarity_threshold=similarity_threshold,
+            search_fields=search_fields
+        )
+    
+    @staticmethod
+    def filter_stories_by_keywords(
+        stories: List[Dict[Any, Any]], 
+        keywords: List[str], 
+        search_fields: Optional[List[str]] = None
+    ) -> List[Dict[Any, Any]]:
+        """
+        Filter stories by keywords.
+        
+        Args:
+            stories: List of stories to filter
+            keywords: List of keywords to filter by
+            search_fields: Fields to search in (title, text, url)
+            
+        Returns:
+            Filtered list of stories
+        """
+        return filter_stories_by_keywords(stories, keywords, search_fields)
+    
+    @staticmethod
+    def filter_stories_by_topic_similarity(
+        stories: List[Dict[Any, Any]], 
+        topics: List[str],
+        similarity_threshold: float = 0.3,
+        search_fields: Optional[List[str]] = None
+    ) -> List[Dict[Any, Any]]:
+        """
+        Filter stories by semantic similarity to topics.
+        
+        Args:
+            stories: List of stories to filter
+            topics: List of topics to filter by
+            similarity_threshold: Minimum similarity score
+            search_fields: Fields to search in (title, text, url)
+            
+        Returns:
+            Filtered list of stories with similarity scores
+        """
+        return filter_stories_by_topic_similarity(
+            stories, 
+            topics, 
+            similarity_threshold, 
+            search_fields
+        )
+    
+    @staticmethod
+    def analyze_top_stories(stories, include_similarity_score=False):
+        """
+        Analyze and format top stories.
+        
+        Args:
+            stories: List of stories to analyze
+            include_similarity_score: Whether to include similarity scores
+            
+        Returns:
+            Analyzed and formatted stories
+        """
+        return analyze_top_stories(stories, include_similarity_score)
+
+# --------------------
 # Utility Functions
 # --------------------
 
@@ -62,8 +164,6 @@ async def fetch_items_async(session, item_ids):
     tasks = [fetch_item(item_id) for item_id in item_ids]
     results = await asyncio.gather(*tasks)
     return results
-
-
 
 # --------------------
 # Analysis Function

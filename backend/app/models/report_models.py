@@ -1,7 +1,31 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal, Annotated, Any
+from typing import List, Optional, Literal, Annotated, Any, Dict
 from typing_extensions import TypedDict
 import operator
+
+# =========================
+# Report Configuration
+# =========================
+
+class ReportConfig(BaseModel):
+    """Configuration settings for report generation."""
+    min_word_limit: int = Field(description="Minimum word limit for sections")
+    max_word_limit: int = Field(description="Maximum word limit for sections")
+    min_sentences_per_paragraph: int = Field(description="Minimum sentences per paragraph")
+    max_sentences_per_paragraph: int = Field(description="Maximum sentences per paragraph")
+    min_list_items: int = Field(description="Minimum items in lists")
+    max_list_items: int = Field(description="Maximum items in lists")
+    number_of_queries: int = Field(description="Number of search queries to perform")
+    min_intro_word_limit: int = Field(description="Minimum word limit for introduction")
+    max_intro_word_limit: int = Field(description="Maximum word limit for introduction")
+    min_intro_paragraphs: int = Field(description="Minimum paragraphs in introduction")
+    max_intro_paragraphs: int = Field(description="Maximum paragraphs in introduction")
+    min_conclusion_word_limit: int = Field(description="Minimum word limit for conclusion")
+    max_conclusion_word_limit: int = Field(description="Maximum word limit for conclusion")
+    min_architecture_sentences: int = Field(description="Minimum sentences for architecture description")
+    max_architecture_sentences: int = Field(description="Maximum sentences for architecture description")
+    min_use_case_sentences: int = Field(description="Minimum sentences for use case description")
+    max_use_case_sentences: int = Field(description="Maximum sentences for use case description")
 
 # =========================
 # Section Models

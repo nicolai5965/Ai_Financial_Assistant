@@ -51,8 +51,7 @@ frontend/.pnpm-debug.log*
 backend/Lib/
 backend/__pycache__/
 backend/scripts/
-# Only add this if you want to keep test directories out of git
-# backend/tests/
+backend/tests/
 
 # System files
 .DS_Store

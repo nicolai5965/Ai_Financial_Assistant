@@ -103,12 +103,44 @@ async def generate_report_plan(state: ReportState):
     structured_llm = llm.with_structured_output(Sections)
     report_sections = structured_llm.invoke([
         SystemMessage(content=system_instructions_sections),
-        HumanMessage(content="Generate the sections of the report. Your response must include a 'sections' field containing a list of sections. Each section must have: name, description, research, and content fields.")
+        HumanMessage(content="""Generate the sections of the report. Your response must include a 'sections' field containing a list of sections. Each section must have: name, description, research, and content fields.
+
+Example expected format:
+{
+  "sections": [
+    {
+      "name": "Introduction",
+      "description": "Overview of the topic and key points to be covered",
+      "research": true,
+      "content": ""
+    },
+    {
+      "name": "Key Findings",
+      "description": "Main discoveries and analysis from the research",
+      "research": true,
+      "content": ""
+    }
+  ]
+}
+
+Your output MUST include all four fields for each section.""")
     ])
     print("✅ Report sections generated.")
 
+    # Post-processing: Ensure all required fields are present in each section
+    processed_sections = []
+    for section in report_sections.sections:
+        # Ensure all required fields are present
+        if not hasattr(section, 'description') or not section.description:
+            section.description = f"Details about {section.name}"
+        
+        if not hasattr(section, 'content') or not section.content:
+            section.content = ""  # Empty content to be filled later
+            
+        processed_sections.append(section)
+
     # Return list of sections
-    return {"sections": report_sections.sections}
+    return {"sections": processed_sections}
 
 
 # ====================================================

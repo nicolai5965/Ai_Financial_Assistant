@@ -34,9 +34,9 @@ class ReportConfig(BaseModel):
 class Section(BaseModel):
     """Represents a single section in the report."""
     name: str = Field(description="Name for this section of the report.")
-    description: str = Field(description="Brief overview of the main topics and concepts to be covered in this section.")
+    description: str = Field(default="", description="Brief overview of the main topics and concepts to be covered in this section.")
     research: bool = Field(description="Whether to perform web research for this section of the report.")
-    content: str = Field(description="The content of the section.")
+    content: str = Field(default="", description="The content of the section.")
 
 class Sections(BaseModel):
     """Encapsulates a list of sections in the report."""

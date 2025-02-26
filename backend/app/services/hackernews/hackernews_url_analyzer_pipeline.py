@@ -7,9 +7,9 @@ import argparse
 from typing import Dict, Any, Optional, List
 
 # Import the modules
-from app.services import hackernews_tracker
-from app.services import url_topic_analyzer
-from app.services.web_content_extractor import RequestsScraper, Crawl4AIScraper, WebContentExtractor
+from app.services.hackernews import hackernews_tracker
+from app.services.web import url_topic_analyzer
+from app.services.web.web_content_extractor import RequestsScraper, Crawl4AIScraper, WebContentExtractor
 
 # Configure logging
 logging.basicConfig(

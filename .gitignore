@@ -7,7 +7,7 @@ backend/.env
 .venv/
 venv/
 env/
-backend/venv/
+ENV/
 
 # Ignore Python cache files
 __pycache__/
@@ -34,8 +34,7 @@ test_file.py
 # Ignore to-do list
 to_do_list.md
 
-# Ignore frontend documentation
-FRONTEND_DOCS.md
+
 
 # Frontend specific ignores
 frontend/node_modules
@@ -46,11 +45,10 @@ frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
 frontend/.pnpm-debug.log*
+frontend/FRONTEND_DOCS.md
 
 # Backend specific ignores
-backend/Lib/
 backend/__pycache__/
-backend/scripts/
 backend/tests/
 
 # System files

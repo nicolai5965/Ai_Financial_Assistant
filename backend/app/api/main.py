@@ -3,7 +3,7 @@ import asyncio
 from app.core.settings import initialize_environment, get_config
 from app.utils.system_checks import run_system_checks
 from app.core.validate_api_keys import validate_api_keys
-from app.services.llm_handler import LLMHandler
+from app.services.llm.llm_handler import LLMHandler
 from app.models.report_models import ReportState
 
 def get_user_input(test_mode: bool, config: dict) -> tuple[str, str]:

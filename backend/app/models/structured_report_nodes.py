@@ -3,8 +3,8 @@ from langgraph.constants import Send
 
 
 from app.models.report_models import ReportState, SectionState, Queries, Sections
-from app.services.search_results_formatter import deduplicate_and_format_sources, format_sections
-from app.services.tavily_search import tavily_search_async
+from app.services.search.search_results_formatter import deduplicate_and_format_sources, format_sections
+from app.services.search.tavily_search import tavily_search_async
 # from app.services.fetch_project_prompts import (
 #     report_planner_instructions,
 #     query_writer_instructions,
@@ -13,7 +13,7 @@ from app.services.tavily_search import tavily_search_async
 #     get_report_config
 # )
 
-from app.services.fetch_project_prompts import formatted_prompts
+from app.services.llm.fetch_project_prompts import formatted_prompts
 
 # Access formatted prompts dynamically
 # Make sure these keys match what's in the raw_prompts dictionary

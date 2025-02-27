@@ -10,7 +10,7 @@ from app.services.llm.fetch_project_prompts import formatted_prompts, get_report
 
 # Search services
 from app.services.search.tavily_search import tavily_search, tavily_search_async
-from app.services.search.search_results_formatter import format_search_results
+from app.services.search.search_results_formatter import deduplicate_and_format_sources, format_sections
 
 # Web services
 from app.services.web.web_content_extractor import WebContentExtractor
@@ -33,7 +33,8 @@ __all__: List[str] = [
     # Search services
     'tavily_search',
     'tavily_search_async',
-    'format_search_results',
+    'deduplicate_and_format_sources',
+    'format_sections',
     
     # Web services
     'WebContentExtractor',

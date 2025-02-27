@@ -14,6 +14,22 @@ from app.models.structured_report_nodes import (
     compile_final_report
 )
 
+# TEMPORARY: Wrapper functions for debugging conditional edges
+def debug_initiate_section_writing(state):
+    print("\n🔍 DEBUG: Executing conditional edge: initiate_section_writing")
+    result = initiate_section_writing(state)
+    print(f"🔍 DEBUG: Result from initiate_section_writing: {len(result)} items")
+    return result
+
+def debug_initiate_final_section_writing(state):
+    print("\n🔍 DEBUG: Executing conditional edge: initiate_final_section_writing")
+    result = initiate_final_section_writing(state)
+    print(f"🔍 DEBUG: Result from initiate_final_section_writing: {len(result)} items")
+    if len(result) == 0:
+        print("🔍 DEBUG: WARNING - Empty result from initiate_final_section_writing!")
+        print("🔍 DEBUG: This will likely cause the pipeline to terminate early!")
+    return result
+
 # Build a subgraph for a single section
 print("🔄 Constructing section builder graph...")
 section_builder = StateGraph(SectionState, output=SectionOutputState)
@@ -44,11 +60,19 @@ final_builder.add_node("compile_final_report", compile_final_report)
 
 print("🔗 Defining edges for final report graph...")
 final_builder.add_edge(START, "generate_report_plan")
-final_builder.add_conditional_edges("generate_report_plan", initiate_section_writing, ["build_section_with_web_research"])
+# Use debug wrapper for conditional edges
+final_builder.add_conditional_edges("generate_report_plan", debug_initiate_section_writing, ["build_section_with_web_research"])
 final_builder.add_edge("build_section_with_web_research", "gather_completed_sections")
-final_builder.add_conditional_edges("gather_completed_sections", initiate_final_section_writing, ["write_final_sections"])
+# Use debug wrapper for conditional edges
+final_builder.add_conditional_edges("gather_completed_sections", debug_initiate_final_section_writing, ["write_final_sections"])
 final_builder.add_edge("write_final_sections", "compile_final_report")
 final_builder.add_edge("compile_final_report", END)
+
+# TEMPORARY: Add a fallback edge to ensure the pipeline continues
+# This is a safety measure in case no non-research sections are found
+print("🔗 DEBUG: Adding fallback edge from gather_completed_sections to compile_final_report...")
+final_builder.add_edge("gather_completed_sections", "compile_final_report")
+print("✅ DEBUG: Fallback edge added.")
 
 print("✅ Final report graph constructed successfully.\n")
 

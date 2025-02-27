@@ -23,9 +23,8 @@ query_writer_instructions = formatted_prompts.get("query_writer_instructions", "
 section_writer_instructions = formatted_prompts.get("section_writer_instructions", "")
 final_section_writer_instructions = formatted_prompts.get("final_section_writer_instructions", "")
 
-
-
-
+# TEMPORARY DEBUG IMPORT
+import json
 
 # ====================================================
 # Report Plan Generation Node
@@ -68,11 +67,14 @@ async def generate_report_plan(state: ReportState):
         report_organization=report_structure,
         number_of_queries=number_of_queries
     )
+
     results = structured_llm.invoke([
         SystemMessage(content=system_instructions_query),
         HumanMessage(content="Generate search queries that will help with planning the sections of the report.")
     ])
-    print("✅ Search queries generated.")
+    print(f"✅ Search queries generated: {results.queries}")
+
+    print(f"input state: {state}")
 
     # 2. Execute web searches via Tavily
     print("🔍 Executing web searches via Tavily...")
@@ -82,7 +84,7 @@ async def generate_report_plan(state: ReportState):
         raise ValueError("❌ ERROR: Query list is empty or contains invalid data.")
     
     search_docs = await tavily_search_async(query_list, tavily_topic, tavily_days)
-    print("✅ Tavily searches completed.")
+    print(f"✅ Tavily searches completed: {len(search_docs)} documents found.")
 
     # 3. Process and format search results
     print("📜 Formatting and deduplicating search results...")
@@ -104,26 +106,7 @@ async def generate_report_plan(state: ReportState):
     report_sections = structured_llm.invoke([
         SystemMessage(content=system_instructions_sections),
         HumanMessage(content="""Generate the sections of the report. Your response must include a 'sections' field containing a list of sections. Each section must have: name, description, research, and content fields.
-
-Example expected format:
-{
-  "sections": [
-    {
-      "name": "Introduction",
-      "description": "Overview of the topic and key points to be covered",
-      "research": true,
-      "content": ""
-    },
-    {
-      "name": "Key Findings",
-      "description": "Main discoveries and analysis from the research",
-      "research": true,
-      "content": ""
-    }
-  ]
-}
-
-Your output MUST include all four fields for each section.""")
+        Your output MUST include all four fields for each section.""")
     ])
     print("✅ Report sections generated.")
 
@@ -277,6 +260,15 @@ def write_final_sections(state: SectionState):
     """
 
     print(f"\n✍️ Writing final section: {state['section'].name}...")
+    
+    # ====== START DEBUG LOGGING ======
+    print("\n🔍 DEBUG: write_final_sections INPUT STATE:")
+    print(f"Section name: {state['section'].name}")
+    print(f"Section description: {state['section'].description}")
+    print(f"Section research flag: {state['section'].research}")
+    print(f"report_sections_from_research length: {len(state['report_sections_from_research'])}")
+    # ====== END DEBUG LOGGING ======
+    
     # Extract inputs from state
     llm = state["llm"]
     section = state["section"]
@@ -295,6 +287,12 @@ def write_final_sections(state: SectionState):
     ])
 
     section.content = section_content.content
+    
+    # ====== START DEBUG LOGGING ======
+    print("\n🔍 DEBUG: write_final_sections OUTPUT:")
+    print(f"Section content length: {len(section.content)}")
+    print(f"First 100 chars of section content: {section.content[:100]}...")
+    # ====== END DEBUG LOGGING ======
 
     print(f"✅ Section: {state['section'].name} written.")
 
@@ -311,10 +309,28 @@ def gather_completed_sections(state: ReportState):
         dict: Contains formatted string of completed sections
     """
     print("\n📦 Gathering completed sections...")
+    
+    # ====== START DEBUG LOGGING ======
+    print("\n🔍 DEBUG: gather_completed_sections INPUT STATE:")
+    print(f"Number of completed sections: {len(state['completed_sections'])}")
+    section_names = [section.name for section in state['completed_sections']]
+    print(f"Completed section names: {section_names}")
+    print(f"sections array length: {len(state['sections'])}")
+    section_names_all = [section.name for section in state['sections']]
+    print(f"All section names: {section_names_all}")
+    # ====== END DEBUG LOGGING ======
+    
     # Extract inputs from state
     completed_sections = state["completed_sections"]
 
     completed_report_sections = format_sections(completed_sections)
+    
+    # ====== START DEBUG LOGGING ======
+    print("\n🔍 DEBUG: gather_completed_sections OUTPUT:")
+    print(f"Formatted sections length (chars): {len(completed_report_sections)}")
+    print(f"First 100 chars of formatted sections: {completed_report_sections[:100]}...")
+    # ====== END DEBUG LOGGING ======
+    
     print("✅ Completed sections gathered.")
     return {"report_sections_from_research": completed_report_sections}
 
@@ -330,7 +346,18 @@ def initiate_final_section_writing(state: ReportState):
         list: List of Send() API calls for non-research sections
     """
     print("\n🚀 Initiating final section writing...")
-    return [
+    
+    # ====== START DEBUG LOGGING ======
+    print("\n🔍 DEBUG: initiate_final_section_writing INPUT STATE:")
+    print(f"Total sections: {len(state['sections'])}")
+    research_sections = [s.name for s in state['sections'] if s.research]
+    non_research_sections = [s.name for s in state['sections'] if not s.research]
+    print(f"Research sections: {research_sections}")
+    print(f"Non-research sections: {non_research_sections}")
+    print(f"report_sections_from_research length: {len(state['report_sections_from_research'])}")
+    # ====== END DEBUG LOGGING ======
+    
+    result = [
         Send("write_final_sections", {
             "section": s,
             "report_sections_from_research": state["report_sections_from_research"],
@@ -339,7 +366,29 @@ def initiate_final_section_writing(state: ReportState):
         for s in state["sections"]
         if not s.research
     ]
-
+    
+    # ====== START DEBUG LOGGING ======
+    print(f"\n🔍 DEBUG: initiate_final_section_writing OUTPUT:")
+    print(f"Number of Send() operations returned: {len(result)}")
+    if len(result) == 0:
+        print("WARNING: No non-research sections found! Pipeline may terminate early!")
+        print("Adding a fallback section to ensure pipeline continues...")
+        # If there are no non-research sections, let's ensure we have at least one
+        # This is just for debugging - we can refine this approach later
+        if len(state["sections"]) > 0:
+            # For debugging, use the first section as a fallback
+            fallback_section = state["sections"][0]
+            print(f"Using section '{fallback_section.name}' as fallback to continue pipeline")
+            result = [
+                Send("write_final_sections", {
+                    "section": fallback_section,
+                    "report_sections_from_research": state["report_sections_from_research"],
+                    "llm": state["llm"]
+                })
+            ]
+    # ====== END DEBUG LOGGING ======
+    
+    return result
 
 def compile_final_report(state: ReportState):
     """
@@ -352,16 +401,54 @@ def compile_final_report(state: ReportState):
         dict: Contains final compiled report
     """
     print("\n🔄 Compiling final report...")
+    
+    # ====== START DEBUG LOGGING ======
+    print("\n🔍 DEBUG: compile_final_report INPUT STATE:")
+    print(f"Total sections in state: {len(state['sections'])}")
+    print(f"Total completed sections: {len(state['completed_sections'])}")
+    section_names = [s.name for s in state['sections']]
+    completed_section_names = [s.name for s in state['completed_sections']]
+    print(f"Section names: {section_names}")
+    print(f"Completed section names: {completed_section_names}")
+    
+    # Check if we're missing any sections
+    missing_sections = set(section_names) - set(completed_section_names)
+    if missing_sections:
+        print(f"WARNING: Missing sections in completed_sections: {missing_sections}")
+    # ====== END DEBUG LOGGING ======
 
     # Extract inputs from state
     sections = state["sections"]
     completed_sections = {s.name: s.content for s in state["completed_sections"]}
 
-    # Update sections while maintaining original order
+    # ====== START DEBUG LOGGING ======
+    # Check for any KeyError risk before we proceed
     for section in sections:
-        section.content = completed_sections[section.name]
+        if section.name not in completed_sections:
+            print(f"WARNING: Section '{section.name}' not found in completed_sections")
+    # ====== END DEBUG LOGGING ======
+    
+    # Update sections while maintaining original order
+    try:
+        for section in sections:
+            section.content = completed_sections[section.name]
+    except KeyError as e:
+        # ====== START DEBUG LOGGING ======
+        print(f"ERROR: KeyError in compile_final_report: {e}")
+        print(f"Available keys in completed_sections: {list(completed_sections.keys())}")
+        # ====== END DEBUG LOGGING ======
+        # Instead of failing, let's use an empty string for missing sections
+        for section in sections:
+            section.content = completed_sections.get(section.name, f"[Content for section '{section.name}' not found]")
 
     all_sections = "\n\n".join([s.content for s in sections])
+    
+    # ====== START DEBUG LOGGING ======
+    print("\n🔍 DEBUG: compile_final_report OUTPUT:")
+    print(f"Final report length: {len(all_sections)}")
+    print(f"First 200 chars of final report: {all_sections[:200]}...")
+    # ====== END DEBUG LOGGING ======
+    
     print("✅ Final report compiled.")
     return {"final_report": all_sections}
 

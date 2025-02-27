@@ -1,7 +1,7 @@
 import os
 import time
 from dotenv import load_dotenv
-from app.services.llm_handler import LLMHandler
+from app.services.llm.llm_handler import LLMHandler
 import sys
 import argparse
 import logging

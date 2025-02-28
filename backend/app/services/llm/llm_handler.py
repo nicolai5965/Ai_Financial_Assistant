@@ -10,7 +10,7 @@ class LLMHandler:
     A handler for managing language models from different providers.
     """
 
-    def __init__(self, llm_provider, max_tokens=1024, temperature=0.2, model_name=None):
+    def __init__(self, llm_provider, max_tokens=1024, temperature=0.0, model_name=None):
         """
         Initialize the language model handler.
 

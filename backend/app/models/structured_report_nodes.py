@@ -13,17 +13,24 @@ from app.services.search.tavily_search import tavily_search_async
 #     get_report_config
 # )
 
-from app.services.llm.fetch_project_prompts import formatted_prompts
+# IMPORTANT: Don't import formatted_prompts at the module level
+# Instead, create functions to get the prompts when needed
+# This ensures we get the prompts after they've been populated by set_report_size
 
-# Access formatted prompts dynamically
-# Make sure these keys match what's in the raw_prompts dictionary
-report_planner_query_writer_instructions = formatted_prompts.get("report_planner_query_writer_instructions", "")
-report_planner_instructions = formatted_prompts.get("report_planner_instructions", "")
-query_writer_instructions = formatted_prompts.get("query_writer_instructions", "")
-section_writer_instructions = formatted_prompts.get("section_writer_instructions", "")
-final_section_writer_instructions = formatted_prompts.get("final_section_writer_instructions", "")
+def get_formatted_prompts():
+    """Get the formatted prompts after they've been populated by set_report_size."""
+    from app.services.llm.fetch_project_prompts import formatted_prompts
+    # ====== START DEBUG LOGGING ======
+    print(f"🔍 DEBUG: Lazily loading formatted_prompts: \n {formatted_prompts}", "\n\n")
+    # ====== END DEBUG LOGGING ======
+    return formatted_prompts
 
-# TEMPORARY DEBUG IMPORT
+def get_prompt(key, default=""):
+    """Get a specific prompt using lazy loading."""
+    prompts = get_formatted_prompts()
+    return prompts.get(key, default)
+
+# TEMPORARY DEBUG IMPORT - Remove this after confirming the fix
 import json
 
 # ====================================================
@@ -55,18 +62,47 @@ async def generate_report_plan(state: ReportState):
     tavily_topic = state["tavily_topic"]
     tavily_days = state.get("tavily_days", None)
 
+    # ====== START DEBUG LOGGING ======
+    print(f"🔍 DEBUG: Input state in the generate_report_plan function, just before the report structure is converted to a string: {state}", "\n\n")
+    # ====== END DEBUG LOGGING ======
+
     # Convert JSON object to string if necessary
     if isinstance(report_structure, dict):
         report_structure = str(report_structure)
 
+    # ====== START DEBUG LOGGING ======
+    print(f"🔍 DEBUG: Input state in the generate_report_plan function, just after the report structure is converted to a string: {state}", "\n\n")
+    # ====== END DEBUG LOGGING ======
+
     # 1. Generate search queries using LLM
     print("🔍 Generating search queries...")
     structured_llm = llm.with_structured_output(Queries)
+
+    # ====== START DEBUG LOGGING ======
+    print(f"🔍 DEBUG: structured_llm: \n {structured_llm}", "\n\n")
+    # ====== END DEBUG LOGGING ======
+
+    # Get the formatted prompt using the lazy loading approach
+    report_planner_query_writer_instructions = get_prompt("report_planner_query_writer_instructions")
+    # ====== START DEBUG LOGGING ======
+    print(f"🔍 DEBUG: report_planner_query_writer_instructions before formatting: \n {report_planner_query_writer_instructions}", "\n\n")
+    # ====== END DEBUG LOGGING ======
+
     system_instructions_query = report_planner_query_writer_instructions.format(
         topic=topic, 
         report_organization=report_structure,
         number_of_queries=number_of_queries
     )
+
+    # ====== START DEBUG LOGGING ======
+    print(f"🔍 DEBUG: report_planner_query_writer_instructions now called system_instructions_query after formatting: \n {system_instructions_query}", "\n\n")
+    # ====== END DEBUG LOGGING ======
+    
+    # ====== START DEBUG LOGGING ======
+    print(f"🔍 DEBUG: Input state in the generate_report_plan function, just after the system instructions are formatted: {state}", "\n\n")
+    # ====== END DEBUG LOGGING ======
+
+    
 
     results = structured_llm.invoke([
         SystemMessage(content=system_instructions_query),
@@ -74,7 +110,9 @@ async def generate_report_plan(state: ReportState):
     ])
     print(f"✅ Search queries generated: {results.queries}")
 
+    # ====== START DEBUG LOGGING ======
     print(f"input state: {state}")
+    # ====== END DEBUG LOGGING ======
 
     # 2. Execute web searches via Tavily
     print("🔍 Executing web searches via Tavily...")
@@ -83,6 +121,9 @@ async def generate_report_plan(state: ReportState):
     if not query_list or not all(isinstance(q, str) and q.strip() for q in query_list):
         raise ValueError("❌ ERROR: Query list is empty or contains invalid data.")
     
+    # Remove the breakpoint to let the code continue
+    # breakpoint()
+
     search_docs = await tavily_search_async(query_list, tavily_topic, tavily_days)
     print(f"✅ Tavily searches completed: {len(search_docs)} documents found.")
 
@@ -97,6 +138,8 @@ async def generate_report_plan(state: ReportState):
 
     # 4. Generate report sections using second LLM prompt
     print("✍️ Generating report sections...")
+    # Get the formatted prompt using the lazy loading approach
+    report_planner_instructions = get_prompt("report_planner_instructions")
     system_instructions_sections = report_planner_instructions.format(
         topic=topic,
         report_organization=report_structure,
@@ -105,8 +148,7 @@ async def generate_report_plan(state: ReportState):
     structured_llm = llm.with_structured_output(Sections)
     report_sections = structured_llm.invoke([
         SystemMessage(content=system_instructions_sections),
-        HumanMessage(content="""Generate the sections of the report. Your response must include a 'sections' field containing a list of sections. Each section must have: name, description, research, and content fields.
-        Your output MUST include all four fields for each section.""")
+        HumanMessage(content="""Generate the sections of the report. Your response must include a 'sections' field containing a list of sections. Each section must have: name, description, research, and content fields.""")
     ])
     print("✅ Report sections generated.")
 
@@ -123,6 +165,7 @@ async def generate_report_plan(state: ReportState):
         processed_sections.append(section)
 
     # Return list of sections
+    print(f"✅ Report sections generated: {processed_sections}")
     return {"sections": processed_sections}
 
 
@@ -150,7 +193,8 @@ def generate_queries(state: SectionState):
     # Generate queries
     structured_llm = llm.with_structured_output(Queries)
 
-    # Format system instructions
+    # Format system instructions - use lazy loading
+    query_writer_instructions = get_prompt("query_writer_instructions")
     system_instructions = query_writer_instructions.format(section_topic=section.description, number_of_queries=number_of_queries)
 
     # Generate queries
@@ -203,7 +247,8 @@ def write_section(state: SectionState):
     section = state["section"]
     source_str = state["source_str"]
 
-    # Format system instructions
+    # Format system instructions - use lazy loading
+    section_writer_instructions = get_prompt("section_writer_instructions")
     system_instructions = section_writer_instructions.format(section_title=section.name, section_topic=section.description, context=source_str)
 
     # Generate section
@@ -274,7 +319,8 @@ def write_final_sections(state: SectionState):
     section = state["section"]
     completed_report_sections = state["report_sections_from_research"]
 
-    # Format system instructions
+    # Format system instructions - use lazy loading
+    final_section_writer_instructions = get_prompt("final_section_writer_instructions")
     system_instructions = final_section_writer_instructions.format(
         section_title=section.name,
         section_topic=section.description,

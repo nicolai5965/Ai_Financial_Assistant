@@ -6,6 +6,8 @@ from app.core.validate_api_keys import validate_api_keys
 from app.services.llm.llm_handler import LLMHandler
 from app.models.report_models import ReportState
 
+# Import and initialize formatted_prompts as early as possible
+from app.services.llm.fetch_project_prompts import set_report_size
 
 def get_user_input(test_mode: bool, config: dict) -> tuple[str, str]:
     """Get user input for report configuration.
@@ -20,7 +22,7 @@ def get_user_input(test_mode: bool, config: dict) -> tuple[str, str]:
     if test_mode:
         print("\n🧪 Test mode enabled! Using predefined inputs...\n")
         size_choice = config["default_report_size"]
-        report_topic = "News on NVIDIA stock"
+        report_topic = "Give an overview of capabilities and specific use case examples for these processing units: CPU, GPU"
     else:
         size_choice = config["default_report_size"]
         report_topic = input("Enter report topic: ").strip()
@@ -34,6 +36,13 @@ async def main():
     # Initialize environment
     initialize_environment()
     config = get_config()
+    
+    # Get user input first (to determine report size early)
+    size_choice, report_topic = get_user_input(config["test_mode"], config)
+    
+    # Set report size as early as possible, before other imports
+    print("\n🔄 Setting report size and initializing prompts...")
+    set_report_size(size_choice)
     
     # Run system checks and API validation in test mode
     # if not run_system_checks(config["test_mode"]):
@@ -49,13 +58,8 @@ async def main():
     llm_handler = LLMHandler(config["llm_provider"])
     # llm_settings = llm_handler.show_settings()
     
-    # Get user input
-    size_choice, report_topic = get_user_input(config["test_mode"], config)
-    # Import and configure report generation components
-    from app.services.llm.fetch_project_prompts import set_report_size, formatted_prompts, get_report_config
-    
-    # Configure the report size first, which updates the formatted_prompts
-    set_report_size(size_choice)
+    # Import and configure report generation components - these imports now happen AFTER set_report_size
+    from app.services.llm.fetch_project_prompts import formatted_prompts, get_report_config
     
     # Get the configuration for the selected report size
     size_config = get_report_config(size_choice)
@@ -85,6 +89,8 @@ async def main():
 
     # Execute report generation
     print("\n🔄 Generating report...")
+    
+    # Import report_graph_builders after set_report_size to ensure proper prompt loading
     from app.services.reports.report_graph_builders import final_report_builder
     
     try:

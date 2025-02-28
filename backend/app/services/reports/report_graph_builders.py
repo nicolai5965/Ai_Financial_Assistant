@@ -17,12 +17,14 @@ from app.models.structured_report_nodes import (
 # TEMPORARY: Wrapper functions for debugging conditional edges
 def debug_initiate_section_writing(state):
     print("\n🔍 DEBUG: Executing conditional edge: initiate_section_writing")
+    print(f"🔍 DEBUG: Input state in the initiate_section_writing function: {state}")
     result = initiate_section_writing(state)
     print(f"🔍 DEBUG: Result from initiate_section_writing: {len(result)} items")
     return result
 
 def debug_initiate_final_section_writing(state):
     print("\n🔍 DEBUG: Executing conditional edge: initiate_final_section_writing")
+    print(f"🔍 DEBUG: Input state in the initiate_final_section_writing function: {state}")
     result = initiate_final_section_writing(state)
     print(f"🔍 DEBUG: Result from initiate_final_section_writing: {len(result)} items")
     if len(result) == 0:

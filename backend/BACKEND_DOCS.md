@@ -15,6 +15,7 @@ backend/
 │   │   ├── __init__.py   # Package initialization
 │   │   ├── settings.py   # Application settings and configuration
 │   │   └── validate_api_keys.py # API key validation utilities
+│   │   └── logging_config.py # Logging configuration
 │   ├── models/           # Data models and schemas
 │   │   ├── __init__.py   # Package initialization
 │   │   ├── report_models.py # Report-related data models
@@ -110,34 +111,6 @@ backend/
 - **Purpose**: Contains the test suite for the application. This includes unit tests, integration tests, and end-to-end tests to ensure the application works as expected.
 - **Location**: `backend/tests/`
 
-|--------------------------------|
-|      Potential Future Folders  |
-|--------------------------------|
-
-### 1. `app/schemas/`
-- **Purpose**: Would contain Pydantic schemas for request/response validation, separate from the data models. This separation allows for different validation rules for API inputs/outputs versus internal data structures.
-- **Key Components**:
-  - `schemas/requests/`: Input validation schemas for API endpoints
-  - `schemas/responses/`: Output formatting schemas for API responses
-  - `schemas/common.py`: Shared schema components and base models
-- **When to Add**: Add this folder when your API layer grows and you need more sophisticated request/response validation, especially if the validation logic differs from your internal data models.
-
-### 2. `app/middleware/`
-- **Purpose**: Would contain HTTP middleware components for cross-cutting concerns like authentication, logging, error handling, and request/response transformation. Middleware intercepts HTTP requests/responses before they reach your route handlers.
-- **Key Components**:
-  - `middleware/auth.py`: Authentication and authorization middleware
-  - `middleware/logging.py`: Request/response logging
-  - `middleware/error_handlers.py`: Global exception handlers
-  - `middleware/cors.py`: Cross-Origin Resource Sharing configuration
-- **When to Add**: Add this folder when you need to apply consistent processing across multiple API endpoints, such as enforcing authentication, logging requests, or handling errors in a standardized way.
-
-### 3. `app/background/`
-- **Purpose**: Would contain code for background tasks and scheduled jobs. This includes long-running processes, periodic tasks, and asynchronous job processing.
-- **Key Components**:
-  - `background/tasks.py`: Background task definitions
-  - `background/scheduler.py`: Task scheduling logic
-  - `background/workers.py`: Worker process management
-- **When to Add**: Add this folder when you need to perform operations asynchronously or on a schedule, such as data refreshing, report generation, or notification sending.
 
 |--------------------------------|
 |        File Explanation        |
@@ -236,3 +209,35 @@ Nothing to see here yet.
 ### 18. `.env`
 - **Purpose**: This file contains the environment variables for the backend.
 - **Location**: `backend/.env`
+
+
+
+
+|--------------------------------|
+|      Potential Future Folders  |
+|--------------------------------|
+
+### 1. `app/schemas/`
+- **Purpose**: Would contain Pydantic schemas for request/response validation, separate from the data models. This separation allows for different validation rules for API inputs/outputs versus internal data structures.
+- **Key Components**:
+  - `schemas/requests/`: Input validation schemas for API endpoints
+  - `schemas/responses/`: Output formatting schemas for API responses
+  - `schemas/common.py`: Shared schema components and base models
+- **When to Add**: Add this folder when your API layer grows and you need more sophisticated request/response validation, especially if the validation logic differs from your internal data models.
+
+### 2. `app/middleware/`
+- **Purpose**: Would contain HTTP middleware components for cross-cutting concerns like authentication, logging, error handling, and request/response transformation. Middleware intercepts HTTP requests/responses before they reach your route handlers.
+- **Key Components**:
+  - `middleware/auth.py`: Authentication and authorization middleware
+  - `middleware/logging.py`: Request/response logging
+  - `middleware/error_handlers.py`: Global exception handlers
+  - `middleware/cors.py`: Cross-Origin Resource Sharing configuration
+- **When to Add**: Add this folder when you need to apply consistent processing across multiple API endpoints, such as enforcing authentication, logging requests, or handling errors in a standardized way.
+
+### 3. `app/background/`
+- **Purpose**: Would contain code for background tasks and scheduled jobs. This includes long-running processes, periodic tasks, and asynchronous job processing.
+- **Key Components**:
+  - `background/tasks.py`: Background task definitions
+  - `background/scheduler.py`: Task scheduling logic
+  - `background/workers.py`: Worker process management
+- **When to Add**: Add this folder when you need to perform operations asynchronously or on a schedule, such as data refreshing, report generation, or notification sending.

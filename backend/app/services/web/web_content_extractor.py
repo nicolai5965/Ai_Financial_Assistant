@@ -1,18 +1,13 @@
 import asyncio
 import requests
 import time
-import logging
 from typing import Optional, Dict, Any, List
 from bs4 import BeautifulSoup
 
 # -----------------------------
-# Logging Configuration
+# Import Centralized Logger
 # -----------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
+from app.core.logging_config import logger
 
 # -----------------------------
 # Crawl4AIScraper Definition
@@ -100,10 +95,12 @@ class Crawl4AIScraper:
                         "extraction_method": "crawl4ai"
                     }
         except Exception as e:
-            logging.error("Crawl4AIScraper error for URL %s: %s", url, e)
+            logger.exception("Crawl4AIScraper error for URL %s", url)
             return {
                 "success": False,
-                "error": str(e)
+                "error": str(e),
+                "url": url,
+                "extraction_method": "crawl4ai"
             }
         return None
 
@@ -133,7 +130,9 @@ class RequestsScraper:
         Simple content fetching using requests library.
         Good for static websites that don't require JavaScript.
         """
+        response = None  # Initialize response variable
         try:
+            logger.debug("Starting RequestsScraper for URL: %s", url)
             response = requests.get(url, headers=self.headers)
             response.raise_for_status()
             
@@ -145,7 +144,11 @@ class RequestsScraper:
             text_content = soup.get_text(strip=True)
             
             if not text_content:
+                logger.warning("No text content extracted from URL: %s", url)
                 raise ValueError("Could not extract text from the article")
+            
+            logger.debug("RequestsScraper successfully extracted %d characters of content from URL: %s", 
+                        len(text_content), url)
             
             return {
                 "success": True,
@@ -156,21 +159,23 @@ class RequestsScraper:
                 "extraction_method": "requests"
             }
         except requests.RequestException as e:
-            status_code = response.status_code if 'response' in locals() and response is not None else None
-            logging.error("Error fetching content from URL %s: %s", url, e)
+            status_code = response.status_code if response else None
+            logger.error("RequestException for URL %s (status: %s): %s", url, status_code, str(e))
             return {
                 "success": False,
                 "error": str(e),
                 "status_code": status_code,
-                "url": url
+                "url": url,
+                "extraction_method": "requests"
             }
         except Exception as e:
-            logging.error("Unexpected error fetching content from URL %s: %s", url, e)
+            logger.exception("Unexpected error in RequestsScraper for URL %s", url)
             return {
                 "success": False,
                 "error": str(e),
                 "status_code": None,
-                "url": url
+                "url": url,
+                "extraction_method": "requests"
             }
 
 # -----------------------------
@@ -189,6 +194,8 @@ class WebContentExtractor:
             "page_timeout": 5000,
             "wait_time": 0.0
         }
+        logger.info("WebContentExtractor initialized with primary_method=%s, fallback_enabled=%s", 
+                  self.config.get("primary_method"), self.config.get("fallback_enabled"))
     
     async def extract_from_url(self, url: str) -> Dict[str, Any]:
         """
@@ -213,18 +220,25 @@ class WebContentExtractor:
             Dict[str, Dict[str, Any]]: Dictionary mapping URLs to their extraction results.
         """
         if not urls:
-            logging.info("No URLs provided.")
+            logger.warning("extract_from_urls called with empty URL list")
             return {}
             
-        logging.info("Starting processing of %d URL(s).", len(urls))
+        logger.info("Starting parallel processing of %d URL(s)", len(urls))
         tasks = [process_url(url, self.config) for url in urls]
-        processed_results = await asyncio.gather(*tasks)
+        
+        # Use gather to run all tasks concurrently
+        try:
+            processed_results = await asyncio.gather(*tasks)
+        except Exception as e:
+            logger.exception("Error in parallel URL processing")
+            return {}
         
         results = {}
         for url, result in zip(urls, processed_results):
             results[url] = result
             
-        logging.info("Completed processing of all URLs.")
+        success_count = sum(1 for r in results.values() if r.get("success", False))
+        logger.info("Completed processing of all URLs. Success: %d/%d", success_count, len(urls))
         return results
 
 # -----------------------------
@@ -237,42 +251,64 @@ async def process_url(url: str, config: Dict[str, Any]) -> Dict[str, Any]:
     
     Logs key checkpoints for processing.
     """
-    logging.info("Starting processing for URL: %s", url)
+    request_id = id(url)[:8]  # Use first 8 digits of object id as a simple request identifier
+    logger.info("[ReqID:%s] Starting processing for URL: %s", request_id, url)
     primary_method = config.get("primary_method", "crawl4ai").lower()
     fallback_enabled = config.get("fallback_enabled", True)
     result = None
 
     # Define an async wrapper to call the synchronous RequestsScraper
     async def fetch_with_requests(url: str) -> Dict[str, Any]:
-        from functools import partial
         scraper = RequestsScraper(wait_time=config.get("wait_time", 0.0))
         # Run the synchronous fetch_content in a thread
         return await asyncio.to_thread(scraper.fetch_content, url)
     
     # Try primary method first
     if primary_method == "crawl4ai":
-        logging.info("Using primary method Crawl4AIScraper for URL: %s", url)
-        scraper = Crawl4AIScraper(config=config)
-        result = await scraper.fetch_content(url)
-        # Fallback to requests if needed
-        if not (result and result.get("success")) and fallback_enabled:
-            error_detail = result.get("error") if result else "Unknown error"
-            logging.warning("Crawl4AIScraper failed for URL %s with error: %s. Falling back to RequestsScraper.", url, error_detail)
-            result = await fetch_with_requests(url)
-    else:  # primary_method is "requests"
-        logging.info("Using primary method RequestsScraper for URL: %s", url)
-        result = await fetch_with_requests(url)
-        if not (result and result.get("success")) and fallback_enabled:
-            error_detail = result.get("error") if result else "Unknown error"
-            logging.warning("RequestsScraper failed for URL %s with error: %s. Falling back to Crawl4AIScraper.", url, error_detail)
+        logger.info("[ReqID:%s] Using primary method Crawl4AIScraper for URL: %s", request_id, url)
+        try:
             scraper = Crawl4AIScraper(config=config)
             result = await scraper.fetch_content(url)
+            # Fallback to requests if needed
+            if not (result and result.get("success")) and fallback_enabled:
+                error_detail = result.get("error") if result else "Unknown error"
+                logger.warning("[ReqID:%s] Crawl4AIScraper failed for URL with error: %s. Falling back to RequestsScraper.", 
+                            request_id, error_detail)
+                result = await fetch_with_requests(url)
+        except Exception as e:
+            logger.exception("[ReqID:%s] Unhandled exception in Crawl4AIScraper flow", request_id)
+            result = {
+                "success": False,
+                "error": f"Unhandled exception: {str(e)}",
+                "url": url
+            }
+    else:  # primary_method is "requests"
+        logger.info("[ReqID:%s] Using primary method RequestsScraper for URL: %s", request_id, url)
+        try:
+            result = await fetch_with_requests(url)
+            if not (result and result.get("success")) and fallback_enabled:
+                error_detail = result.get("error") if result else "Unknown error"
+                logger.warning("[ReqID:%s] RequestsScraper failed for URL with error: %s. Falling back to Crawl4AIScraper.", 
+                            request_id, error_detail)
+                scraper = Crawl4AIScraper(config=config)
+                result = await scraper.fetch_content(url)
+        except Exception as e:
+            logger.exception("[ReqID:%s] Unhandled exception in RequestsScraper flow", request_id)
+            result = {
+                "success": False,
+                "error": f"Unhandled exception: {str(e)}",
+                "url": url
+            }
     
-    if result.get("success"):
-        logging.info("Successfully processed URL: %s using method: %s", url, result.get("extraction_method"))
+    if result and result.get("success"):
+        text_length = len(result.get("text_content", "")) if result.get("text_content") else 0
+        logger.info("[ReqID:%s] Successfully processed URL using method: %s (content length: %d characters)", 
+                  request_id, result.get("extraction_method"), text_length)
     else:
-        logging.error("Failed to process URL: %s after trying both Crawl4AIScraper and RequestsScraper.", url)
-    logging.info("Completed processing for URL: %s", url)
+        logger.error("[ReqID:%s] Failed to process URL after trying available methods. Error: %s", 
+                   request_id, result.get("error") if result else "Unknown error")
+        
+    logger.info("[ReqID:%s] Completed processing for URL: %s", request_id, url)
     return result
 
 # -----------------------------
@@ -302,35 +338,49 @@ async def main() -> Dict[str, Any]:
     results: Dict[str, Any] = {}
 
     if not urls:
-        logging.info("No URLs provided in configuration.")
+        logger.warning("No URLs provided in configuration.")
         return results
 
-    logging.info("Starting processing of %d URL(s).", len(urls))
+    logger.info("Starting batch processing of %d URL(s).", len(urls))
     tasks = [process_url(url, config) for url in urls]
-    processed_results = await asyncio.gather(*tasks)
+    
+    try:
+        processed_results = await asyncio.gather(*tasks)
+    except Exception as e:
+        logger.exception("Critical error during URL batch processing")
+        return {}
 
     # Map each URL to its result and log the outcome.
+    success_count = 0
     for url, result in zip(urls, processed_results):
         results[url] = result
-    logging.info("Completed processing of all URLs.")
+        if result and result.get("success"):
+            success_count += 1
+    
+    logger.info("Completed batch processing with %d/%d successful extractions.", success_count, len(urls))
     return results
 
 # -----------------------------
 # Run Main If This File Is Executed Directly
 # -----------------------------
 if __name__ == "__main__":
-    final_results = asyncio.run(main())
-    # Enhanced summary output for readability
-    print("\n=== Web Content Extraction Results ===")
-    print(f"Number of URLs processed: {len(final_results)}\n")
-    for url, result in final_results.items():
-        print(f"URL: {url}")
-        if result.get("success"):
-            print("✅ Success | Extraction Method:", result["extraction_method"])
-            preview = str(result.get("text_content", ""))[:200] + "..." if result.get("text_content") else "No content"
-            print("📄 Content length:", len(str(result)) if result else 0)
-            print("📄 Content Preview:", preview)
-        else:
-            print("❌ Failed to extract content")
-            print("🛑 Error:", result.get("error", "Unknown error"))
-        print("-" * 50)
+    logger.info("Starting web_content_extractor as main module")
+    try:
+        final_results = asyncio.run(main())
+        # Enhanced summary output for readability
+        print("\n=== Web Content Extraction Results ===")
+        print(f"Number of URLs processed: {len(final_results)}\n")
+        for url, result in final_results.items():
+            print(f"URL: {url}")
+            if result.get("success"):
+                print("✅ Success | Extraction Method:", result["extraction_method"])
+                preview = str(result.get("text_content", ""))[:200] + "..." if result.get("text_content") else "No content"
+                print("📄 Content length:", len(str(result.get("text_content", ""))) if result.get("text_content") else 0)
+                print("📄 Content Preview:", preview)
+            else:
+                print("❌ Failed to extract content")
+                print("🛑 Error:", result.get("error", "Unknown error"))
+            print("-" * 50)
+    except Exception as e:
+        logger.critical("Fatal error in web_content_extractor main function", exc_info=True)
+        print(f"Fatal error: {e}")

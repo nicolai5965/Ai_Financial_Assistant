@@ -1,7 +1,11 @@
 import os
 import datetime
 from uuid import uuid4
-from app.core.logging_config import logger
+from app.core.logging_config import get_logger
+
+# Get the configured logger
+logger = get_logger()
+
 from langchain_openai import ChatOpenAI  # type: ignore
 from langchain_anthropic import ChatAnthropic  # type: ignore
 from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore

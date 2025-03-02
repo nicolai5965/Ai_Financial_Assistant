@@ -1,6 +1,42 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+// Import logger from the utils directory
+const logger = require('../utils/logger');
 
 export default function Home() {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      // Log component mount
+      logger.debug('Home page component mounted');
+      setIsLoaded(true);
+      
+      // Example of logging component lifecycle
+      return () => {
+        logger.debug('Home page component unmounted');
+      };
+    } catch (error) {
+      logger.error('Error in Home page initialization:', error);
+    }
+  }, []);
+
+  // Example function to demonstrate logging user interactions
+  const handleFeatureClick = (featureName) => {
+    try {
+      logger.info(`User clicked on feature: ${featureName}`);
+      // Additional logic would go here
+    } catch (error) {
+      logger.error(`Error handling click on ${featureName}:`, error);
+    }
+  };
+
+  // Log when the component is fully rendered
+  useEffect(() => {
+    if (isLoaded) {
+      logger.info('Home page fully rendered');
+    }
+  }, [isLoaded]);
+
   return (
     <div className="container">
       <main>
@@ -8,12 +44,12 @@ export default function Home() {
         <p>This is a Next.js-powered frontend for your AI Financial Assistant.</p>
         
         <div className="grid">
-          <div className="card">
+          <div className="card" onClick={() => handleFeatureClick('Getting Started')}>
             <h2>Getting Started</h2>
             <p>This is a simple starter page for your Next.js application.</p>
           </div>
           
-          <div className="card">
+          <div className="card" onClick={() => handleFeatureClick('Features')}>
             <h2>Features</h2>
             <p>Your app will soon connect to a FastAPI backend for financial analysis.</p>
           </div>

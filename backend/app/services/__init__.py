@@ -21,7 +21,7 @@ from .hackernews.hackernews_tracker import HackerNewsTracker
 from .hackernews.hackernews_url_analyzer_pipeline import HackerNewsURLAnalyzerPipeline
 
 # Report services
-from .reports.report_graph_builders import final_report_builder
+from .reports.report_graph_builders import get_final_report_builder
 
 __all__: List[str] = [
     # LLM services
@@ -45,5 +45,5 @@ __all__: List[str] = [
     'HackerNewsURLAnalyzerPipeline',
     
     # Report services
-    'final_report_builder',
+    'get_final_report_builder',
 ]

@@ -36,7 +36,7 @@ backend/
 │   │   │   └── search_results_formatter.py # Formats search results
 │   │   ├── reports/      # Report generation services
 │   │   │   ├── __init__.py # Package initialization
-│   │   │   └── report_graph_builders.py # Graph-based report generation pipelines
+│   │   │   └── report_graph_builders.py # Graph-based report generation pipelines with lazy initialization
 │   │   ├── hackernews/   # HackerNews related services
 │   │   │   ├── __init__.py # Package initialization
 │   │   │   ├── hackernews_tracker.py # HackerNews API integration
@@ -98,6 +98,11 @@ backend/
 #### 1.5.4 `app/services/reports/`
 - **Purpose**: Contains services for generating structured reports. This includes building report pipelines, orchestrating the report generation process, and formatting the final output.
 - **Location**: `backend/app/services/reports/`
+- **Key Components**:
+  - `report_graph_builders.py`: Defines and builds state graphs for report generation using langgraph
+    - Uses lazy initialization pattern through `get_final_report_builder()` function
+    - Prevents graph construction at import time to avoid unwanted side effects
+    - Provides a clean API for accessing the report builder when needed
 
 #### 1.5.5 `app/services/hackernews/`
 - **Purpose**: Contains services specific to HackerNews integration. This includes fetching stories from HackerNews, tracking trends, and analyzing the content of HackerNews URLs.

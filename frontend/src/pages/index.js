@@ -62,32 +62,35 @@ export default function Home() {
           padding: 0 0.5rem;
           display: flex;
           flex-direction: column;
-          justify-content: center;
+          justify-content: flex-start;
           align-items: center;
           max-width: 1200px;
           margin: 0 auto;
         }
 
         main {
-          padding: 5rem 0;
+          padding: 2rem 0;
           flex: 1;
           display: flex;
           flex-direction: column;
-          justify-content: center;
+          justify-content: flex-start;
           align-items: center;
+          width: 100%;
         }
 
         h1 {
           margin: 0;
           line-height: 1.15;
-          font-size: 4rem;
+          font-size: 3rem;
           text-align: center;
+          color: #f8f8f8; /* Light color for better contrast on dark background */
         }
 
         p {
           text-align: center;
           line-height: 1.5;
           font-size: 1.5rem;
+          color: #e0e0e0; /* Slightly dimmer than headers for visual hierarchy */
         }
 
         .grid {
@@ -103,24 +106,29 @@ export default function Home() {
           margin: 1rem;
           padding: 1.5rem;
           text-align: left;
-          color: inherit;
+          color: #e0e0e0;
           text-decoration: none;
-          border: 1px solid #eaeaea;
+          border: 1px solid #333333; /* Darker border for cards on dark background */
+          background-color: #24201A; /* Slightly lighter than the background for cards */
           border-radius: 10px;
-          transition: color 0.15s ease, border-color 0.15s ease;
+          transition: all 0.15s ease;
           width: 45%;
+          cursor: pointer;
         }
 
         .card:hover,
         .card:focus,
         .card:active {
-          color: #0070f3;
-          border-color: #0070f3;
+          color: #ffffff;
+          border-color: #79b6f2; /* Light blue border on hover to match link color */
+          transform: translateY(-3px); /* Slight raise effect on hover */
+          box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3); /* Shadow on hover for depth */
         }
 
         .card h2 {
           margin: 0 0 1rem 0;
           font-size: 1.5rem;
+          color: #f8f8f8; /* Bright headings */
         }
 
         .card p {

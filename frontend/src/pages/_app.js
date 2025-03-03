@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Layout from '../components/layout/Layout';
 import '../styles/globals.css';
 // Import logger from the utils directory
 const logger = require('../utils/logger');
@@ -39,7 +40,11 @@ function MyApp({ Component, pageProps }) {
   
   // Log any errors in the component rendering
   try {
-    return <Component {...pageProps} />;
+    return (
+      <Layout>
+        <Component {...pageProps} />
+      </Layout>
+    );
   } catch (error) {
     logger.error('Error rendering page component:', error);
     // Return a fallback UI or rethrow the error

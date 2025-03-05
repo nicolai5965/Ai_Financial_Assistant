@@ -264,27 +264,44 @@ def format_prompt(prompt, size_choice, verbose_logging=False):
 # 3) Pulling All Prompts from LangSmith
 ###############################################################
 
-# Pull raw prompts (before formatting)
-try:
-    logger.info("Pulling prompts from LangChain Hub")
-    raw_prompts = {
-        "report_structure": hub.pull("report_structure"),
-        "query_writer_instructions": hub.pull("query_writer_instructions"),
-        "section_writer_instructions": hub.pull("section_writer_instructions"),
-        "final_section_writer_instructions": hub.pull("final_section_writer_instructions"),
-        "report_planner_instructions": hub.pull("report_planner_instructions"),
-        "report_planner_query_writer_instructions": hub.pull("report_planner_query_writer_instructions"),
-    }
-    logger.info("Successfully pulled %d prompts from LangChain Hub", len(raw_prompts))
-except Exception as e:
-    logger.exception("Failed to pull prompts from LangChain Hub: %s", str(e))
-    # Initialize with empty dict and let the application handle the missing prompts
-    raw_prompts = {}
-    # Not raising here as this might not be immediately critical - the application
-    # can detect missing prompts later and handle accordingly
+# Initialize with empty dict - only filled when fetch_prompts is called
+raw_prompts = {}
 
 # Global dictionary for formatted prompts
 formatted_prompts = {}
+
+def fetch_prompts():
+    """
+    Pull prompts from LangChain Hub.
+    This function should be called explicitly when prompts are needed.
+    
+    :return: A dictionary with the raw prompts or an empty dict if fetch fails
+    """
+    global raw_prompts
+    
+    # If we already have prompts, return them
+    if raw_prompts:
+        return raw_prompts
+    
+    try:
+        logger.info("Pulling prompts from LangChain Hub")
+        raw_prompts = {
+            "report_structure": hub.pull("report_structure"),
+            "query_writer_instructions": hub.pull("query_writer_instructions"),
+            "section_writer_instructions": hub.pull("section_writer_instructions"),
+            "final_section_writer_instructions": hub.pull("final_section_writer_instructions"),
+            "report_planner_instructions": hub.pull("report_planner_instructions"),
+            "report_planner_query_writer_instructions": hub.pull("report_planner_query_writer_instructions"),
+        }
+        logger.info("Successfully pulled %d prompts from LangChain Hub", len(raw_prompts))
+        return raw_prompts
+    except Exception as e:
+        logger.exception("Failed to pull prompts from LangChain Hub: %s", str(e))
+        # Initialize with empty dict and let the application handle the missing prompts
+        raw_prompts = {}
+        return raw_prompts
+        # Not raising here as this might not be immediately critical - the application
+        # can detect missing prompts later and handle accordingly
 
 ###############################################################
 # 4) Formatting Prompts Based on Report Size
@@ -300,7 +317,14 @@ def set_report_size(report_size, verbose_logging=False):
     :return: A dictionary with success status and error message if applicable
     """
     logger.info("Setting report size to: %s", report_size)
-    global formatted_prompts  # Ensure we modify the global dictionary
+    global formatted_prompts, raw_prompts  # Ensure we modify the global dictionaries
+    
+    # First ensure we have the raw prompts
+    if not raw_prompts:
+        fetch_prompts()
+        
+    if not raw_prompts:
+        return {"success": False, "error": "Failed to fetch prompts from LangChain Hub"}
 
     # Statistics to collect
     stats = {

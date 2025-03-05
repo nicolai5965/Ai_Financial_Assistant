@@ -24,7 +24,8 @@ def check_api_key(key_name: str) -> Tuple[bool, str]:
         "OPENAI_API_KEY": "sk-",
         "ANTHROPIC_API_KEY": "sk-ant-",
         "TAVILY_API_KEY": "tvly-",
-        "LANGCHAIN_API_KEY": "lsv2_"
+        "LANGCHAIN_API_KEY": "lsv2_",
+        "LANGSMITH_API_KEY": "lsv2_",
     }
     
     if key_name in prefix_checks:

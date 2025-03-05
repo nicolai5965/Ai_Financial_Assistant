@@ -20,7 +20,7 @@ logger = get_logger()
 # Import all needed functions from fetch_project_prompts in one place
 from app.services.llm.fetch_project_prompts import (
     set_report_size, 
-    formatted_prompts, 
+    fetch_prompts,
     get_report_config
 )
 
@@ -97,7 +97,7 @@ async def main():
         "topic": report_topic,
         "tavily_topic": "general",
         "tavily_days": None,
-        "report_structure": formatted_prompts["report_structure"],
+        "report_structure": fetch_prompts().get("report_structure", ""),
         "number_of_queries": size_config["number_of_queries"],
         "sections": [],
         "completed_sections": [],

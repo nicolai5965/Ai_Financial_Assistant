@@ -19,6 +19,10 @@ from app.services.search.tavily_search import tavily_search_async
 
 def get_formatted_prompts():
     """Get the formatted prompts after they've been populated by set_report_size."""
+    from app.services.llm.fetch_project_prompts import fetch_prompts
+    # First ensure prompts are fetched from LangChain
+    fetch_prompts()
+    # Then import the formatted_prompts (which should now be populated)
     from app.services.llm.fetch_project_prompts import formatted_prompts
     # ====== START DEBUG LOGGING ======
     print(f"🔍 DEBUG: Lazily loading formatted_prompts: \n {formatted_prompts}", "\n\n")

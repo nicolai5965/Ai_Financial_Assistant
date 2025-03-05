@@ -88,10 +88,46 @@ backend/
 - **Location**: `backend/app/services/llm/`
 - **Key Components**:
   - `llm_handler.py`: Handles interactions with different LLM providers (OpenAI, Anthropic, Google)
-  - `fetch_project_prompts.py`: Manages prompt retrieval from LangChain Hub with lazy loading pattern
-    - Uses `fetch_prompts()` function for explicit prompt retrieval to avoid unnecessary API calls
-    - Implements caching to prevent repeated API calls for the same prompts
-    - Formats prompts based on report size configuration
+  - `fetch_project_prompts.py`: Manages prompt retrieval from LangSmith with lazy loading pattern for one prompt at a time using the `get_formatted_prompt` function.
+
+  - Example of using the 'get_formatted_prompt' function:
+  [```
+import asyncio
+from app.services.llm.fetch_project_prompts import get_formatted_prompt
+
+async def get_formatted_prompt_async(prompt_name: str, report_size: str) -> str:
+    """
+    Asynchronously fetches and formats a prompt by offloading the synchronous
+    get_formatted_prompt function to a separate thread.
+    """
+    return await asyncio.to_thread(get_formatted_prompt, prompt_name, report_size)
+
+async def fetch_multiple_prompts(prompt_names: list, report_size: str = "Standard") -> dict:
+    """
+    Concurrently fetches multiple prompts from LangSmith.
+    
+    :param prompt_names: List of prompt names to fetch.
+    :param report_size: The report size to format the prompts for.
+    :return: Dictionary mapping prompt names to their formatted content.
+    """
+    tasks = [
+        get_formatted_prompt_async(prompt_name, report_size)
+        for prompt_name in prompt_names
+    ]
+    results = await asyncio.gather(*tasks)
+    return dict(zip(prompt_names, results))
+
+if __name__ == "__main__":
+    # Example usage: fetch multiple prompts concurrently.
+    prompt_list = [
+        "report_structure",
+        "query_writer_instructions",
+        "section_writer_instructions",
+    ] # ... add more prompts if needed, these are just examples
+    
+    prompts = asyncio.run(fetch_multiple_prompts(prompt_list, report_size="Standard"))
+  ```]
+
 
 #### 1.5.2 `app/services/web/`
 - **Purpose**: Contains services for web content extraction and analysis. This includes scraping web pages, extracting relevant content, and analyzing the topics and sentiment of web content.

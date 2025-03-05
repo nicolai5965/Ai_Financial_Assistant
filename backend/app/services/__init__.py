@@ -6,7 +6,7 @@ from typing import List
 
 # LLM services
 from .llm.llm_handler import LLMHandler
-from .llm.fetch_project_prompts import get_report_config, set_report_size, fetch_prompts
+from .llm.fetch_project_prompts import get_report_config, get_formatted_prompt
 
 # Search services
 from .search.tavily_search import tavily_search, tavily_search_async
@@ -27,8 +27,7 @@ __all__: List[str] = [
     # LLM services
     'LLMHandler',
     'get_report_config',
-    'set_report_size',
-    'fetch_prompts',
+    'get_formatted_prompt',
     
     # Search services
     'tavily_search',

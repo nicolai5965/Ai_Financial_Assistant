@@ -25,7 +25,7 @@ backend/
 │   │   ├── llm/          # Language model related services
 │   │   │   ├── __init__.py # Package initialization
 │   │   │   ├── llm_handler.py # LLM provider integration
-│   │   │   └── fetch_project_prompts.py # Retrieves prompts from LangSmith
+│   │   │   └── fetch_project_prompts.py # Retrieves prompts from LangSmith with lazy loading
 │   │   ├── web/          # Web content related services
 │   │   │   ├── __init__.py # Package initialization
 │   │   │   ├── web_content_extractor.py # Web scraping utilities
@@ -86,6 +86,12 @@ backend/
 #### 1.5.1 `app/services/llm/`
 - **Purpose**: Contains services related to language model interactions. This includes handling different LLM providers, managing prompts, and processing LLM responses.
 - **Location**: `backend/app/services/llm/`
+- **Key Components**:
+  - `llm_handler.py`: Handles interactions with different LLM providers (OpenAI, Anthropic, Google)
+  - `fetch_project_prompts.py`: Manages prompt retrieval from LangChain Hub with lazy loading pattern
+    - Uses `fetch_prompts()` function for explicit prompt retrieval to avoid unnecessary API calls
+    - Implements caching to prevent repeated API calls for the same prompts
+    - Formats prompts based on report size configuration
 
 #### 1.5.2 `app/services/web/`
 - **Purpose**: Contains services for web content extraction and analysis. This includes scraping web pages, extracting relevant content, and analyzing the topics and sentiment of web content.
@@ -170,14 +176,21 @@ Nothing to see here yet.
 ### 10. `app/models/structured_report_nodes.py`
 - **Purpose**: This file contains node definitions for report generation.
 - **Location**: `backend/app/models/structured_report_nodes.py`
+- **Key Features**:
+  - Implements lazy loading pattern for formatted prompts using `get_formatted_prompts()` function
+  - Only fetches LangChain prompts when explicitly needed, preventing unnecessary API calls
+  - Provides centralized access to prompts for all report generation nodes
 
 |---------------------|
 |    services folder  |
 |---------------------|
 
 ### 11. `app/services/__init__.py`
-- **Purpose**: This file is used to initialize the services package.
+- **Purpose**: This file is used to initialize the services package and provides access to core services.
 - **Location**: `backend/app/services/__init__.py`
+- **Key Features**:
+  - Imports and re-exports key service functions like `fetch_prompts()` without triggering immediate execution
+  - Uses carefully structured imports to minimize side effects during module loading
 
 |---------------------|
 |     utils folder    |
@@ -215,8 +228,30 @@ Nothing to see here yet.
 - **Purpose**: This file contains the environment variables for the backend.
 - **Location**: `backend/.env`
 
+|--------------------------------|
+|       Design Patterns          |
+|--------------------------------|
 
+### 1. Lazy Loading Pattern
+- **Purpose**: Delays the initialization or loading of resources until they are actually needed.
+- **Implementation**:
+  - **`fetch_project_prompts.py`**: Uses `fetch_prompts()` function to retrieve prompts from LangChain Hub only when explicitly called, avoiding unnecessary API calls during imports.
+  - **`structured_report_nodes.py`**: Uses `get_formatted_prompts()` function to lazily load formatted prompts.
+  - **`report_graph_builders.py`**: Uses `get_final_report_builder()` to construct the report generation graph only when needed.
+- **Benefits**:
+  - Reduces unnecessary API calls and resource consumption
+  - Improves application startup time
+  - Allows parts of the application to be imported without triggering all dependencies
+  - Makes the application more modular and less tightly coupled
 
+### 2. Factory Pattern
+- **Purpose**: Centralizes the creation of complex objects to ensure consistency and encapsulation.
+- **Implementation**:
+  - **`llm_handler.py`**: The `LLMHandler` class acts as a factory for creating language model instances, abstracting away the specific provider details.
+- **Benefits**:
+  - Encapsulates provider-specific logic
+  - Provides a consistent interface for creating language model instances
+  - Makes switching between providers easier
 
 |--------------------------------|
 |      Potential Future Folders  |

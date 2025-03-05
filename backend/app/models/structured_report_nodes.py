@@ -5,17 +5,7 @@ from langgraph.constants import Send
 from app.models.report_models import ReportState, SectionState, Queries, Sections
 from app.services.search.search_results_formatter import deduplicate_and_format_sources, format_sections
 from app.services.search.tavily_search import tavily_search_async
-# from app.services.fetch_project_prompts import (
-#     report_planner_instructions,
-#     query_writer_instructions,
-#     section_writer_instructions,
-#     final_section_writer_instructions, 
-#     get_report_config
-# )
 
-# IMPORTANT: Don't import formatted_prompts at the module level
-# Instead, create functions to get the prompts when needed
-# This ensures we get the prompts after they've been populated by set_report_size
 
 def get_formatted_prompts():
     """Get the formatted prompts after they've been populated by set_report_size."""

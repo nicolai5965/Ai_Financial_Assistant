@@ -3,179 +3,200 @@ import datetime
 from uuid import uuid4
 from app.core.logging_config import get_logger
 
-# Get the configured logger
 logger = get_logger()
 
-from langchain_openai import ChatOpenAI  # type: ignore
-from langchain_anthropic import ChatAnthropic  # type: ignore
-from langchain_google_genai import ChatGoogleGenerativeAI  # type: ignore
-
-class LLMHandler:
+# Base class for lazy initialization and caching of the language model.
+class BaseLLMHandler:
     """
-    A handler for managing language models from different providers.
+    Base handler for language models with lazy initialization.
     """
+    def __init__(self, max_tokens=1024, temperature=0.0, model_name=None):
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.model_name = model_name
+        self.language_model = None  # Cached instance; initialized on first use
 
-    def __init__(self, llm_provider, max_tokens=1024, temperature=0.0, model_name=None):
-        """
-        Initialize the language model handler.
-
-        Parameters:
-        - llm_provider (str): The name of the language model provider ('openai', 'anthropic', or 'google').
-        - max_tokens (int): Maximum number of tokens for the generated response.
-        - temperature (float): Sampling temperature for the language model.
-        - model_name (str, optional): The name of the model to use. If not provided, defaults will be used.
-        """
-        logger.info(f"Initializing LLMHandler with provider: {llm_provider}")
-        self.llm_provider = llm_provider  # Store the provider name
-        self.max_tokens = max_tokens      # Store max tokens
-        self.temperature = temperature    # Store temperature
-
-        # Common metadata and tags
+        # Common metadata and tags (to be augmented by provider-specific handlers)
         self.common_metadata = {
             "session_id": str(uuid4()),
             "timestamp": datetime.datetime.now().isoformat(),
-            "model_provider": self.llm_provider
         }
-        self.common_tags = ["user_interaction", "query_handling", self.llm_provider]
-        
-        logger.debug(f"LLM session initialized with ID: {self.common_metadata['session_id']}")
+        self.common_tags = []
 
-        try:
-            # Set default model names if not provided and initialize the language model
-            if self.llm_provider == "openai":
-                default_model_name = 'gpt-4o-mini'
-                model_name = model_name or default_model_name
-                logger.info(f"Initializing OpenAI model: {model_name}")
-                
-                # Check if API key is available
-                if not os.getenv("OPENAI_API_KEY"):
-                    logger.error("OPENAI_API_KEY environment variable not found")
-                    raise ValueError("OPENAI_API_KEY environment variable not found")
+    def initialize_model(self):
+        """
+        Provider-specific initialization logic.
+        Must be implemented by subclasses.
+        """
+        raise NotImplementedError("Subclasses must implement initialize_model()")
 
-                try:
-                    # Initialize OpenAI's Chat model with additional tags and metadata
-                    self.language_model = ChatOpenAI(
-                        model_name=model_name,
-                        max_tokens=self.max_tokens,
-                        temperature=self.temperature,
-                        tags=self.common_tags,
-                        metadata=self.common_metadata,
-                        name="LLMChainOpenAI"
-                    )
-                    logger.debug(f"OpenAI model {model_name} initialized successfully")
-                except Exception as e:
-                    logger.exception(f"Failed to initialize OpenAI model: {str(e)}")
-                    raise
-
-            elif self.llm_provider == "anthropic":
-                default_model_name = 'claude-3-haiku-20240307'
-                model_name = model_name or default_model_name
-                logger.info(f"Initializing Anthropic model: {model_name}")
-                
-                # Check if API key is available
-                if not os.getenv("ANTHROPIC_API_KEY"):
-                    logger.error("ANTHROPIC_API_KEY environment variable not found")
-                    raise ValueError("ANTHROPIC_API_KEY environment variable not found")
-
-                try:
-                    # Initialize Anthropic's Chat model with additional tags and metadata
-                    self.language_model = ChatAnthropic(
-                        model=model_name,
-                        max_tokens_to_sample=self.max_tokens,
-                        temperature=self.temperature,
-                        tags=self.common_tags,
-                        metadata=self.common_metadata,
-                        name="LLMChainAnthropic"
-                    )
-                    logger.debug(f"Anthropic model {model_name} initialized successfully")
-                except Exception as e:
-                    logger.exception(f"Failed to initialize Anthropic model: {str(e)}")
-                    raise
-
-            elif self.llm_provider == "google":
-                default_model_name = 'gemini-2.0-flash'
-                model_name = model_name or default_model_name
-                logger.info(f"Initializing Google model: {model_name}")
-                
-                # Check if API key is available
-                google_api_key = os.getenv("GEMINI_API_KEY")
-                if not google_api_key:
-                    logger.error("GEMINI_API_KEY environment variable not found")
-                    raise ValueError("GEMINI_API_KEY environment variable not found")
-
-                try:
-                    # Initialize Google's ChatGenerative model with additional tags and metadata
-                    self.language_model = ChatGoogleGenerativeAI(
-                        model=model_name,
-                        google_api_key=google_api_key,
-                        temperature=self.temperature,
-                        tags=self.common_tags,
-                        metadata=self.common_metadata,
-                        name="LLMChainGoogle"
-                    )
-                    logger.debug(f"Google model {model_name} initialized successfully")
-                except Exception as e:
-                    logger.exception(f"Failed to initialize Google model: {str(e)}")
-                    raise
-            else:
-                # Raise error for invalid provider
-                error_msg = f"Invalid llm_provider '{llm_provider}'. Must be either 'openai', 'anthropic', or 'google'."
-                logger.error(error_msg)
-                raise ValueError(error_msg)
-                
-        except Exception as e:
-            logger.exception(f"Fatal error during LLM initialization: {str(e)}")
-            raise
+    def get_model(self):
+        """
+        Return the language model, initializing it if necessary.
+        """
+        if self.language_model is None:
+            self.initialize_model()
+        return self.language_model
 
     def show_settings(self):
         """
-        Display the current settings of the language model handler.
-
-        Returns:
-        - settings (dict): A dictionary containing the current settings.
+        Retrieve the current settings of the language model handler.
         """
-        logger.debug(f"Retrieving settings for LLM session: {self.common_metadata['session_id']}")
-        
-        try:
-            # Access the model name attribute, which may differ depending on the provider
-            if hasattr(self.language_model, 'model_name'):
-                model_name = self.language_model.model_name
-            elif hasattr(self.language_model, 'model'):
-                model_name = self.language_model.model
-            else:
-                model_name = None
-                logger.warning("Unable to determine model name from language model instance")
+        model = self.get_model()
 
-            # Access the max_tokens attribute, which may differ depending on the provider
-            if hasattr(self.language_model, 'max_tokens'):
-                max_tokens = self.language_model.max_tokens
-            elif hasattr(self.language_model, 'max_tokens_to_sample'):
-                max_tokens = self.language_model.max_tokens_to_sample
-            else:
-                max_tokens = self.max_tokens  # Default value
-                logger.warning("Unable to determine max_tokens from language model instance, using default")
+        # Dynamically get model attributes
+        if hasattr(model, 'model_name'):
+            model_name = model.model_name
+        elif hasattr(model, 'model'):
+            model_name = model.model
+        else:
+            model_name = None
+            logger.warning("Unable to determine model name from language model instance")
 
-            settings = {
-                "llm_provider": self.llm_provider,
-                "max_tokens": self.max_tokens,
-                "temperature": self.temperature,
-                "common_metadata": self.common_metadata,
-                "common_tags": self.common_tags,
-                "language_model": {
-                    "model_name": model_name,
-                    "max_tokens": max_tokens,
-                    "temperature": self.language_model.temperature,
-                    "tags": self.language_model.tags,
-                    "metadata": self.language_model.metadata,
-                    "name": self.language_model.name
-                }
+        if hasattr(model, 'max_tokens'):
+            max_tokens = model.max_tokens
+        elif hasattr(model, 'max_tokens_to_sample'):
+            max_tokens = model.max_tokens_to_sample
+        else:
+            max_tokens = self.max_tokens
+            logger.warning("Unable to determine max_tokens from language model instance, using default")
+
+        settings = {
+            "llm_provider": self.provider,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "common_metadata": self.common_metadata,
+            "common_tags": self.common_tags,
+            "language_model": {
+                "model_name": model_name,
+                "max_tokens": max_tokens,
+                "temperature": model.temperature,
+                "tags": model.tags,
+                "metadata": model.metadata,
+                "name": model.name
             }
-            
-            logger.info(f"Retrieved settings for {self.llm_provider} model: {model_name}")
-            logger.debug(f"LLM settings details: provider={self.llm_provider}, model={model_name}, temperature={self.temperature}")
-            return settings
-            
+        }
+        logger.info(f"Retrieved settings for {self.provider} model: {model_name}")
+        logger.debug(f"LLM settings details: provider={self.provider}, model={model_name}, temperature={self.temperature}")
+        return settings
+
+# Provider-specific handler for OpenAI.
+class OpenAIHandler(BaseLLMHandler):
+    def __init__(self, max_tokens=1024, temperature=0.0, model_name=None):
+        super().__init__(max_tokens, temperature, model_name)
+        self.provider = "openai"
+        self.common_tags.append("openai")
+        self.common_metadata["model_provider"] = "openai"
+        logger.info("OpenAIHandler created. Model initialization is pending until first use.")
+
+    def initialize_model(self):
+        # Import the heavy dependency only when needed.
+        from langchain_openai import ChatOpenAI
+        default_model_name = 'gpt-4o-mini'
+        chosen_model_name = self.model_name or default_model_name
+        logger.info(f"Initializing OpenAI model: {chosen_model_name}")
+
+        if not os.getenv("OPENAI_API_KEY"):
+            logger.error("OPENAI_API_KEY environment variable not found")
+            raise ValueError("OPENAI_API_KEY environment variable not found")
+
+        try:
+            self.language_model = ChatOpenAI(
+                model_name=chosen_model_name,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                tags=self.common_tags,
+                metadata=self.common_metadata,
+                name="LLMChainOpenAI"
+            )
+            logger.debug(f"OpenAI model {chosen_model_name} initialized successfully")
         except Exception as e:
-            error_msg = f"Error retrieving LLM settings: {str(e)}"
-            logger.exception(error_msg)
-            return {"error": error_msg, "success": False}
+            logger.exception(f"Failed to initialize OpenAI model: {str(e)}")
+            raise
+
+# Provider-specific handler for Anthropic.
+class AnthropicHandler(BaseLLMHandler):
+    def __init__(self, max_tokens=1024, temperature=0.0, model_name=None):
+        super().__init__(max_tokens, temperature, model_name)
+        self.provider = "anthropic"
+        self.common_tags.append("anthropic")
+        self.common_metadata["model_provider"] = "anthropic"
+        logger.info("AnthropicHandler created. Model initialization is pending until first use.")
+
+    def initialize_model(self):
+        from langchain_anthropic import ChatAnthropic
+        default_model_name = 'claude-3-haiku-20240307'
+        chosen_model_name = self.model_name or default_model_name
+        logger.info(f"Initializing Anthropic model: {chosen_model_name}")
+
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            logger.error("ANTHROPIC_API_KEY environment variable not found")
+            raise ValueError("ANTHROPIC_API_KEY environment variable not found")
+
+        try:
+            self.language_model = ChatAnthropic(
+                model=chosen_model_name,
+                max_tokens_to_sample=self.max_tokens,
+                temperature=self.temperature,
+                tags=self.common_tags,
+                metadata=self.common_metadata,
+                name="LLMChainAnthropic"
+            )
+            logger.debug(f"Anthropic model {chosen_model_name} initialized successfully")
+        except Exception as e:
+            logger.exception(f"Failed to initialize Anthropic model: {str(e)}")
+            raise
+
+# Provider-specific handler for Google.
+class GoogleHandler(BaseLLMHandler):
+    def __init__(self, max_tokens=1024, temperature=0.0, model_name=None):
+        super().__init__(max_tokens, temperature, model_name)
+        self.provider = "google"
+        self.common_tags.append("google")
+        self.common_metadata["model_provider"] = "google"
+        logger.info("GoogleHandler created. Model initialization is pending until first use.")
+
+    def initialize_model(self):
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        default_model_name = 'gemini-2.0-flash'
+        chosen_model_name = self.model_name or default_model_name
+        logger.info(f"Initializing Google model: {chosen_model_name}")
+
+        google_api_key = os.getenv("GEMINI_API_KEY")
+        if not google_api_key:
+            logger.error("GEMINI_API_KEY environment variable not found")
+            raise ValueError("GEMINI_API_KEY environment variable not found")
+
+        try:
+            self.language_model = ChatGoogleGenerativeAI(
+                model=chosen_model_name,
+                google_api_key=google_api_key,
+                temperature=self.temperature,
+                tags=self.common_tags,
+                metadata=self.common_metadata,
+                name="LLMChainGoogle"
+            )
+            logger.debug(f"Google model {chosen_model_name} initialized successfully")
+        except Exception as e:
+            logger.exception(f"Failed to initialize Google model: {str(e)}")
+            raise
+
+# Factory class that returns a provider-specific LLM handler.
+class LLMHandler:
+    """
+    A factory class that returns a provider-specific LLM handler.
+    Usage:
+        llm_handler = LLMHandler(config["llm_provider"])
+    """
+    def __new__(cls, llm_provider, max_tokens=1024, temperature=0.0, model_name=None):
+        provider = llm_provider.lower()
+        if provider == "openai":
+            return OpenAIHandler(max_tokens, temperature, model_name)
+        elif provider == "anthropic":
+            return AnthropicHandler(max_tokens, temperature, model_name)
+        elif provider == "google":
+            return GoogleHandler(max_tokens, temperature, model_name)
+        else:
+            error_msg = f"Invalid llm_provider '{llm_provider}'. Must be either 'openai', 'anthropic', or 'google'."
+            logger.error(error_msg)
+            raise ValueError(error_msg)

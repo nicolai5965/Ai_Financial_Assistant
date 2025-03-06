@@ -37,10 +37,6 @@ backend/
 │   │   ├── reports/      # Report generation services
 │   │   │   ├── __init__.py # Package initialization
 │   │   │   └── report_graph_builders.py # Graph-based report generation pipelines with lazy initialization
-│   │   ├── hackernews/   # HackerNews related services
-│   │   │   ├── __init__.py # Package initialization
-│   │   │   ├── hackernews_tracker.py # HackerNews API integration
-│   │   │   └── hackernews_url_analyzer_pipeline.py # Pipeline for analyzing HN URLs
 │   │   └── __init__.py   # Package initialization
 │   ├── utils/            # Utility functions and helpers
 │   │   ├── __init__.py   # Package initialization
@@ -137,6 +133,10 @@ if __name__ == "__main__":
 #### 1.5.2 `app/services/web/`
 - **Purpose**: Contains services for web content extraction and analysis. This includes scraping web pages, extracting relevant content, and analyzing the topics and sentiment of web content.
 - **Location**: `backend/app/services/web/`
+- **Note**: These components are not currently in active use but are maintained for potential future applications requiring web content analysis.
+- **Key Components**:
+  - `web_content_extractor.py`: Utilities for scraping and extracting content from web pages
+  - `url_topic_analyzer.py`: Analysis tools for determining topics and content relevance of URLs
 
 #### 1.5.3 `app/services/search/`
 - **Purpose**: Contains services for performing web searches and processing search results. This includes integrating with search APIs like Tavily and formatting the search results for consumption by other parts of the application.
@@ -150,10 +150,6 @@ if __name__ == "__main__":
     - Uses lazy initialization pattern through `get_final_report_builder()` function
     - Prevents graph construction at import time to avoid unwanted side effects
     - Provides a clean API for accessing the report builder when needed
-
-#### 1.5.5 `app/services/hackernews/`
-- **Purpose**: Contains services specific to HackerNews integration. This includes fetching stories from HackerNews, tracking trends, and analyzing the content of HackerNews URLs.
-- **Location**: `backend/app/services/hackernews/`
 
 ### 1.6 `app/utils/`
 - **Purpose**: Contains utility functions and helpers that support the application but aren't tied to specific business logic. These are general-purpose functions that can be used across different parts of the application.

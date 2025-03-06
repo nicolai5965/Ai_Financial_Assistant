@@ -87,7 +87,12 @@ backend/
 - **Purpose**: Contains services related to language model interactions. This includes handling different LLM providers, managing prompts, and processing LLM responses.
 - **Location**: `backend/app/services/llm/`
 - **Key Components**:
-  - `llm_handler.py`: Handles interactions with different LLM providers (OpenAI, Anthropic, Google)
+  - `llm_handler.py`: Implements a factory pattern for LLM provider management with lazy initialization
+    - **BaseLLMHandler**: Abstract base class with common initialization logic and interface
+    - **Provider-specific handlers** (OpenAIHandler, AnthropicHandler, GoogleHandler): Implement provider-specific logic
+    - **LLMHandler**: Factory class that returns the appropriate handler based on the provider
+    - Uses lazy loading to defer heavy imports and API connections until actually needed
+    - Caches initialized models to prevent repeated expensive operations
   - `fetch_project_prompts.py`: Manages prompt retrieval from LangSmith with lazy loading pattern for one prompt at a time using the `get_formatted_prompt` function.
 
   - Example of using the 'get_formatted_prompt' function:
@@ -274,6 +279,10 @@ Nothing to see here yet.
   - **`fetch_project_prompts.py`**: Uses `fetch_prompts()` function to retrieve prompts from LangChain Hub only when explicitly called, avoiding unnecessary API calls during imports.
   - **`structured_report_nodes.py`**: Uses `get_formatted_prompts()` function to lazily load formatted prompts.
   - **`report_graph_builders.py`**: Uses `get_final_report_builder()` to construct the report generation graph only when needed.
+  - **`llm_handler.py`**: The `BaseLLMHandler` class defers model initialization until first use with an `initialize_model()` method that's only called when needed.
+    - Provider-specific heavy imports happen only inside the `initialize_model()` method
+    - API connections are established only when a model is actually requested
+    - Once initialized, the model instance is cached for subsequent calls
 - **Benefits**:
   - Reduces unnecessary API calls and resource consumption
   - Improves application startup time
@@ -283,11 +292,15 @@ Nothing to see here yet.
 ### 2. Factory Pattern
 - **Purpose**: Centralizes the creation of complex objects to ensure consistency and encapsulation.
 - **Implementation**:
-  - **`llm_handler.py`**: The `LLMHandler` class acts as a factory for creating language model instances, abstracting away the specific provider details.
+  - **`llm_handler.py`**: The `LLMHandler` class acts as a factory for creating provider-specific handler instances:
+    - `__new__` method inspects the requested provider and returns the appropriate handler
+    - Abstracts away provider-specific details while maintaining a simple, unified API
+    - Each provider (OpenAI, Anthropic, Google) has its own handler class with specialized logic
 - **Benefits**:
   - Encapsulates provider-specific logic
   - Provides a consistent interface for creating language model instances
   - Makes switching between providers easier
+  - Improves modularity and maintainability by separating concerns
 
 |--------------------------------|
 |      Potential Future Folders  |

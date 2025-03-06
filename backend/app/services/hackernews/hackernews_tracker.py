@@ -10,15 +10,25 @@ import logging
 from tqdm.auto import tqdm
 
 # New imports for semantic similarity
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import util
 
 # Disable progress bar from sentence-transformers
 logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
 # Disable tqdm progress bars globally
 tqdm.pandas(disable=True)
 
-# Initialize the model with disabled progress bar
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Global variable for lazy-loaded SentenceTransformer model
+_model = None
+
+def get_sentence_transformer():
+    """
+    Lazily initialize and return the SentenceTransformer model.
+    """
+    global _model
+    if _model is None:
+        from sentence_transformers import SentenceTransformer
+        _model = SentenceTransformer('all-MiniLM-L6-v2')
+    return _model
 
 # --------------------
 # HackerNewsTracker Class
@@ -261,6 +271,8 @@ def filter_stories_by_topic_similarity(
     if search_fields is None:
         search_fields = ['title', 'url']
 
+    # Get the lazy-loaded SentenceTransformer model
+    model = get_sentence_transformer()
     # Precompute embeddings for topics
     topic_embeddings = model.encode(topics, convert_to_tensor=True, show_progress_bar=False)
 
@@ -277,7 +289,7 @@ def filter_stories_by_topic_similarity(
                 content = re.sub(r'https?://|www\.|\.com|\.org|\.net|[0-9]|[-_/]', ' ', content)
             if not content:
                 continue
-            # Compute embedding for the field content
+            # Compute embedding for the field content using lazy-loaded model
             content_embedding = model.encode(content, convert_to_tensor=True)
             # Compute cosine similarities with all topic embeddings
             cosine_scores = util.cos_sim(content_embedding, topic_embeddings)

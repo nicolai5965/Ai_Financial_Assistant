@@ -10,7 +10,8 @@ backend/
 ├── app/                  # Main application package
 │   ├── api/              # API endpoints and routing
 │   │   ├── __init__.py   # Package initialization
-│   │   └── main.py       # FastAPI application and endpoints
+│   │   ├── main.py       # FastAPI application and endpoints for main functionality
+│   │   └── stock_api.py  # FastAPI server for stock analysis endpoints
 │   ├── core/             # Core application components
 │   │   ├── __init__.py   # Package initialization
 │   │   ├── settings.py   # Application settings and configuration
@@ -21,7 +22,11 @@ backend/
 │   │   ├── report_models.py # Report-related data models
 │   │   └── structured_report_nodes.py # Node definitions for report generation
 │   ├── stock_analysis/   # Stock market analysis functionality
-│   │   └── stock_analysis.py # Stock data fetching and analysis
+│   │   ├── __init__.py   # Package initialization with API exports
+│   │   ├── stock_data_fetcher.py # Stock data retrieval and cleaning
+│   │   ├── stock_indicators.py # Technical indicators calculation
+│   │   ├── stock_data_charting.py # Chart creation and visualization
+│   │   └── stock_analysis.py # Legacy file (deprecated)
 │   ├── db/               # Database related code
 │   ├── services/         # Business logic and external service integrations
 │   │   ├── llm/          # Language model related services
@@ -51,7 +56,8 @@ backend/
 │   └── test_file.py      # Test cases
 ├── BACKEND_DOCS.md       # Documentation for the backend
 ├── requirements.txt      # Python dependencies
-├── run.py                # Application entry point
+├── run.py                # Application entry point for report generation
+├── start_api_server.py   # Script to start the FastAPI server for stock analysis
 ``` 
 
 |--------------------------------|
@@ -65,6 +71,9 @@ backend/
 ### 1.1 `app/api/`
 - **Purpose**: Contains FastAPI route definitions, endpoint handlers, and API-specific middleware. This is where HTTP requests are received and responses are sent. The API layer should be thin, delegating business logic to the services layer.
 - **Location**: `backend/app/api/`
+- **Key Components**:
+  - `main.py`: FastAPI endpoints for the report generation functionality
+  - `stock_api.py`: Dedicated FastAPI application for stock analysis with endpoints for analyzing stocks and health checks
 
 ### 1.2 `app/core/`
 - **Purpose**: Contains essential application components like configuration management, security utilities, logging configuration, and other foundational elements that the rest of the application depends on. These are the building blocks that support the entire application.
@@ -75,8 +84,13 @@ backend/
 - **Location**: `backend/app/models/`
 
 ### 1.4 `app/stock_analysis/`
-- **Purpose**: Contains functionality for stock market data retrieval, analysis, and visualization. This module provides tools for fetching stock data, applying technical indicators, and generating insights.
+- **Purpose**: Contains functionality for stock market data retrieval, analysis, and visualization. This module provides tools for fetching stock data, applying technical indicators, and generating interactive charts.
 - **Location**: `backend/app/stock_analysis/`
+- **Key Components**:
+  - `stock_data_fetcher.py`: Handles fetching and cleaning of stock market data
+  - `stock_indicators.py`: Implements technical indicator calculations and visualization
+  - `stock_data_charting.py`: Manages chart creation and customization
+  - `__init__.py`: Provides a clean public API for the package
 
 ### 1.5 `app/db/`
 - **Purpose**: Contains database-related code, including connection management, ORM models, repositories, and migrations. This layer abstracts database interactions from the rest of the application, providing a clean API for data persistence.
@@ -170,6 +184,14 @@ if __name__ == "__main__":
 - **Purpose**: Contains the test suite for the application. This includes unit tests, integration tests, and end-to-end tests to ensure the application works as expected.
 - **Location**: `backend/tests/`
 
+### 4. `start_api_server.py`
+- **Purpose**: Entry point script for starting the FastAPI stock analysis server.
+- **Location**: `backend/start_api_server.py`
+- **Key Features**:
+  - Configures the uvicorn server to serve the stock analysis API
+  - Handles environment setup and loading of environment variables
+  - Sets port configuration and server options
+  - Includes hot-reloading for development
 
 |--------------------------------|
 |        File Explanation        |
@@ -182,28 +204,41 @@ if __name__ == "__main__":
 ### 1. `app/api/__init__.py`
 - **Purpose**: This file is used to initialize the API package.
 - **Location**: `backend/app/api/__init__.py`
+- **Key Features**:
+  - Uses conditional imports to avoid circular import issues
+  - Exposes the stock API application through the package
 
 ### 2. `app/api/main.py`
-- **Purpose**: This file is the main file for the API.
+- **Purpose**: This file is the main file for the report generation API.
 - **Location**: `backend/app/api/main.py`
+
+### 3. `app/api/stock_api.py`
+- **Purpose**: This file provides a FastAPI server for stock market analysis.
+- **Location**: `backend/app/api/stock_api.py`
+- **Key Features**:
+  - Defines request and response models using Pydantic
+  - Implements endpoints for stock analysis and health checks
+  - Provides comprehensive error handling and logging
+  - Includes CORS middleware for cross-origin requests
+  - Contains validation logic for interval ranges and other parameters
 
 |---------------------|
 |     core folder     |
 |---------------------|
 
-### 3. `app/core/__init__.py`
+### 4. `app/core/__init__.py`
 - **Purpose**: This file is used to initialize the core package.
 - **Location**: `backend/app/core/__init__.py`
 
-### 4. `app/core/settings.py`
+### 5. `app/core/settings.py`
 - **Purpose**: This file contains application settings and configuration management.
 - **Location**: `backend/app/core/settings.py`
 
-### 5. `app/core/logging_config.py`
+### 6. `app/core/logging_config.py`
 - **Purpose**: This file configures logging for the application, setting up log formats, handlers, and log rotation.
 - **Location**: `backend/app/core/logging_config.py`
 
-### 6. `app/core/validate_api_keys.py`
+### 7. `app/core/validate_api_keys.py`
 - **Purpose**: This file contains utilities for validating API keys.
 - **Location**: `backend/app/core/validate_api_keys.py`
 
@@ -211,7 +246,7 @@ if __name__ == "__main__":
 |  stock_analysis folder |
 |---------------------|
 
-### 7. `app/stock_analysis/__init__.py`
+### 8. `app/stock_analysis/__init__.py`
 - **Purpose**: This file initializes the stock_analysis package and provides a clean public API for its functionality.
 - **Location**: `backend/app/stock_analysis/__init__.py`
 - **Key Features**:
@@ -219,7 +254,7 @@ if __name__ == "__main__":
   - Defines the public API through the `__all__` list
   - Provides package-level documentation
 
-### 8. `app/stock_analysis/stock_data_fetcher.py`
+### 9. `app/stock_analysis/stock_data_fetcher.py`
 - **Purpose**: This file centralizes all data fetching and cleaning logic for stock market data.
 - **Location**: `backend/app/stock_analysis/stock_data_fetcher.py`
 - **Key Functions**:
@@ -231,7 +266,7 @@ if __name__ == "__main__":
   - Includes robust error handling and logging
   - Returns clean, filtered DataFrames ready for analysis
 
-### 9. `app/stock_analysis/stock_indicators.py`
+### 10. `app/stock_analysis/stock_indicators.py`
 - **Purpose**: This file contains functions for calculating technical indicators and returning Plotly traces.
 - **Location**: `backend/app/stock_analysis/stock_indicators.py`
 - **Key Functions**:
@@ -245,7 +280,7 @@ if __name__ == "__main__":
   - Returns Plotly traces ready to be added to charts
   - Designed for easy addition of new indicators in the future
 
-### 10. `app/stock_analysis/stock_data_charting.py`
+### 11. `app/stock_analysis/stock_data_charting.py`
 - **Purpose**: This file handles all chart building and visualization functionality.
 - **Location**: `backend/app/stock_analysis/stock_data_charting.py`
 - **Key Functions**:
@@ -260,7 +295,7 @@ if __name__ == "__main__":
   - Handles x-axis rangebreaks for intraday data
   - Integrates with the indicators module for overlaying technical analysis
 
-### 11. `app/stock_analysis/stock_analysis.py` (Deprecated)
+### 12. `app/stock_analysis/stock_analysis.py` (Deprecated)
 - **Purpose**: Legacy file maintained for backward compatibility only.
 - **Location**: `backend/app/stock_analysis/stock_analysis.py`
 - **Key Features**:
@@ -278,15 +313,15 @@ Nothing to see here yet.
 |     models folder   |
 |---------------------|
 
-### 8. `app/models/__init__.py`
+### 13. `app/models/__init__.py`
 - **Purpose**: This file is used to initialize the models package.
 - **Location**: `backend/app/models/__init__.py`
 
-### 9. `app/models/report_models.py`
+### 14. `app/models/report_models.py`
 - **Purpose**: This file contains data models related to reports.
 - **Location**: `backend/app/models/report_models.py`
 
-### 10. `app/models/structured_report_nodes.py`
+### 15. `app/models/structured_report_nodes.py`
 - **Purpose**: This file contains node definitions for report generation.
 - **Location**: `backend/app/models/structured_report_nodes.py`
 - **Key Features**:
@@ -298,7 +333,7 @@ Nothing to see here yet.
 |    services folder  |
 |---------------------|
 
-### 11. `app/services/__init__.py`
+### 16. `app/services/__init__.py`
 - **Purpose**: This file is used to initialize the services package and provides access to core services.
 - **Location**: `backend/app/services/__init__.py`
 - **Key Features**:
@@ -309,11 +344,11 @@ Nothing to see here yet.
 |     utils folder    |
 |---------------------|
 
-### 12. `app/utils/__init__.py`
+### 17. `app/utils/__init__.py`
 - **Purpose**: This file is used to initialize the utils package.
 - **Location**: `backend/app/utils/__init__.py`
 
-### 13. `app/utils/system_checks.py`
+### 18. `app/utils/system_checks.py`
 - **Purpose**: This file contains utilities for checking system requirements.
 - **Location**: `backend/app/utils/system_checks.py`
 
@@ -321,7 +356,7 @@ Nothing to see here yet.
 |    logs folder      |
 |---------------------|
 
-### 14. `logs/app.log`
+### 19. `logs/app.log`
 - **Purpose**: This file contains application logs generated by the logging system. The logs include timestamps, log levels, and structured information about application events and errors.
 - **Location**: `backend/logs/app.log`
 
@@ -329,23 +364,31 @@ Nothing to see here yet.
 |    root folder      |
 |---------------------|
 
-### 15. `BACKEND_DOCS.md`
+### 20. `BACKEND_DOCS.md`
 - **Purpose**: This file contains the documentation for the backend.
 - **Location**: `backend/BACKEND_DOCS.md`
 
-### 16. `requirements.txt`
+### 21. `requirements.txt`
 - **Purpose**: This file contains the dependencies for the backend.
 - **Location**: `backend/requirements.txt`
+- **Key Features**:
+  - Includes FastAPI, uvicorn, and python-multipart for the web server
+  - Contains yfinance for stock data retrieval
+  - Includes plotting libraries like matplotlib and plotly
 
-### 17. `run.py`
-- **Purpose**: This file is the entry point for the backend.
+### 22. `run.py`
+- **Purpose**: This file is the entry point for the report generation functionality.
 - **Location**: `backend/run.py`
 
-### 18. `test_import.py`
-- **Purpose**: This file is used to test the imports of the backend.
-- **Location**: `backend/test_import.py`
+### 23. `start_api_server.py`
+- **Purpose**: This file is the entry point for starting the stock analysis API server.
+- **Location**: `backend/start_api_server.py`
+- **Key Features**:
+  - Uses uvicorn to run the FastAPI application
+  - Sets up environment variables and Python path
+  - Configures server options and port settings
 
-### 19. `.env`
+### 24. `.env`
 - **Purpose**: This file contains the environment variables for the backend.
 - **Location**: `backend/.env`
 
@@ -376,6 +419,7 @@ Nothing to see here yet.
     - `__new__` method inspects the requested provider and returns the appropriate handler
     - Abstracts away provider-specific details while maintaining a simple, unified API
     - Each provider (OpenAI, Anthropic, Google) has its own handler class with specialized logic
+  - **`stock_indicators.py`**: Uses a dictionary-based factory approach to map indicator names to calculation functions
 - **Benefits**:
   - Encapsulates provider-specific logic
   - Provides a consistent interface for creating language model instances
@@ -395,39 +439,79 @@ Nothing to see here yet.
   - Makes it easy to adjust logging behavior application-wide
   - Ensures important information is properly captured for debugging and monitoring
 
+### 4. Module-Level API Pattern
+- **Purpose**: Provides a clean and consistent API for a package or module.
+- **Implementation**:
+  - **`stock_analysis/__init__.py`**: Explicitly exports only the intended public functions and classes:
+    - Imports specific functions from the module's internal files
+    - Defines `__all__` to limit what's exported when using `from package import *`
+    - Provides package-level documentation
+- **Benefits**:
+  - Makes it clear what functionality is intended for public use
+  - Simplifies importing for users of the package
+  - Encapsulates implementation details
+
+### 5. Adapter Pattern
+- **Purpose**: Provides a consistent interface to different underlying systems or services.
+- **Implementation**:
+  - **`stock_api.py`**: Adapts between the HTTP API interface and the internal stock analysis functions:
+    - Converts JSON request parameters to function arguments
+    - Translates function return values to JSON responses
+    - Handles errors and exceptions in a consistent way
+- **Benefits**:
+  - Decouples the client interface from the implementation
+  - Makes it easier to evolve either side independently
+  - Provides a consistent error handling approach
+
 |--------------------------------|
-|      Potential Future Folders  |
+|      Stock Analysis API         |
 |--------------------------------|
 
-### 1. `app/schemas/`
-- **Purpose**: Would contain Pydantic schemas for request/response validation, separate from the data models. This separation allows for different validation rules for API inputs/outputs versus internal data structures.
-- **Key Components**:
-  - `schemas/requests/`: Input validation schemas for API endpoints
-  - `schemas/responses/`: Output formatting schemas for API responses
-  - `schemas/common.py`: Shared schema components and base models
-- **When to Add**: Add this folder when your API layer grows and you need more sophisticated request/response validation, especially if the validation logic differs from your internal data models.
+### 1. Starting the Stock Analysis API
+- **Command**: `python start_api_server.py`
+- **Default Port**: 8000 (can be changed via environment variable API_PORT)
+- **Available Endpoints**:
+  - `/api/stocks/analyze` (POST): Analyze stock data and return visualization
+  - `/api/health` (GET): Check if the API is running correctly
 
-### 2. `app/middleware/`
-- **Purpose**: Would contain HTTP middleware components for cross-cutting concerns like authentication, logging, error handling, and request/response transformation. Middleware intercepts HTTP requests/responses before they reach your route handlers.
-- **Key Components**:
-  - `middleware/auth.py`: Authentication and authorization middleware
-  - `middleware/logging.py`: Request/response logging
-  - `middleware/error_handlers.py`: Global exception handlers
-  - `middleware/cors.py`: Cross-Origin Resource Sharing configuration
-- **When to Add**: Add this folder when you need to apply consistent processing across multiple API endpoints, such as enforcing authentication, logging requests, or handling errors in a standardized way.
+### 2. API Request Format
+The stock analysis endpoint accepts the following parameters:
+```json
+{
+  "ticker": "AAPL",         // Stock ticker symbol
+  "days": 10,               // Number of days to look back (optional, default: 10)
+  "interval": "1d",         // Data interval (optional, default: "1d")
+  "indicators": [           // List of technical indicators (optional, default: [])
+    "20-Day SMA",
+    "20-Day EMA",
+    "20-Day Bollinger Bands",
+    "VWAP"
+  ],
+  "chart_type": "candlestick" // Chart type: "candlestick" or "line" (optional, default: "candlestick")
+}
+```
 
-### 3. `app/background/`
-- **Purpose**: Would contain code for background tasks and scheduled jobs. This includes long-running processes, periodic tasks, and asynchronous job processing.
-- **Key Components**:
-  - `background/tasks.py`: Background task definitions
-  - `background/scheduler.py`: Task scheduling logic
-  - `background/workers.py`: Worker process management
-- **When to Add**: Add this folder when you need to perform operations asynchronously or on a schedule, such as data refreshing, report generation, or notification sending.
+### 3. API Response Format
+The API returns a JSON object with the following structure:
+```json
+{
+  "chart": "{...}",  // Plotly figure as JSON string
+  "ticker": "AAPL"   // The requested ticker symbol
+}
+```
 
-### 4. `app/visualization/`
-- **Purpose**: Would contain code for generating data visualizations and charts. This includes chart generation, data formatting for visualization, and interactive dashboard components.
-- **Key Components**:
-  - `visualization/charts.py`: Chart generation utilities
-  - `visualization/formatters.py`: Data formatting for visualization
-  - `visualization/dashboards.py`: Dashboard component definitions
-- **When to Add**: Add this folder when your application needs more sophisticated visualization capabilities beyond what's currently in the stock_analysis module, especially if these visualizations will be used across multiple parts of the application.
+### 4. Interval Validation
+The API validates interval parameters and enforces these limits:
+- `1m`: maximum 7 days of history
+- `2m`, `5m`, `15m`, `30m`, `60m`, `90m`: maximum 60 days of history
+- `1h`: maximum 730 days of history
+- `1d`, `1wk`, `1mo`: no limit
+
+### 5. Error Handling
+The API returns appropriate HTTP status codes:
+- 200 OK: Successful request
+- 404 Not Found: When no data is found for the requested ticker or timeframe
+- 500 Internal Server Error: For unexpected errors during processing
+
+### 6. CORS Configuration
+The API is configured to allow cross-origin requests from any origin, which is suitable for development. For production, you should restrict this to specific origins.

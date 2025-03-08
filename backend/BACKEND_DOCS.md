@@ -14,12 +14,14 @@ backend/
 │   ├── core/             # Core application components
 │   │   ├── __init__.py   # Package initialization
 │   │   ├── settings.py   # Application settings and configuration
+│   │   ├── logging_config.py # Logging configuration
 │   │   └── validate_api_keys.py # API key validation utilities
-│   │   └── logging_config.py # Logging configuration
 │   ├── models/           # Data models and schemas
 │   │   ├── __init__.py   # Package initialization
 │   │   ├── report_models.py # Report-related data models
 │   │   └── structured_report_nodes.py # Node definitions for report generation
+│   ├── stock_analysis/   # Stock market analysis functionality
+│   │   └── stock_analysis.py # Stock data fetching and analysis
 │   ├── db/               # Database related code
 │   ├── services/         # Business logic and external service integrations
 │   │   ├── llm/          # Language model related services
@@ -42,13 +44,14 @@ backend/
 │   │   ├── __init__.py   # Package initialization
 │   │   └── system_checks.py # System environment validation
 │   └── __init__.py       # Main package initialization
+├── logs/                 # Application logs directory
+│   └── app.log           # Application log file
 ├── tests/                # Test suite
 │   ├── __init__.py       # Test package initialization
 │   └── test_file.py      # Test cases
-|── BACKEND_DOCS.md       # Documentation for the backend
+├── BACKEND_DOCS.md       # Documentation for the backend
 ├── requirements.txt      # Python dependencies
 ├── run.py                # Application entry point
-└── test_import.py        # Import testing utility
 ``` 
 
 |--------------------------------|
@@ -64,22 +67,26 @@ backend/
 - **Location**: `backend/app/api/`
 
 ### 1.2 `app/core/`
-- **Purpose**: Contains essential application components like configuration management, security utilities, and other foundational elements that the rest of the application depends on. These are the building blocks that support the entire application.
+- **Purpose**: Contains essential application components like configuration management, security utilities, logging configuration, and other foundational elements that the rest of the application depends on. These are the building blocks that support the entire application.
 - **Location**: `backend/app/core/`
 
 ### 1.3 `app/models/`
 - **Purpose**: Contains data structure definitions, type hints, and schemas used throughout the application, particularly for the report generation pipeline. These models define the shape of data as it flows through the application.
 - **Location**: `backend/app/models/`
 
-### 1.4 `app/db/`
+### 1.4 `app/stock_analysis/`
+- **Purpose**: Contains functionality for stock market data retrieval, analysis, and visualization. This module provides tools for fetching stock data, applying technical indicators, and generating insights.
+- **Location**: `backend/app/stock_analysis/`
+
+### 1.5 `app/db/`
 - **Purpose**: Contains database-related code, including connection management, ORM models, repositories, and migrations. This layer abstracts database interactions from the rest of the application, providing a clean API for data persistence.
 - **Location**: `backend/app/db/`
 
-### 1.5 `app/services/`
+### 1.6 `app/services/`
 - **Purpose**: Contains business logic and integrations with external services. This layer implements the core functionality of the application and is organized into subpackages by domain.
 - **Location**: `backend/app/services/`
 
-#### 1.5.1 `app/services/llm/`
+#### 1.6.1 `app/services/llm/`
 - **Purpose**: Contains services related to language model interactions. This includes handling different LLM providers, managing prompts, and processing LLM responses.
 - **Location**: `backend/app/services/llm/`
 - **Key Components**:
@@ -130,7 +137,7 @@ if __name__ == "__main__":
   ```]
 
 
-#### 1.5.2 `app/services/web/`
+#### 1.6.2 `app/services/web/`
 - **Purpose**: Contains services for web content extraction and analysis. This includes scraping web pages, extracting relevant content, and analyzing the topics and sentiment of web content.
 - **Location**: `backend/app/services/web/`
 - **Note**: These components are not currently in active use but are maintained for potential future applications requiring web content analysis.
@@ -138,11 +145,11 @@ if __name__ == "__main__":
   - `web_content_extractor.py`: Utilities for scraping and extracting content from web pages
   - `url_topic_analyzer.py`: Analysis tools for determining topics and content relevance of URLs
 
-#### 1.5.3 `app/services/search/`
+#### 1.6.3 `app/services/search/`
 - **Purpose**: Contains services for performing web searches and processing search results. This includes integrating with search APIs like Tavily and formatting the search results for consumption by other parts of the application.
 - **Location**: `backend/app/services/search/`
 
-#### 1.5.4 `app/services/reports/`
+#### 1.6.4 `app/services/reports/`
 - **Purpose**: Contains services for generating structured reports. This includes building report pipelines, orchestrating the report generation process, and formatting the final output.
 - **Location**: `backend/app/services/reports/`
 - **Key Components**:
@@ -151,11 +158,15 @@ if __name__ == "__main__":
     - Prevents graph construction at import time to avoid unwanted side effects
     - Provides a clean API for accessing the report builder when needed
 
-### 1.6 `app/utils/`
+### 1.7 `app/utils/`
 - **Purpose**: Contains utility functions and helpers that support the application but aren't tied to specific business logic. These are general-purpose functions that can be used across different parts of the application.
 - **Location**: `backend/app/utils/`
 
-### 2. `tests/`
+### 2. `logs/`
+- **Purpose**: Contains application log files generated by the logging system. These logs are useful for debugging, monitoring, and auditing application behavior.
+- **Location**: `backend/logs/`
+
+### 3. `tests/`
 - **Purpose**: Contains the test suite for the application. This includes unit tests, integration tests, and end-to-end tests to ensure the application works as expected.
 - **Location**: `backend/tests/`
 
@@ -188,9 +199,74 @@ if __name__ == "__main__":
 - **Purpose**: This file contains application settings and configuration management.
 - **Location**: `backend/app/core/settings.py`
 
-### 5. `app/core/validate_api_keys.py`
+### 5. `app/core/logging_config.py`
+- **Purpose**: This file configures logging for the application, setting up log formats, handlers, and log rotation.
+- **Location**: `backend/app/core/logging_config.py`
+
+### 6. `app/core/validate_api_keys.py`
 - **Purpose**: This file contains utilities for validating API keys.
 - **Location**: `backend/app/core/validate_api_keys.py`
+
+|---------------------|
+|  stock_analysis folder |
+|---------------------|
+
+### 7. `app/stock_analysis/__init__.py`
+- **Purpose**: This file initializes the stock_analysis package and provides a clean public API for its functionality.
+- **Location**: `backend/app/stock_analysis/__init__.py`
+- **Key Features**:
+  - Exposes core functions at the package level for easy importing
+  - Defines the public API through the `__all__` list
+  - Provides package-level documentation
+
+### 8. `app/stock_analysis/stock_data_fetcher.py`
+- **Purpose**: This file centralizes all data fetching and cleaning logic for stock market data.
+- **Location**: `backend/app/stock_analysis/stock_data_fetcher.py`
+- **Key Functions**:
+  - `fetch_stock_data(tickers, start_date, end_date, interval)`: Retrieves historical stock data using yfinance
+  - `filter_market_hours(ticker, data)`: Filters data to include only rows during trading hours
+  - `get_market_hours(ticker)`: Retrieves market hours information for a given ticker
+- **Key Features**:
+  - Handles exchange-specific timezone and trading hour adjustments
+  - Includes robust error handling and logging
+  - Returns clean, filtered DataFrames ready for analysis
+
+### 9. `app/stock_analysis/stock_indicators.py`
+- **Purpose**: This file contains functions for calculating technical indicators and returning Plotly traces.
+- **Location**: `backend/app/stock_analysis/stock_indicators.py`
+- **Key Functions**:
+  - `calculate_20day_SMA(data, ticker)`: Calculates 20-Day Simple Moving Average
+  - `calculate_20day_EMA(data, ticker)`: Calculates 20-Day Exponential Moving Average
+  - `calculate_20day_Bollinger_Bands(data, ticker)`: Calculates 20-Day Bollinger Bands
+  - `calculate_VWAP(data, ticker)`: Calculates Volume Weighted Average Price
+  - `add_indicator_to_chart(fig, data, indicator_name, ticker)`: Adds indicator traces to an existing chart
+- **Key Features**:
+  - Uses a dispatcher pattern to map indicator names to calculation functions
+  - Returns Plotly traces ready to be added to charts
+  - Designed for easy addition of new indicators in the future
+
+### 10. `app/stock_analysis/stock_data_charting.py`
+- **Purpose**: This file handles all chart building and visualization functionality.
+- **Location**: `backend/app/stock_analysis/stock_data_charting.py`
+- **Key Functions**:
+  - `build_candlestick_chart(ticker, data)`: Creates a basic candlestick chart
+  - `build_line_chart(ticker, data)`: Creates a line chart using closing prices
+  - `apply_rangebreaks(fig, ticker, data, interval)`: Adds x-axis rangebreaks to remove gaps
+  - `add_selected_indicators(fig, data, ticker, indicators)`: Adds selected indicators to a chart
+  - `analyze_ticker(ticker, data, indicators, interval, chart_type)`: Orchestrates the entire chart creation process
+  - `main()`: Test function for local development
+- **Key Features**:
+  - Supports multiple chart types (candlestick and line)
+  - Handles x-axis rangebreaks for intraday data
+  - Integrates with the indicators module for overlaying technical analysis
+
+### 11. `app/stock_analysis/stock_analysis.py` (Deprecated)
+- **Purpose**: Legacy file maintained for backward compatibility only.
+- **Location**: `backend/app/stock_analysis/stock_analysis.py`
+- **Key Features**:
+  - Imports functionality from the new modular structure
+  - Issues deprecation warnings to guide users to the new modules
+  - Will be removed in a future version
 
 |---------------------|
 |     db folder       |
@@ -242,26 +318,34 @@ Nothing to see here yet.
 - **Location**: `backend/app/utils/system_checks.py`
 
 |---------------------|
+|    logs folder      |
+|---------------------|
+
+### 14. `logs/app.log`
+- **Purpose**: This file contains application logs generated by the logging system. The logs include timestamps, log levels, and structured information about application events and errors.
+- **Location**: `backend/logs/app.log`
+
+|---------------------|
 |    root folder      |
 |---------------------|
 
-### 14. `BACKEND_DOCS.md`
+### 15. `BACKEND_DOCS.md`
 - **Purpose**: This file contains the documentation for the backend.
 - **Location**: `backend/BACKEND_DOCS.md`
 
-### 15. `requirements.txt`
+### 16. `requirements.txt`
 - **Purpose**: This file contains the dependencies for the backend.
 - **Location**: `backend/requirements.txt`
 
-### 16. `run.py`
+### 17. `run.py`
 - **Purpose**: This file is the entry point for the backend.
 - **Location**: `backend/run.py`
 
-### 17. `test_import.py`
+### 18. `test_import.py`
 - **Purpose**: This file is used to test the imports of the backend.
 - **Location**: `backend/test_import.py`
 
-### 18. `.env`
+### 19. `.env`
 - **Purpose**: This file contains the environment variables for the backend.
 - **Location**: `backend/.env`
 
@@ -298,6 +382,19 @@ Nothing to see here yet.
   - Makes switching between providers easier
   - Improves modularity and maintainability by separating concerns
 
+### 3. Logger Configuration Pattern
+- **Purpose**: Centralizes logging configuration to ensure consistent logging across the application.
+- **Implementation**:
+  - **`logging_config.py`**: Provides a centralized configuration for application logging:
+    - Configures log formats, handlers, and log rotation
+    - Uses a factory function (`get_logger()`) to provide consistent logger instances
+    - Ensures logs are properly saved to the logs directory
+- **Benefits**:
+  - Provides consistent logging behavior across the application
+  - Centralizes logging configuration in one place
+  - Makes it easy to adjust logging behavior application-wide
+  - Ensures important information is properly captured for debugging and monitoring
+
 |--------------------------------|
 |      Potential Future Folders  |
 |--------------------------------|
@@ -326,3 +423,11 @@ Nothing to see here yet.
   - `background/scheduler.py`: Task scheduling logic
   - `background/workers.py`: Worker process management
 - **When to Add**: Add this folder when you need to perform operations asynchronously or on a schedule, such as data refreshing, report generation, or notification sending.
+
+### 4. `app/visualization/`
+- **Purpose**: Would contain code for generating data visualizations and charts. This includes chart generation, data formatting for visualization, and interactive dashboard components.
+- **Key Components**:
+  - `visualization/charts.py`: Chart generation utilities
+  - `visualization/formatters.py`: Data formatting for visualization
+  - `visualization/dashboards.py`: Dashboard component definitions
+- **When to Add**: Add this folder when your application needs more sophisticated visualization capabilities beyond what's currently in the stock_analysis module, especially if these visualizations will be used across multiple parts of the application.

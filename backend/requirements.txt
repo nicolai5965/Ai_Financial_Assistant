@@ -27,6 +27,9 @@ defusedxml==0.7.1
 display==1.0.0
 distro==1.9.0
 executing==2.2.0
+fastapi==0.115.0
+uvicorn==0.30.0
+python-multipart==0.0.9
 fake-http-header==0.3.5
 fake-useragent==2.0.3
 filelock==3.17.0

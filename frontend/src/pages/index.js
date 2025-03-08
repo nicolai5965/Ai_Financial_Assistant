@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 // Import logger from the utils directory
 const logger = require('../utils/logger');
 
@@ -44,6 +45,13 @@ export default function Home() {
         <p>This is a Next.js-powered frontend for your AI Financial Assistant.</p>
         
         <div className="grid">
+          <Link href="/stocks" className="card-link">
+            <div className="card" onClick={() => handleFeatureClick('Stock Analysis')}>
+              <h2>Stock Analysis &rarr;</h2>
+              <p>Analyze stock data with interactive charts and technical indicators.</p>
+            </div>
+          </Link>
+          
           <div className="card" onClick={() => handleFeatureClick('Getting Started')}>
             <h2>Getting Started</h2>
             <p>This is a simple starter page for your Next.js application.</p>
@@ -102,17 +110,22 @@ export default function Home() {
           margin-top: 3rem;
         }
 
-        .card {
+        .card-link {
+          text-decoration: none;
+          color: inherit;
+          width: 45%;
           margin: 1rem;
+        }
+
+        .card {
           padding: 1.5rem;
           text-align: left;
           color: #e0e0e0;
-          text-decoration: none;
           border: 1px solid #333333; /* Darker border for cards on dark background */
           background-color: #24201A; /* Slightly lighter than the background for cards */
           border-radius: 10px;
           transition: all 0.15s ease;
-          width: 45%;
+          height: 100%;
           cursor: pointer;
         }
 

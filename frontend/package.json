@@ -14,7 +14,9 @@
   "license": "ISC",
   "dependencies": {
     "next": "^15.1.7",
+    "plotly.js": "^2.32.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-plotly.js": "^2.6.0"
   }
 }

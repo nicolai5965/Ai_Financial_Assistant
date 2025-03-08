@@ -50,6 +50,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             <ul>
               <li><a href="/">Dashboard</a></li>
               <li><a href="/reports">Reports</a></li>
+              <li><a href="/stocks">Stock Analysis</a></li>
               <li><a href="/settings">Settings</a></li>
             </ul>
           </nav>

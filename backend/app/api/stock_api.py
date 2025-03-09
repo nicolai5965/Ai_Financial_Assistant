@@ -8,8 +8,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import date, timedelta
+import logging
 
-from ..stock_analysis.stock_data_fetcher import fetch_stock_data, filter_market_hours
+from ..stock_analysis.stock_data_fetcher import fetch_stock_data
 from ..stock_analysis.stock_data_charting import analyze_ticker
 from ..core.logging_config import get_logger
 
@@ -39,7 +40,7 @@ class StockAnalysisRequest(BaseModel):
     """
     ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
     days: Optional[int] = Field(10, description="Number of days to look back")
-    interval: str = Field("1d", description="Data interval (e.g., '1d', '1h', '5m', '1m')")
+    interval: str = Field("1d", description="Data interval (e.g., '1d', '1h', '5m', '1m', '1wk', '1mo')")
     indicators: List[str] = Field(default=[], description="List of technical indicators to include")
     chart_type: str = Field("candlestick", description="Chart type: 'candlestick' or 'line'")
 
@@ -72,6 +73,7 @@ async def analyze_stock(request: StockAnalysisRequest):
             "60m": 60,
             "90m": 60,
             "1h": 730
+            # "1d", "1wk", and "1mo" have no maximum day limits
         }
         
         if request.interval in interval_max_days:
@@ -88,17 +90,17 @@ async def analyze_stock(request: StockAnalysisRequest):
             logger.error(f"No data found for ticker {request.ticker}")
             raise HTTPException(status_code=404, detail=f"No data found for ticker {request.ticker}")
         
-        # Filter market hours
-        filtered_data = filter_market_hours(request.ticker, stock_data[request.ticker])
+        # Use the stock data directly without filtering
+        ticker_data = stock_data[request.ticker]
         
-        if filtered_data.empty:
-            logger.error(f"No trading data for {request.ticker} during market hours")
-            raise HTTPException(status_code=404, detail=f"No trading data for {request.ticker} during market hours")
+        if ticker_data.empty:
+            logger.error(f"No trading data found for {request.ticker}")
+            raise HTTPException(status_code=404, detail=f"No trading data found for {request.ticker}")
         
         # Generate chart
         fig = analyze_ticker(
             request.ticker, 
-            filtered_data, 
+            ticker_data, 
             request.indicators, 
             request.interval,
             chart_type=request.chart_type

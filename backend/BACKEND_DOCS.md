@@ -259,12 +259,11 @@ if __name__ == "__main__":
 - **Location**: `backend/app/stock_analysis/stock_data_fetcher.py`
 - **Key Functions**:
   - `fetch_stock_data(tickers, start_date, end_date, interval)`: Retrieves historical stock data using yfinance
-  - `filter_market_hours(ticker, data)`: Filters data to include only rows during trading hours
   - `get_market_hours(ticker)`: Retrieves market hours information for a given ticker
 - **Key Features**:
-  - Handles exchange-specific timezone and trading hour adjustments
+  - Handles exchange-specific timezone information
   - Includes robust error handling and logging
-  - Returns clean, filtered DataFrames ready for analysis
+  - Returns clean DataFrames ready for analysis
 
 ### 10. `app/stock_analysis/stock_indicators.py`
 - **Purpose**: This file contains functions for calculating technical indicators and returning Plotly traces.

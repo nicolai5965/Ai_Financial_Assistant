@@ -14,12 +14,14 @@ const AVAILABLE_INDICATORS = [
 ];
 
 const INTERVALS = [
-  { value: '1d', label: 'Daily' },
-  { value: '1h', label: 'Hourly' },
-  { value: '30m', label: 'Half-hourly' },
-  { value: '15m', label: '15 Minutes' },
-  { value: '5m', label: '5 Minutes' },
-  { value: '1m', label: '1 Minute' },
+  { value: '1mo', label: 'Monthly' },  // Moved Monthly to the top
+  { value: '1wk', label: 'Weekly' },    // Moved Weekly next
+  { value: '1d', label: 'Daily' },      // Daily follows Weekly
+  { value: '1h', label: 'Hourly' },     // Hourly comes next
+  { value: '30m', label: 'Half-hourly' }, // Half-hourly follows Hourly
+  { value: '15m', label: '15 Minutes' }, // 15 Minutes next
+  { value: '5m', label: '5 Minutes' },   // 5 Minutes follows
+  { value: '1m', label: '1 Minute' },    // 1 Minute at the end
 ];
 
 const CHART_TYPES = [

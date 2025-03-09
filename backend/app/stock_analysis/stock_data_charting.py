@@ -190,13 +190,13 @@ def main():
       Logs configuration details and progress.
     """
     from datetime import datetime, timedelta
-    from .stock_data_fetcher import fetch_stock_data, filter_market_hours
+    from .stock_data_fetcher import fetch_stock_data
     
     # Centralized configuration dictionary for testing
     config = {
         "tickers": "AAPL",               # Comma-separated ticker symbols
         "date_range_days": 10,           # Number of days to look back
-        "interval": "5m",                # Data interval (e.g., '1d', '1h', '5m', '1m')
+        "interval": "5m",                # Data interval (e.g., '1d', '1wk', '1mo', '1h', '5m', '1m')
         "technical_indicators": ["20-Day SMA"],  # List of indicators to display
         "chart_type": "line"             # "line" or "candlestick"
     }
@@ -211,6 +211,7 @@ def main():
         "60m": 60,
         "90m": 60,
         "1h": 730
+        # "1d", "1wk", and "1mo" have no maximum day limits
     }
     
     # Validate and adjust the date range if needed
@@ -242,12 +243,11 @@ def main():
 
     # Process each ticker
     for ticker, data in stock_data.items():
-        filtered_data = filter_market_hours(ticker, data)
-        if filtered_data.empty:
-            logger.warning("No trading data for %s during market hours. Skipping chart generation.", ticker)
+        if data.empty:
+            logger.warning("No trading data for %s. Skipping chart generation.", ticker)
             continue
 
-        fig = analyze_ticker(ticker, filtered_data, config["technical_indicators"], config["interval"], config["chart_type"])
+        fig = analyze_ticker(ticker, data, config["technical_indicators"], config["interval"], config["chart_type"])
         # Display the interactive plot
         fig.show()
         logger.info("Displayed chart for %s.", ticker)

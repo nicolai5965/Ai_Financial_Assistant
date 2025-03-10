@@ -208,8 +208,6 @@ def main():
         "5m": 60,
         "15m": 60,
         "30m": 60,
-        "60m": 60,
-        "90m": 60,
         "1h": 730
         # "1d", "1wk", and "1mo" have no maximum day limits
     }

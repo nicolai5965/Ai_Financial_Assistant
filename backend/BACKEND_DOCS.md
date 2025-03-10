@@ -26,6 +26,7 @@ backend/
 │   │   ├── stock_data_fetcher.py # Stock data retrieval and cleaning
 │   │   ├── stock_indicators.py # Technical indicators calculation
 │   │   ├── stock_data_charting.py # Chart creation and visualization
+│   │   ├── indicator_panels.py # Multi-panel chart organization system
 │   │   └── stock_analysis.py # Legacy file (deprecated)
 │   ├── db/               # Database related code
 │   ├── services/         # Business logic and external service integrations
@@ -90,6 +91,7 @@ backend/
   - `stock_data_fetcher.py`: Handles fetching and cleaning of stock market data
   - `stock_indicators.py`: Implements technical indicator calculations and visualization
   - `stock_data_charting.py`: Manages chart creation and customization
+  - `indicator_panels.py`: Provides a system for organizing technical indicators into logical panel groups
   - `__init__.py`: Provides a clean public API for the package
 
 ### 1.5 `app/db/`
@@ -215,12 +217,19 @@ if __name__ == "__main__":
 ### 3. `app/api/stock_api.py`
 - **Purpose**: This file provides a FastAPI server for stock market analysis.
 - **Location**: `backend/app/api/stock_api.py`
+- **Key Classes**:
+  - `IndicatorConfig`: Pydantic model for technical indicator configuration:
+    - `name`: The indicator name
+    - `panel`: Optional panel assignment (main, oscillator, macd, volume, volatility)
+    - Various indicator-specific parameters (window, fast_window, etc.)
+  - `StockAnalysisRequest`: Pydantic model for stock analysis requests
 - **Key Features**:
   - Defines request and response models using Pydantic
   - Implements endpoints for stock analysis and health checks
   - Provides comprehensive error handling and logging
   - Includes CORS middleware for cross-origin requests
   - Contains validation logic for interval ranges and other parameters
+  - Processes complex indicator configurations with custom parameters and panel assignments
 
 |---------------------|
 |     core folder     |
@@ -269,22 +278,25 @@ if __name__ == "__main__":
 - **Purpose**: This file contains functions for calculating technical indicators and returning Plotly traces.
 - **Location**: `backend/app/stock_analysis/stock_indicators.py`
 - **Key Functions**:
-  - `calculate_SMA(data, ticker, default_window=20)`: Calculates Simple Moving Average with dynamic window size
-  - `calculate_EMA(data, ticker, default_window=20)`: Calculates Exponential Moving Average with dynamic window size
-  - `calculate_Bollinger_Bands(data, ticker, default_window=20)`: Calculates Bollinger Bands with dynamic window size
+  - `determine_window_size(data, default_window)`: Dynamically calculates appropriate window size based on available data
+  - `calculate_SMA(data, ticker, window=None, default_window=20)`: Calculates Simple Moving Average with dynamic or custom window size
+  - `calculate_EMA(data, ticker, window=None, default_window=20)`: Calculates Exponential Moving Average with dynamic or custom window size
+  - `calculate_Bollinger_Bands(data, ticker, window=None, default_window=20, std_dev=2)`: Calculates Bollinger Bands with dynamic or custom window size
   - `calculate_VWAP(data, ticker)`: Calculates Volume Weighted Average Price
-  - `calculate_RSI(data, ticker, default_window=14)`: Calculates Relative Strength Index 
-  - `calculate_MACD(data, ticker, fast_window=12, slow_window=26, signal_window=9)`: Calculates Moving Average Convergence Divergence
-  - `calculate_ATR(data, ticker, default_window=14)`: Calculates Average True Range
+  - `calculate_RSI(data, ticker, window=None, default_window=14)`: Calculates Relative Strength Index 
+  - `calculate_MACD(data, ticker, fast_window=None, slow_window=None, signal_window=None, default_fast_window=12, default_slow_window=26, default_signal_window=9)`: Calculates Moving Average Convergence Divergence
+  - `calculate_ATR(data, ticker, window=None, default_window=14)`: Calculates Average True Range
   - `calculate_OBV(data, ticker)`: Calculates On-Balance Volume
-  - `calculate_stochastic_oscillator(data, ticker, k_window=14, d_window=3)`: Calculates Stochastic Oscillator
-  - `calculate_ichimoku_cloud(data, ticker, conversion_line_period=9, base_line_period=26, leading_span_b_period=52)`: Calculates Ichimoku Cloud components
-  - `add_indicator_to_chart(fig, data, indicator_name, ticker)`: Adds indicator traces to an existing chart
+  - `calculate_stochastic_oscillator(data, ticker, k_window=None, d_window=None, default_k_window=14, default_d_window=3)`: Calculates Stochastic Oscillator
+  - `calculate_ichimoku_cloud(data, ticker, conversion_period=None, base_period=None, lagging_span_b_period=None, default_conversion_period=9, default_base_period=26, default_lagging_span_b_period=52)`: Calculates Ichimoku Cloud components
+  - `add_indicator_to_chart(fig, data, indicator_config, ticker, panel_idx=1)`: Adds indicator traces to an existing chart, optionally in a specific panel
 - **Key Features**:
   - Uses a dispatcher pattern to map indicator names to calculation functions
   - Returns Plotly traces ready to be added to charts
-  - Designed for easy addition of new indicators in the future
-  - Features dynamic window size adjustment based on available data points
+  - Handles both single-trace and multi-trace indicators
+  - Supports dynamic window sizing based on available data points
+  - Allows custom parameter configuration for all indicators
+  - Supports placement of indicators in different panels of a multi-panel chart
 
 ### 11. `app/stock_analysis/stock_data_charting.py`
 - **Purpose**: This file handles all chart building and visualization functionality.
@@ -292,16 +304,42 @@ if __name__ == "__main__":
 - **Key Functions**:
   - `build_candlestick_chart(ticker, data)`: Creates a basic candlestick chart
   - `build_line_chart(ticker, data)`: Creates a line chart using closing prices
-  - `apply_rangebreaks(fig, ticker, data, interval)`: Adds x-axis rangebreaks to remove gaps
+  - `apply_rangebreaks(fig, ticker, data, interval, row=1)`: Adds x-axis rangebreaks to remove gaps (after hours, weekends)
   - `add_selected_indicators(fig, data, ticker, indicators)`: Adds selected indicators to a chart
-  - `analyze_ticker(ticker, data, indicators, interval, chart_type)`: Orchestrates the entire chart creation process
+  - `analyze_ticker(ticker, data, indicators, interval, chart_type)`: Orchestrates the chart creation process, now always using the multi-panel approach for consistency
+  - `analyze_ticker_single_panel(ticker, data, indicators, interval, chart_type)`: Creates a traditional single-panel chart (maintained for backward compatibility)
+  - `analyze_ticker_multi_panel(ticker, data, indicators, interval, chart_type)`: Creates a multi-panel chart with indicators organized logically
   - `main()`: Test function for local development
 - **Key Features**:
   - Supports multiple chart types (candlestick and line)
-  - Handles x-axis rangebreaks for intraday data
+  - Handles x-axis rangebreaks to remove gaps in intraday data
   - Integrates with the indicators module for overlaying technical analysis
+  - **Always uses multi-panel visualization for consistent styling and formatting**
+  - Applies appropriate styling and configuration to each panel
+  - **Includes robust error handling and fallbacks for edge cases**
+  - **Enhanced logging for easier debugging of chart generation issues**
 
-### 12. `app/stock_analysis/stock_analysis.py` (Deprecated)
+### 12. `app/stock_analysis/indicator_panels.py`
+- **Purpose**: This file provides a system for organizing technical indicators into logical panel groups.
+- **Location**: `backend/app/stock_analysis/indicator_panels.py`
+- **Key Functions**:
+  - `get_indicator_metadata(indicator_name)`: Returns metadata about indicators including their default panel assignment
+  - `organize_indicators_into_panels(indicators)`: Groups indicators by their panel assignments
+  - `calculate_panel_heights(panels)`: Determines appropriate height ratios for panels
+  - `create_panel_config(indicators)`: Creates a complete panel configuration based on selected indicators
+  - `initialize_multi_panel_figure(panel_config, ticker)`: Creates a Plotly figure with properly configured subplots
+- **Key Features**:
+  - Categorizes indicators based on their natural visualization properties
+  - Supports panel customization through indicator configuration
+  - Generates appropriate panel sizes and layouts
+  - Adds panel-specific visual elements (reference lines, axis titles)
+  - Ensures consistent styling and interaction across panels
+  - **Now includes safety measures to always ensure at least one panel (main) exists**
+  - **Provides comprehensive error handling for invalid panel configurations**
+  - **Fallback mechanisms to prevent subplot errors with empty indicator lists**
+  - **Detailed logging of panel creation and configuration process**
+
+### 13. `app/stock_analysis/stock_analysis.py` (Deprecated)
 - **Purpose**: Legacy file maintained for backward compatibility only.
 - **Location**: `backend/app/stock_analysis/stock_analysis.py`
 - **Key Features**:
@@ -319,15 +357,15 @@ Nothing to see here yet.
 |     models folder   |
 |---------------------|
 
-### 13. `app/models/__init__.py`
+### 14. `app/models/__init__.py`
 - **Purpose**: This file is used to initialize the models package.
 - **Location**: `backend/app/models/__init__.py`
 
-### 14. `app/models/report_models.py`
+### 15. `app/models/report_models.py`
 - **Purpose**: This file contains data models related to reports.
 - **Location**: `backend/app/models/report_models.py`
 
-### 15. `app/models/structured_report_nodes.py`
+### 16. `app/models/structured_report_nodes.py`
 - **Purpose**: This file contains node definitions for report generation.
 - **Location**: `backend/app/models/structured_report_nodes.py`
 - **Key Features**:
@@ -339,7 +377,7 @@ Nothing to see here yet.
 |    services folder  |
 |---------------------|
 
-### 16. `app/services/__init__.py`
+### 17. `app/services/__init__.py`
 - **Purpose**: This file is used to initialize the services package and provides access to core services.
 - **Location**: `backend/app/services/__init__.py`
 - **Key Features**:
@@ -350,11 +388,11 @@ Nothing to see here yet.
 |     utils folder    |
 |---------------------|
 
-### 17. `app/utils/__init__.py`
+### 18. `app/utils/__init__.py`
 - **Purpose**: This file is used to initialize the utils package.
 - **Location**: `backend/app/utils/__init__.py`
 
-### 18. `app/utils/system_checks.py`
+### 19. `app/utils/system_checks.py`
 - **Purpose**: This file contains utilities for checking system requirements.
 - **Location**: `backend/app/utils/system_checks.py`
 
@@ -362,7 +400,7 @@ Nothing to see here yet.
 |    logs folder      |
 |---------------------|
 
-### 19. `logs/app.log`
+### 20. `logs/app.log`
 - **Purpose**: This file contains application logs generated by the logging system. The logs include timestamps, log levels, and structured information about application events and errors.
 - **Location**: `backend/logs/app.log`
 
@@ -370,11 +408,11 @@ Nothing to see here yet.
 |    root folder      |
 |---------------------|
 
-### 20. `BACKEND_DOCS.md`
+### 21. `BACKEND_DOCS.md`
 - **Purpose**: This file contains the documentation for the backend.
 - **Location**: `backend/BACKEND_DOCS.md`
 
-### 21. `requirements.txt`
+### 22. `requirements.txt`
 - **Purpose**: This file contains the dependencies for the backend.
 - **Location**: `backend/requirements.txt`
 - **Key Features**:
@@ -382,11 +420,11 @@ Nothing to see here yet.
   - Contains yfinance for stock data retrieval
   - Includes plotting libraries like matplotlib and plotly
 
-### 22. `run.py`
+### 23. `run.py`
 - **Purpose**: This file is the entry point for the report generation functionality.
 - **Location**: `backend/run.py`
 
-### 23. `start_api_server.py`
+### 24. `start_api_server.py`
 - **Purpose**: This file is the entry point for starting the stock analysis API server.
 - **Location**: `backend/start_api_server.py`
 - **Key Features**:
@@ -394,7 +432,7 @@ Nothing to see here yet.
   - Sets up environment variables and Python path
   - Configures server options and port settings
 
-### 24. `.env`
+### 25. `.env`
 - **Purpose**: This file contains the environment variables for the backend.
 - **Location**: `backend/.env`
 
@@ -488,16 +526,44 @@ The stock analysis endpoint accepts the following parameters:
   "days": 10,               // Number of days to look back (optional, default: 10)
   "interval": "1d",         // Data interval (optional, default: "1d")
   "indicators": [           // List of technical indicators (optional, default: [])
-    "SMA",
-    "EMA",
-    "Bollinger Bands",
+    "SMA",                  // Simple string format (uses defaults)
+    {                       // Object format with custom parameters
+      "name": "EMA",
+      "window": 50,
+      "panel": "main"       // Optional panel assignment
+    },
+    {
+      "name": "RSI",
+      "window": 14,
+      "panel": "oscillator"
+    },
+    {
+      "name": "MACD",
+      "fast_window": 12,
+      "slow_window": 26,
+      "signal_window": 9,
+      "panel": "macd"
+    },
+    {
+      "name": "Bollinger Bands",
+      "window": 20,
+      "std_dev": 2
+    },
+    {
+      "name": "Stochastic Oscillator",
+      "k_window": 14,
+      "d_window": 3,
+      "panel": "oscillator"
+    },
+    {
+      "name": "Ichimoku Cloud",
+      "conversion_period": 9,
+      "base_period": 26,
+      "lagging_span_b_period": 52
+    },
     "VWAP",
-    "RSI",
-    "MACD",
-    "ATR",
     "OBV",
-    "Stochastic Oscillator",
-    "Ichimoku Cloud"
+    "ATR"
   ],
   "chart_type": "candlestick" // Chart type: "candlestick" or "line" (optional, default: "candlestick")
 }

@@ -39,6 +39,7 @@ class IndicatorConfig(BaseModel):
     Configuration model for a technical indicator.
     """
     name: str = Field(..., description="Name of the technical indicator")
+    panel: Optional[str] = Field(None, description="Panel to display the indicator in (main, oscillator, macd, volume, volatility)")
     window: Optional[int] = Field(None, description="Window size for indicators that use a single window")
     # MACD specific parameters
     fast_window: Optional[int] = Field(None, description="Fast EMA window size for MACD")
@@ -61,10 +62,12 @@ class IndicatorConfig(BaseModel):
             "examples": [
                 {
                     "name": "RSI",
+                    "panel": "oscillator",
                     "window": 14
                 },
                 {
                     "name": "MACD",
+                    "panel": "macd",
                     "fast_window": 12,
                     "slow_window": 26,
                     "signal_window": 9
@@ -102,6 +105,48 @@ async def analyze_stock(request: StockAnalysisRequest):
     try:
         logger.info(f"Analyzing stock data for {request.ticker} with {request.interval} interval")
         
+        # Pre-process indicators to ensure they're properly structured
+        processed_indicators = []
+        for indicator in request.indicators:
+            if isinstance(indicator, str):
+                # Convert string indicators to dict format with name
+                logger.debug(f"Converting string indicator '{indicator}' to dict format")
+                processed_indicators.append({"name": indicator})
+            elif hasattr(indicator, 'model_dump') and callable(getattr(indicator, 'model_dump')):
+                # Handle Pydantic v2 models
+                try:
+                    indicator_dict = indicator.model_dump(exclude_none=True)
+                    logger.debug(f"Converted Pydantic v2 model to dict: {indicator_dict}")
+                    processed_indicators.append(indicator_dict)
+                except Exception as e:
+                    logger.error(f"Error converting Pydantic v2 model: {str(e)}")
+                    # Fallback: convert to dict with just the name
+                    if hasattr(indicator, 'name'):
+                        processed_indicators.append({"name": indicator.name})
+            elif hasattr(indicator, 'dict') and callable(getattr(indicator, 'dict')):
+                # Handle Pydantic v1 models
+                try:
+                    indicator_dict = indicator.dict(exclude_none=True)
+                    logger.debug(f"Converted Pydantic v1 model to dict: {indicator_dict}")
+                    processed_indicators.append(indicator_dict)
+                except Exception as e:
+                    logger.error(f"Error converting Pydantic model: {str(e)}")
+                    # Fallback: convert to dict with just the name
+                    if hasattr(indicator, 'name'):
+                        processed_indicators.append({"name": indicator.name})
+            else:
+                # Keep other types as they are (they'll be handled by add_indicator_to_chart)
+                processed_indicators.append(indicator)
+        
+        # Log indicator configurations with their panel assignments
+        for indicator in processed_indicators:
+            if isinstance(indicator, dict) and 'name' in indicator:
+                panel = indicator.get('panel', 'main')
+                logger.debug(f"Indicator '{indicator['name']}' assigned to panel '{panel}'")
+            elif hasattr(indicator, 'name'):
+                panel = indicator.panel if hasattr(indicator, 'panel') and indicator.panel else 'main'
+                logger.debug(f"Indicator '{indicator.name}' assigned to panel '{panel}'")
+        
         # Calculate date range
         end_date = date.today() + timedelta(days=1)  # Add 1 day because yfinance treats end date as exclusive
         start_date = end_date - timedelta(days=request.days)
@@ -138,11 +183,11 @@ async def analyze_stock(request: StockAnalysisRequest):
             logger.error(f"No trading data found for {request.ticker}")
             raise HTTPException(status_code=404, detail=f"No trading data found for {request.ticker}")
         
-        # Generate chart
+        # Generate chart using processed indicators
         fig = analyze_ticker(
             request.ticker, 
             ticker_data, 
-            request.indicators, 
+            processed_indicators, 
             request.interval,
             chart_type=request.chart_type
         )

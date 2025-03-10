@@ -149,20 +149,32 @@ frontend/
       - **Styling**: Uses Styled JSX for component-scoped styles with consistent dark theme
   - `stock/`: Contains components for stock market analysis
     - `StockChart.js`:
-      - **Purpose**: Provides an interactive stock chart with configurable options
-      - **Features**:
-        - Dynamic loading of Plotly charts to optimize performance
-        - Form controls for customizing chart appearance and data
-        - Support for multiple chart types (candlestick and line)
-        - Technical indicator selection (SMA, EMA, Bollinger Bands, VWAP)
-        - Maintains the current chart while loading new data to prevent UI flicker
-        - Error handling with user-friendly messages
-      - **Implementation Details**:
-        - Uses React hooks for state management
-        - Implements loading states with visual feedback
-        - Integrates with the stock API service
-        - Dynamically parses and renders Plotly JSON data
-      - **Styling**: Uses Styled JSX for component-scoped styles
+      - **Purpose**: Main component for displaying interactive stock charts with technical indicators
+      - **Location**: `frontend/src/components/StockChart.js`
+      - **Key Features**:
+        - Dynamic loading of Plotly charts with candlestick or line visualization
+        - Support for multiple technical indicators with customizable parameters
+        - Multi-panel visualization with logical indicator grouping
+        - Panel selection for each indicator (main, oscillator, macd, volume, volatility)
+        - Interactive legend and zoom controls
+        - Automatic rangebreak handling for gaps in market data
+        - Responsive design that adapts to container size
+      - **Props**:
+        ```typescript
+        interface StockChartProps {
+          ticker: string;           // Stock symbol to display
+          data: StockData[];       // Array of OHLCV data points
+          indicators: IndicatorConfig[]; // Array of indicator configurations
+          interval: string;        // Data interval (1m, 5m, 1h, 1d, etc.)
+          chartType: string;       // "candlestick" or "line"
+          onError?: (error: Error) => void; // Optional error handler
+        }
+        ```
+      - **State Management**:
+        - Uses React hooks for local state management
+        - Maintains chart configuration in component state
+        - Tracks indicator panel assignments
+        - Manages loading and error states
   - `common/`: Shared components used across multiple features
   - `reports/`: Components specific to the financial reporting functionality
 
@@ -354,27 +366,79 @@ The Stock Analysis feature provides interactive stock charts with customizable t
 ### 3. Configuration Options
 - **Ticker Symbol**: Stock symbol to analyze (e.g., "AAPL", "MSFT")
 - **Timeframe**: Number of days of historical data to analyze
-- **Interval**: Data granularity (1m, 5m, 15m, 30m, 1h, 1d)
+- **Interval**: Data granularity (1m, 5m, 15m, 30m, 1h, 1d, 1wk, 1mo)
 - **Chart Type**: Candlestick or Line chart
 - **Technical Indicators**:
-  - Simple Moving Average (SMA)
-  - Exponential Moving Average (EMA)
-  - Bollinger Bands
+  - Simple Moving Average (SMA) with configurable window size
+  - Exponential Moving Average (EMA) with configurable window size
+  - Bollinger Bands with configurable window size and standard deviation
   - Volume Weighted Average Price (VWAP)
+  - Relative Strength Index (RSI) with configurable window size
+  - Moving Average Convergence Divergence (MACD) with configurable fast, slow, and signal windows
+  - Average True Range (ATR) with configurable window size
+  - On-Balance Volume (OBV)
+  - Stochastic Oscillator with configurable K and D windows
+  - Ichimoku Cloud with configurable conversion, base, and lagging span periods
+- **Panel Assignment**:
+  - For each indicator, users can select which panel it should appear in:
+    - Main price chart (for overlays like moving averages)
+    - Oscillator panel (for bounded indicators like RSI)
+    - MACD panel (for MACD indicator)
+    - Volume panel (for volume-related indicators like OBV)
+    - Volatility panel (for volatility indicators like ATR)
 
-### 4. API Communication
+### 4. Multi-Panel Visualization
+- **Purpose**: Organizes technical indicators into logical panel groups for better visualization
+- **Implementation**: 
+  - Indicators are grouped into panels based on their type and configuration
+  - Each panel has specific styling and reference lines as needed
+  - Panel heights are dynamically calculated based on content
+  - All panels share x-axis zoom and pan controls
+  - Legend entries are organized by panel
+  - **Now uses consistent dark-themed styling and axis labels even with no subplots**
+  - **Always removes market-closed time periods for a cleaner visualization**
+- **Panel Types**:
+  1. Main Panel
+     - Primary price chart (candlestick/line)
+     - Trend indicators (SMA, EMA, Bollinger Bands)
+     - Ichimoku Cloud components
+  2. Oscillator Panel
+     - RSI with overbought/oversold lines
+     - Stochastic Oscillator
+     - Other bounded indicators
+  3. MACD Panel
+     - MACD lines and histogram
+     - Zero reference line
+  4. Volume Panel
+     - Volume bars
+     - On-Balance Volume (OBV)
+     - Volume-based indicators
+  5. Volatility Panel
+     - Average True Range (ATR)
+     - Other volatility metrics
+
+### 5. API Communication
 - **Service Layer**: The `stock.js` service handles communication with the backend API
 - **Endpoints**:
   - `/api/stocks/analyze`: Fetch stock data and generate chart visualizations
+    - Now accepts complex indicator configuration objects with customized parameters and panel assignments
   - `/api/health`: Check API availability
 - **Error Handling**: Comprehensive error handling with user-friendly messages
+- **Optimizations**:
+  - **Automatic chart reloading on indicator change with 500ms debouncing**
+  - **Smarter state updates to minimize rendering cycles**
+  - **Batched updates to prevent UI flicker**
 
-### 5. User Experience Features
+### 6. User Experience Features
 - **API Status Indicator**: Shows the connection status to the backend API
 - **Loading States**: Maintains the current chart while loading new data
 - **Error Messages**: Provides clear error messages and troubleshooting instructions
 - **Responsive Design**: Adapts to different screen sizes
 - **Consistent Styling**: Follows the application's dark theme
+- **Interactive Updates**:
+  - **Auto-refreshes when indicators are added/removed**
+  - **Clear button labels indicating purpose (e.g., "Update Ticker/Time Period")**
+  - **Updated UI feedback for all user interactions**
 
 ## Logging and Error Handling
 
@@ -388,6 +452,10 @@ The Stock Analysis feature provides interactive stock charts with customizable t
      - Simplified debugging process
      - Reduced console noise in production
      - Foundation for future logging enhancements
+   - **Recent Improvements**:
+     - **Prevention of duplicate log entries in event handlers**
+     - **More descriptive log messages for state changes**
+     - **Proper batching of operations that generate logs**
 
 2. **Application-Level Logging**
    - **Implementation**: `src/pages/_app.js`
@@ -401,7 +469,7 @@ The Stock Analysis feature provides interactive stock charts with customizable t
      - Catch and report rendering issues
 
 3. **Component-Level Logging**
-   - **Implementation**: Various components, including Header, Layout, and index.js
+   - **Implementation**: Various components, including Header, Layout, StockChart, and index.js
    - **Events Logged**:
      - Component lifecycle (mount, unmount)
      - User interactions (clicks, form submissions)
@@ -410,6 +478,10 @@ The Stock Analysis feature provides interactive stock charts with customizable t
      - Debug component behavior
      - Track user engagement
      - Monitor performance issues
+   - **Recent Improvements**:
+     - **Optimized state update logging in StockChart component**
+     - **Better organized log messages for indicator configurations**
+     - **More contextual information in error logs**
 
 4. **Error Boundaries**
    - **Implementation**: Try/catch blocks in critical rendering paths
@@ -417,6 +489,10 @@ The Stock Analysis feature provides interactive stock charts with customizable t
      - Prevent application crashes
      - Log detailed error information
      - Provide graceful fallbacks when possible
+   - **Enhanced Features**:
+     - **Better recovery from API errors**
+     - **Improved handling of visualization edge cases**
+     - **Fallback rendering when subplot configuration fails**
 
 5. **Future Enhancements**
    - Backend logging integration

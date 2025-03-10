@@ -27,27 +27,37 @@ export async function fetchStockChart(config) {
     // Format the request body to convert indicator objects to the format expected by the backend
     const formattedIndicators = indicators.map(ind => {
       if (typeof ind === 'string') {
+        // Simple string indicator - this shouldn't happen with panel assignments
         return ind;
       } else if (typeof ind === 'object' && ind.name) {
-        // Create a properly formatted indicator config object
-        const formattedInd = { name: ind.name };
+        // Create a properly formatted indicator config object with required fields first
+        const formattedInd = { 
+          name: ind.name 
+        };
+        
+        // Add panel if provided
+        if (ind.panel) {
+          formattedInd.panel = ind.panel;
+        }
         
         // Process each parameter to ensure proper typing
         Object.entries(ind).forEach(([key, value]) => {
-          // Skip the name field as we've already added it
+          // Skip name as we've already added it
           if (key === 'name') return;
           
           // Skip null or undefined values
           if (value === null || value === undefined) return;
           
-          // Convert numeric strings to actual numbers
-          if (typeof value === 'string' && !isNaN(value)) {
+          // Convert numeric strings to actual numbers except for panel
+          if (typeof value === 'string' && !isNaN(value) && key !== 'panel') {
             formattedInd[key] = Number(value);
-          } else {
+          } else if (key !== 'panel' || !formattedInd.panel) { 
+            // Only add panel if it wasn't added earlier
             formattedInd[key] = value;
           }
         });
         
+        logger.debug(`Formatted indicator for API: ${formattedInd.name}, panel: ${formattedInd.panel}`, formattedInd);
         return formattedInd;
       } else {
         logger.warning('Invalid indicator format, using default', ind);

@@ -3,6 +3,7 @@ import yfinance as yf
 from datetime import time
 from .stock_indicators import add_indicator_to_chart
 from .stock_data_fetcher import get_market_hours
+from .indicator_panels import create_panel_config, initialize_multi_panel_figure
 from ..core.logging_config import get_logger
 
 logger = get_logger()
@@ -67,7 +68,7 @@ def build_line_chart(ticker, data):
         logger.exception("Error creating line chart for %s: %s", ticker, str(e))
         return go.Figure()
 
-def apply_rangebreaks(fig, ticker, data, interval):
+def apply_rangebreaks(fig, ticker, data, interval, row=1):
     """
     Apply rangebreaks to the x-axis to remove gaps (weekends, after-hours) 
     if the interval is intraday.
@@ -77,6 +78,7 @@ def apply_rangebreaks(fig, ticker, data, interval):
         ticker (str): The stock ticker symbol.
         data (DataFrame): The historical data for the ticker.
         interval (str): Data interval.
+        row (int, optional): The row index (1-indexed) of the subplot to apply rangebreaks to.
         
     Returns:
         go.Figure: The updated Plotly figure.
@@ -84,10 +86,20 @@ def apply_rangebreaks(fig, ticker, data, interval):
     Logging:
         Logs the application of rangebreaks.
     """
+    # For daily, weekly, or monthly data, we don't need to remove intraday gaps
     if interval in ["1d", "1mo", "1wk"]:
-        logger.debug("Skipping rangebreaks for %s with interval %s.", ticker, interval)
+        # But we still want to remove weekend gaps
+        fig.update_xaxes(
+            rangebreaks=[
+                dict(bounds=["sat", "mon"])  # Remove weekends
+            ],
+            row=row,
+            col=1
+        )
+        logger.debug(f"Applied weekend rangebreaks for {ticker} (row {row})")
         return fig
 
+    # For intraday data, we also need to remove after-hours gaps
     try:
         market_info = get_market_hours(ticker)
         if market_info:
@@ -95,17 +107,31 @@ def apply_rangebreaks(fig, ticker, data, interval):
             close_time = market_info["close"]
             open_numeric = open_time.hour + open_time.minute / 60.0
             close_numeric = close_time.hour + close_time.minute / 60.0
+            
+            # Apply both weekend and after-hours rangebreaks
             fig.update_xaxes(
                 rangebreaks=[
                     dict(bounds=["sat", "mon"]),  # Remove weekends
                     dict(bounds=[close_numeric, open_numeric], pattern="hour")  # Remove after-hours gap
-                ]
+                ],
+                row=row,
+                col=1
             )
-            logger.debug("Applied rangebreaks for %s: open at %s, close at %s.", ticker, open_numeric, close_numeric)
+            
+            logger.debug(f"Applied full rangebreaks for {ticker} (row {row}): open at {open_numeric}, close at {close_numeric}")
         else:
-            logger.warning("Could not apply rangebreaks for %s due to missing market hours info.", ticker)
+            # Fallback to just removing weekends if we can't determine market hours
+            fig.update_xaxes(
+                rangebreaks=[
+                    dict(bounds=["sat", "mon"])  # Remove weekends
+                ],
+                row=row,
+                col=1
+            )
+            logger.warning(f"Applied only weekend rangebreaks for {ticker} due to missing market hours info.")
     except Exception as e:
-        logger.exception("Error applying rangebreaks for %s: %s", ticker, str(e))
+        logger.exception(f"Error applying rangebreaks for {ticker}: {str(e)}")
+    
     return fig
 
 def add_selected_indicators(fig, data, ticker, indicators):
@@ -167,8 +193,42 @@ def analyze_ticker(ticker, data, indicators, interval, chart_type="candlestick")
     Logging:
         Logs the progress of chart creation.
     """
-    logger.info("Analyzing %s...", ticker)
+    logger.info("Analyzing %s with %d indicators...", ticker, len(indicators))
     
+    # Log indicator details for debugging
+    indicator_names = []
+    for indicator in indicators:
+        if isinstance(indicator, str):
+            indicator_names.append(indicator)
+        elif isinstance(indicator, dict) and 'name' in indicator:
+            indicator_names.append(f"{indicator['name']} (dict)")
+        elif hasattr(indicator, 'name'):
+            indicator_names.append(f"{indicator.name} (object)")
+        else:
+            indicator_names.append(f"Unknown type: {type(indicator)}")
+    
+    if indicator_names:
+        logger.debug("Indicator list: %s", ", ".join(indicator_names))
+    else:
+        logger.debug("No indicators selected, creating a plain chart")
+    
+    # Always use the multi-panel approach for consistency in styling and behavior
+    return analyze_ticker_multi_panel(ticker, data, indicators, interval, chart_type)
+
+def analyze_ticker_single_panel(ticker, data, indicators, interval, chart_type="candlestick"):
+    """
+    Build a single-panel chart with technical indicators for the given ticker.
+    
+    Parameters:
+        ticker (str): The stock ticker symbol.
+        data (DataFrame): The filtered historical data for the ticker.
+        indicators (list): A list of technical indicators to add.
+        interval (str): Data interval (used to decide whether to apply rangebreaks).
+        chart_type (str): Chart type, either "candlestick" or "line". Default is "candlestick".
+        
+    Returns:
+        go.Figure: A Plotly figure object containing the chart and overlays.
+    """
     # Build the base chart based on the selected chart type
     if chart_type.lower() == "line":
         fig = build_line_chart(ticker, data)
@@ -187,7 +247,122 @@ def analyze_ticker(ticker, data, indicators, interval, chart_type="candlestick")
         title=f"{chart_type.capitalize()} Chart for {ticker}"
     )
     
-    logger.info("Analysis complete for %s.", ticker)
+    logger.info("Analysis complete for %s (single panel).", ticker)
+    return fig
+
+def analyze_ticker_multi_panel(ticker, data, indicators, interval, chart_type="candlestick"):
+    """
+    Build a multi-panel chart with technical indicators for the given ticker.
+    
+    Parameters:
+        ticker (str): The stock ticker symbol.
+        data (DataFrame): The filtered historical data for the ticker.
+        indicators (list): A list of technical indicators to add.
+        interval (str): Data interval (used to decide whether to apply rangebreaks).
+        chart_type (str): Chart type, either "candlestick" or "line". Default is "candlestick".
+        
+    Returns:
+        go.Figure: A Plotly figure object containing the chart and overlays.
+    """
+    logger.info("Creating multi-panel chart for %s with %d indicators...", ticker, len(indicators))
+    
+    # Organize indicators into panel groups
+    panels_dict, panel_config = create_panel_config(indicators)
+    
+    # Safety check - ensure we have at least 1 panel
+    if panel_config["num_panels"] == 0:
+        logger.warning("No panels found after configuration. Defaulting to main panel only.")
+        panels_dict = {"main": []}
+        panel_config = {
+            "panel_names": ["main"], 
+            "num_panels": 1, 
+            "heights": [1.0], 
+            "shared_xaxes": True
+        }
+    
+    # Initialize the multi-panel figure
+    fig = initialize_multi_panel_figure(panel_config, ticker)
+    
+    # Get the panel names in order
+    panel_names = panel_config["panel_names"]
+    
+    # Add primary chart to the main panel (if present)
+    if "main" in panel_names:
+        main_panel_idx = panel_names.index("main") + 1  # 1-indexed for Plotly
+        
+        # Add price chart to main panel
+        if chart_type.lower() == "line":
+            fig.add_trace(
+                go.Scatter(
+                    x=data.index,
+                    y=data['Close'],
+                    mode='lines',
+                    name="Close Price"
+                ),
+                row=main_panel_idx,
+                col=1
+            )
+        else:
+            fig.add_trace(
+                go.Candlestick(
+                    x=data.index,
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'],
+                    name="Candlestick"
+                ),
+                row=main_panel_idx,
+                col=1
+            )
+    else:
+        # If there's no main panel but we have at least one panel, add price chart to the first panel
+        logger.warning("No main panel found. Adding price chart to first available panel.")
+        if panel_names:
+            if chart_type.lower() == "line":
+                fig.add_trace(
+                    go.Scatter(
+                        x=data.index,
+                        y=data['Close'],
+                        mode='lines',
+                        name="Close Price"
+                    ),
+                    row=1,
+                    col=1
+                )
+            else:
+                fig.add_trace(
+                    go.Candlestick(
+                        x=data.index,
+                        open=data['Open'],
+                        high=data['High'],
+                        low=data['Low'],
+                        close=data['Close'],
+                        name="Candlestick"
+                    ),
+                    row=1,
+                    col=1
+                )
+    
+    # Add indicators to their respective panels
+    for panel_name, panel_indicators in panels_dict.items():
+        panel_idx = panel_names.index(panel_name) + 1  # 1-indexed for Plotly
+        
+        for indicator in panel_indicators:
+            # Add the indicator to the appropriate panel
+            from .stock_indicators import add_indicator_to_chart
+            add_indicator_to_chart(fig, data, indicator, ticker, panel_idx=panel_idx)
+    
+    # Apply rangebreaks to all panels
+    for i, panel_name in enumerate(panel_names):
+        fig = apply_rangebreaks(fig, ticker, data, interval, row=i+1)
+    
+    # Update layout
+    fig.update_layout(
+        title=f"Technical Analysis for {ticker}"
+    )
+    
+    logger.info("Analysis complete for %s (multi-panel).", ticker)
     return fig
 
 def main():

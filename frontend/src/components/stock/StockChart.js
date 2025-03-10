@@ -62,9 +62,32 @@ const PARAM_INPUT_TYPES = {
   lagging_span_b_period: { type: 'number', min: 2, max: 200, step: 1 },
 };
 
+// Define default panel placement for each indicator
+const DEFAULT_PANEL_PLACEMENT = {
+  'SMA': 'main',
+  'EMA': 'main',
+  'Bollinger Bands': 'main',
+  'VWAP': 'main',
+  'Ichimoku Cloud': 'main',
+  'RSI': 'oscillator',
+  'Stochastic Oscillator': 'oscillator',
+  'MACD': 'macd',
+  'ATR': 'volatility',
+  'OBV': 'volume'
+};
+
+// Panel options for the dropdown
+const PANEL_OPTIONS = [
+  { value: 'main', label: 'Main Price Chart' },
+  { value: 'oscillator', label: 'Oscillator Panel (0-100)' },
+  { value: 'macd', label: 'MACD Panel' },
+  { value: 'volume', label: 'Volume Panel' },
+  { value: 'volatility', label: 'Volatility Panel' }
+];
+
 // Default configuration
 const DEFAULT_CONFIG = {
-  ticker: 'AAPL',
+  ticker: 'NVDA',
   days: 30,
   interval: '1h',
   indicators: [],
@@ -86,6 +109,9 @@ const StockChart = () => {
   // State for indicator configurations
   const [indicatorConfigs, setIndicatorConfigs] = useState({});
   
+  // State for panel assignments
+  const [panelAssignments, setPanelAssignments] = useState({});
+  
   // Ref to keep track of the previous chart while loading new one
   const prevChartRef = useRef(null);
   
@@ -94,6 +120,21 @@ const StockChart = () => {
     logger.debug('StockChart component mounted, loading initial chart');
     loadChart(DEFAULT_CONFIG);
   }, []);
+  
+  // Automatically reload chart when configuration changes
+  useEffect(() => {
+    // Skip the initial render
+    if (config === DEFAULT_CONFIG) return;
+    
+    // Use a debounce to prevent too many requests
+    const handler = setTimeout(() => {
+      logger.debug('Config changed, reloading chart');
+      loadChart(config);
+    }, 500); // 500ms debounce
+    
+    // Clean up timeout
+    return () => clearTimeout(handler);
+  }, [config]); // Re-run when config changes
   
   // Handle input changes
   const handleInputChange = (e) => {
@@ -106,75 +147,100 @@ const StockChart = () => {
   const handleIndicatorChange = (e) => {
     const value = e.target.value;
     
-    setConfig(prev => {
-      // Check if the indicator is already selected
-      const isSelected = prev.indicators.some(ind => 
-        typeof ind === 'string' ? ind === value : ind.name === value
+    // Check if the indicator is already selected in current config
+    const isSelected = config.indicators.some(ind => 
+      typeof ind === 'string' ? ind === value : ind.name === value
+    );
+    
+    // Create state update objects
+    let newIndicators;
+    let newConfigs = { ...indicatorConfigs };
+    let newPanelAssignments = { ...panelAssignments };
+    
+    if (isSelected) {
+      // Remove the indicator
+      newIndicators = config.indicators.filter(ind => 
+        typeof ind === 'string' ? ind !== value : ind.name !== value
       );
       
-      let newIndicators;
-      
-      if (isSelected) {
-        // Remove the indicator
-        newIndicators = prev.indicators.filter(ind => 
-          typeof ind === 'string' ? ind !== value : ind.name !== value
-        );
+      // Also remove from configurations and panel assignments
+      delete newConfigs[value];
+      delete newPanelAssignments[value];
+    } else {
+      // Add the indicator with default config if it has parameters
+      if (value in DEFAULT_INDICATOR_PARAMS) {
+        // Create a new configuration object with default values
+        const defaultParams = DEFAULT_INDICATOR_PARAMS[value];
+        newConfigs[value] = { ...defaultParams };
         
-        // Also remove from configurations
-        const newConfigs = { ...indicatorConfigs };
-        delete newConfigs[value];
-        setIndicatorConfigs(newConfigs);
+        // Add to indicators list as an object with name
+        newIndicators = [...config.indicators, { name: value }];
+        
+        // Set default panel assignment
+        newPanelAssignments[value] = DEFAULT_PANEL_PLACEMENT[value] || 'main';
       } else {
-        // Add the indicator with default config if it has parameters
-        if (value in DEFAULT_INDICATOR_PARAMS) {
-          // Create a new configuration object with default values
-          const defaultParams = DEFAULT_INDICATOR_PARAMS[value];
-          setIndicatorConfigs(prev => ({
-            ...prev,
-            [value]: { ...defaultParams }
-          }));
-          
-          // Add to indicators list as an object with name
-          newIndicators = [...prev.indicators, { name: value }];
-        } else {
-          // Add simple string for indicators without parameters
-          newIndicators = [...prev.indicators, value];
-        }
+        // Add simple string for indicators without parameters
+        newIndicators = [...config.indicators, value];
+        
+        // Set default panel assignment
+        newPanelAssignments[value] = DEFAULT_PANEL_PLACEMENT[value] || 'main';
       }
-      
+    }
+    
+    // Batch the state updates to reduce re-renders
+    setIndicatorConfigs(newConfigs);
+    setPanelAssignments(newPanelAssignments);
+    setConfig(prev => {
+      const updatedConfig = { ...prev, indicators: newIndicators };
       logger.debug(`Indicators updated: ${newIndicators.map(ind => 
         typeof ind === 'string' ? ind : ind.name).join(', ')}`);
-      return { ...prev, indicators: newIndicators };
+      return updatedConfig;
     });
   };
   
   // Handle parameter change for indicators
   const handleParamChange = (indicatorName, paramName, value) => {
-    setIndicatorConfigs(prev => {
-      const newConfigs = {
-        ...prev,
-        [indicatorName]: {
-          ...prev[indicatorName],
-          [paramName]: Number(value)
-        }
-      };
-      
-      logger.debug(`Updated ${paramName} for ${indicatorName} to ${value}`);
-      
-      // Also update the config.indicators array
-      setConfig(prevConfig => {
-        const newIndicators = prevConfig.indicators.map(ind => {
-          if (typeof ind === 'object' && ind.name === indicatorName) {
-            return { name: indicatorName, ...newConfigs[indicatorName] };
-          }
-          return ind;
-        });
-        
-        return { ...prevConfig, indicators: newIndicators };
-      });
-      
-      return newConfigs;
+    // Create new configs object
+    const newConfigs = {
+      ...indicatorConfigs,
+      [indicatorName]: {
+        ...indicatorConfigs[indicatorName],
+        [paramName]: Number(value)
+      }
+    };
+    
+    // Create new indicators array for config
+    const newIndicators = config.indicators.map(ind => {
+      if (typeof ind === 'object' && ind.name === indicatorName) {
+        return { name: indicatorName, ...newConfigs[indicatorName] };
+      }
+      return ind;
     });
+    
+    // Log once
+    logger.debug(`Updated ${paramName} for ${indicatorName} to ${value}`);
+    
+    // Batch updates to minimize renders
+    setIndicatorConfigs(newConfigs);
+    setConfig(prev => ({
+      ...prev,
+      indicators: newIndicators
+    }));
+  };
+  
+  // Handle panel assignment change for indicators
+  const handlePanelChange = (indicatorName, panelName) => {
+    // Create new assignments object
+    const newAssignments = {
+      ...panelAssignments,
+      [indicatorName]: panelName
+    };
+    
+    // Log
+    logger.debug(`Updated panel for ${indicatorName} to ${panelName}`);
+    
+    // Update panel assignments
+    setPanelAssignments(newAssignments);
   };
   
   // Load chart data from API
@@ -190,16 +256,23 @@ const StockChart = () => {
     try {
       logger.info(`Loading chart for ${chartConfig.ticker} with ${chartConfig.indicators.length} indicators`);
       
-      // Apply the latest indicator configurations before sending
+      // Apply the latest indicator configurations and panel assignments before sending
       const configToSend = {
         ...chartConfig,
         indicators: chartConfig.indicators.map(ind => {
           if (typeof ind === 'string') {
-            return ind;
+            // For simple string indicators, add panel assignment
+            return {
+              name: ind,
+              panel: panelAssignments[ind] || DEFAULT_PANEL_PLACEMENT[ind] || 'main'
+            };
           } else {
             const name = ind.name;
             // Ensure all parameter values are numbers, not strings
-            const params = { name };
+            const params = { 
+              name,
+              panel: panelAssignments[name] || DEFAULT_PANEL_PLACEMENT[name] || 'main'
+            };
             
             if (indicatorConfigs[name]) {
               Object.entries(indicatorConfigs[name]).forEach(([key, value]) => {
@@ -244,9 +317,10 @@ const StockChart = () => {
     }
   };
   
-  // Handle form submission
+  // Handle form submission for ticker/time period changes
   const handleSubmit = (e) => {
     e.preventDefault();
+    logger.info('Submitting new ticker/time period configuration');
     loadChart(config);
   };
 
@@ -262,27 +336,46 @@ const StockChart = () => {
     return (
       <div className="parameter-config" key={`params-${indicatorName}`}>
         <h4>{indicatorName} Parameters</h4>
-        <div className="parameter-inputs">
-          {Object.entries(params).map(([paramName, defaultValue]) => {
-            const inputConfig = PARAM_INPUT_TYPES[paramName] || { type: 'number', min: 1, max: 100 };
-            
-            return (
-              <div className="param-input" key={`${indicatorName}-${paramName}`}>
-                <label htmlFor={`param-${indicatorName}-${paramName}`}>
-                  {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}:
-                </label>
-                <input
-                  id={`param-${indicatorName}-${paramName}`}
-                  type={inputConfig.type}
-                  min={inputConfig.min}
-                  max={inputConfig.max}
-                  step={inputConfig.step}
-                  value={params[paramName]}
-                  onChange={(e) => handleParamChange(indicatorName, paramName, e.target.value)}
-                />
-              </div>
-            );
-          })}
+        <div className="parameter-config-container">
+          <div className="parameter-inputs">
+            {Object.entries(params).map(([paramName, defaultValue]) => {
+              const inputConfig = PARAM_INPUT_TYPES[paramName] || { type: 'number', min: 1, max: 100 };
+              
+              return (
+                <div className="param-input" key={`${indicatorName}-${paramName}`}>
+                  <label htmlFor={`param-${indicatorName}-${paramName}`}>
+                    {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}:
+                  </label>
+                  <input
+                    id={`param-${indicatorName}-${paramName}`}
+                    type={inputConfig.type}
+                    min={inputConfig.min}
+                    max={inputConfig.max}
+                    step={inputConfig.step}
+                    value={params[paramName]}
+                    onChange={(e) => handleParamChange(indicatorName, paramName, e.target.value)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          
+          <div className="panel-selection">
+            <label htmlFor={`panel-${indicatorName}`}>
+              Display in:
+            </label>
+            <select
+              id={`panel-${indicatorName}`}
+              value={panelAssignments[indicatorName] || DEFAULT_PANEL_PLACEMENT[indicatorName] || 'main'}
+              onChange={(e) => handlePanelChange(indicatorName, e.target.value)}
+            >
+              {PANEL_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     );
@@ -379,14 +472,13 @@ const StockChart = () => {
             <h3>Indicator Parameters</h3>
             {config.indicators
               .map(ind => typeof ind === 'string' ? ind : ind.name)
-              .filter(name => name in DEFAULT_INDICATOR_PARAMS)
               .map(indicatorName => renderParamConfig(indicatorName))
             }
           </div>
         )}
         
         <button type="submit" disabled={isLoading}>
-          {isLoading ? 'Loading...' : 'Update Chart'}
+          {isLoading ? 'Loading...' : 'Update Ticker/Time Period'}
         </button>
       </form>
       
@@ -407,7 +499,7 @@ const StockChart = () => {
             <Plot 
               data={prevChartRef.current ? JSON.parse(prevChartRef.current).data || [] : []}
               layout={prevChartRef.current ? JSON.parse(prevChartRef.current).layout || {} : {}}
-              style={{ width: "100%", height: "500px" }}
+              style={{ width: "100%", height: "600px" }}
               useResizeHandler={true}
             />
             <div className="loading-spinner">
@@ -421,7 +513,7 @@ const StockChart = () => {
           <Plot 
             data={chartData.chart ? JSON.parse(chartData.chart).data || [] : []}
             layout={chartData.chart ? JSON.parse(chartData.chart).layout || {} : {}}
-            style={{ width: "100%", height: "500px" }}
+            style={{ width: "100%", height: "600px" }}
             useResizeHandler={true}
           />
         )}
@@ -515,6 +607,8 @@ const StockChart = () => {
         
         .parameter-config {
           margin-bottom: 20px;
+          border-bottom: 1px dotted #333;
+          padding-bottom: 15px;
         }
         
         .parameter-config h4 {
@@ -523,10 +617,23 @@ const StockChart = () => {
           color: #79B6F2;
         }
         
+        .parameter-config-container {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: flex-start;
+          gap: 15px;
+        }
+        
         .parameter-inputs {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
           gap: 10px;
+          flex: 3;
+        }
+        
+        .panel-selection {
+          flex: 1;
+          min-width: 200px;
         }
         
         .param-input {
@@ -546,7 +653,7 @@ const StockChart = () => {
         
         .chart-display {
           position: relative;
-          min-height: 500px;
+          min-height: 600px;
           margin-top: 20px;
         }
         

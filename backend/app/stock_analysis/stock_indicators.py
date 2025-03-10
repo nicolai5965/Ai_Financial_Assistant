@@ -326,7 +326,7 @@ def calculate_ichimoku_cloud(data, ticker, conversion_period=None, base_period=N
         return (None, None, None, None)
 
 
-def add_indicator_to_chart(fig, data, indicator_config, ticker):
+def add_indicator_to_chart(fig, data, indicator_config, ticker, panel_idx=1):
     """
     Add a technical indicator to the provided Plotly figure.
     
@@ -336,6 +336,7 @@ def add_indicator_to_chart(fig, data, indicator_config, ticker):
         indicator_config (str or dict or IndicatorConfig): Either a string with the indicator name or 
                                                          a dictionary/object with indicator name and parameters.
         ticker (str): The stock ticker symbol.
+        panel_idx (int, optional): Index of the panel to add the indicator to (1-indexed). Default is 1.
         
     Returns:
         bool: True if the indicator was added successfully, False otherwise.
@@ -355,42 +356,61 @@ def add_indicator_to_chart(fig, data, indicator_config, ticker):
             "Ichimoku Cloud": calculate_ichimoku_cloud
         }
         
-        # Check what type of indicator_config we received and extract name and parameters
+        # Extract indicator name and parameters safely
+        indicator_name = None
+        params = {}
+        
+        # 1. Handle different indicator_config types
         if isinstance(indicator_config, str):
             # Simple string case
             indicator_name = indicator_config
-            params = {}
         elif isinstance(indicator_config, dict):
-            # Dictionary case
+            # Dictionary case - use get() safely
             indicator_name = indicator_config.get("name")
-            # Remove 'name' from params to avoid passing it to the function
-            params = {k: v for k, v in indicator_config.items() if k != "name"}
-        elif hasattr(indicator_config, "dict") and callable(getattr(indicator_config, "dict")):
-            # Pydantic model case - has a dict() method
-            config_dict = indicator_config.dict()
-            indicator_name = config_dict.get("name")
-            # Remove 'name' from params
-            params = {k: v for k, v in config_dict.items() if k != "name" and v is not None}
+            # Copy all parameters except name and panel
+            for key, value in indicator_config.items():
+                if key not in ["name", "panel"] and value is not None:
+                    params[key] = value
         elif hasattr(indicator_config, "name"):
-            # Object with name attribute
+            # Object with name attribute (like Pydantic model)
             indicator_name = indicator_config.name
-            # Extract all other attributes that aren't None and don't start with underscore
-            params = {}
-            for attr in dir(indicator_config):
-                if (not attr.startswith('_') and attr != 'name' and 
-                    getattr(indicator_config, attr) is not None and 
-                    not callable(getattr(indicator_config, attr))):
-                    params[attr] = getattr(indicator_config, attr)
+            
+            # Try to convert to dictionary if possible
+            if hasattr(indicator_config, "dict") and callable(getattr(indicator_config, "dict")):
+                try:
+                    # This works for Pydantic models
+                    config_dict = indicator_config.dict()
+                    for key, value in config_dict.items():
+                        if key not in ["name", "panel"] and value is not None:
+                            params[key] = value
+                except Exception as dict_error:
+                    logger.warning(f"Could not convert indicator to dict: {dict_error}")
+            
+            # Fallback: extract attributes directly
+            if not params:
+                for attr_name in dir(indicator_config):
+                    # Skip special attributes, methods, and name/panel
+                    if (not attr_name.startswith('_') and 
+                        attr_name not in ["name", "panel", "model_config", "model_fields"] and
+                        not callable(getattr(indicator_config, attr_name))):
+                        attr_value = getattr(indicator_config, attr_name)
+                        if attr_value is not None:
+                            params[attr_name] = attr_value
         else:
-            logger.warning("Invalid indicator configuration format for %s. Expected string, dict, or object with name attribute.", ticker)
+            logger.warning(f"Invalid indicator configuration format for {ticker}. Type: {type(indicator_config)}")
             return False
         
+        # Verify we got a valid indicator name
+        if not indicator_name:
+            logger.warning(f"Could not determine indicator name from {indicator_config}")
+            return False
+            
         if indicator_name not in indicator_functions:
-            logger.warning("Unknown indicator '%s' for %s. Skipping.", indicator_name, ticker)
+            logger.warning(f"Unknown indicator '{indicator_name}' for {ticker}. Skipping.")
             return False
             
         # Log the parameters we're using
-        logger.debug("Adding indicator '%s' for %s with parameters: %s", indicator_name, ticker, params)
+        logger.debug(f"Adding indicator '{indicator_name}' for {ticker} with parameters: {params}")
             
         # Call the indicator function with the parameters
         result = indicator_functions[indicator_name](data, ticker, **params)
@@ -399,17 +419,23 @@ def add_indicator_to_chart(fig, data, indicator_config, ticker):
         if isinstance(result, tuple):
             for trace in result:
                 if trace is not None:
-                    fig.add_trace(trace)
+                    # Add trace to the specified panel
+                    if panel_idx > 1:
+                        fig.add_trace(trace, row=panel_idx, col=1)
+                    else:
+                        fig.add_trace(trace)
             return True
         else:
             if result:
-                fig.add_trace(result)
+                # Add trace to the specified panel
+                if panel_idx > 1:
+                    fig.add_trace(result, row=panel_idx, col=1)
+                else:
+                    fig.add_trace(result)
                 return True
                 
         return False
     except Exception as e:
-        logger.exception("Error adding indicator '%s' for %s: %s", 
-                        indicator_name if 'indicator_name' in locals() else 'Unknown', 
-                        ticker, str(e))
+        logger.exception(f"Error adding indicator to chart for {ticker}: {str(e)}")
         return False
 

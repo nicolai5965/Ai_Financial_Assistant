@@ -16,7 +16,12 @@ frontend/
 │   │   │   ├── Sidebar.js # Toggleable sidebar navigation component
 │   │   │   └── Layout.js # Layout wrapper for consistent UI structure
 │   │   ├── stock/        # Stock analysis-specific components
-│   │   │   └── StockChart.js # Interactive stock chart component
+│   │   │   ├── StockChart.js           # Main container for stock chart functionality
+│   │   │   ├── ChartConfigurationForm.js # Form for ticker, timeframe, and indicator selection
+│   │   │   ├── IndicatorConfigurationPanel.js # Panel for indicator parameter configuration
+│   │   │   ├── ChartDisplay.js         # Component for rendering Plotly charts
+│   │   │   ├── ErrorMessage.js         # Component for displaying error messages
+│   │   │   └── LoadingOverlay.js       # Component for displaying loading states
 │   │   └── reports/      # Report-specific components
 │   ├── pages/            # Next.js pages (each file becomes a route)
 │   │   ├── api/          # API routes for backend communication
@@ -149,32 +154,108 @@ frontend/
       - **Styling**: Uses Styled JSX for component-scoped styles with consistent dark theme
   - `stock/`: Contains components for stock market analysis
     - `StockChart.js`:
-      - **Purpose**: Main component for displaying interactive stock charts with technical indicators
-      - **Location**: `frontend/src/components/StockChart.js`
-      - **Key Features**:
-        - Dynamic loading of Plotly charts with candlestick or line visualization
-        - Support for multiple technical indicators with customizable parameters
-        - Multi-panel visualization with logical indicator grouping
-        - Panel selection for each indicator (main, oscillator, macd, volume, volatility)
-        - Interactive legend and zoom controls
-        - Automatic rangebreak handling for gaps in market data
-        - Responsive design that adapts to container size
-      - **Props**:
-        ```typescript
-        interface StockChartProps {
-          ticker: string;           // Stock symbol to display
-          data: StockData[];       // Array of OHLCV data points
-          indicators: IndicatorConfig[]; // Array of indicator configurations
-          interval: string;        // Data interval (1m, 5m, 1h, 1d, etc.)
-          chartType: string;       // "candlestick" or "line"
-          onError?: (error: Error) => void; // Optional error handler
-        }
-        ```
+      - **Purpose**: Main container component that orchestrates the entire stock chart functionality
+      - **Location**: `frontend/src/components/stock/StockChart.js`
+      - **Key Responsibilities**:
+        - Manages overall state for the stock chart feature
+        - Handles API communication for fetching stock data
+        - Coordinates state updates between child components
+        - Manages loading and error states
+        - Processes user inputs and updates chart configuration
       - **State Management**:
         - Uses React hooks for local state management
         - Maintains chart configuration in component state
-        - Tracks indicator panel assignments
+        - Tracks indicator panel assignments and configurations
         - Manages loading and error states
+        - Maintains reference to previous chart data for smooth transitions
+      - **Props**: None (top-level component)
+      - **Child Components**:
+        - ChartConfigurationForm
+        - IndicatorConfigurationPanel
+        - ChartDisplay
+        - ErrorMessage
+    - `ChartConfigurationForm.js`:
+      - **Purpose**: Form component for stock chart configuration
+      - **Location**: `frontend/src/components/stock/ChartConfigurationForm.js`
+      - **Key Features**:
+        - Input for ticker symbol
+        - Input for number of days of history
+        - Dropdown for interval selection
+        - Dropdown for chart type
+        - Checkbox list for technical indicator selection
+        - Submit button for updating ticker/time period
+      - **Props**:
+        ```typescript
+        interface ChartConfigurationFormProps {
+          config: ChartConfig;         // Current chart configuration
+          onInputChange: (e) => void;  // Handler for input field changes
+          onIndicatorChange: (e) => void; // Handler for indicator selection
+          onSubmit: (e) => void;       // Handler for form submission
+          isLoading: boolean;          // Loading state for submit button
+        }
+        ```
+    - `IndicatorConfigurationPanel.js`:
+      - **Purpose**: Component for configuring technical indicator parameters
+      - **Location**: `frontend/src/components/stock/IndicatorConfigurationPanel.js`
+      - **Key Features**:
+        - Dynamically renders configuration inputs for each selected indicator
+        - Input fields for each configurable parameter (window sizes, standard deviations, etc.)
+        - Panel selection dropdown for each indicator
+        - Only displays for indicators that have configurable parameters
+      - **Props**:
+        ```typescript
+        interface IndicatorConfigurationPanelProps {
+          selectedIndicators: (string | { name: string })[];  // Selected indicators
+          indicatorConfigs: Record<string, any>;  // Current indicator configurations
+          panelAssignments: Record<string, string>;  // Current panel assignments
+          onParamChange: (indicatorName, paramName, value) => void;  // Handler for parameter changes
+          onPanelChange: (indicatorName, panelName) => void;  // Handler for panel assignment changes
+        }
+        ```
+    - `ChartDisplay.js`:
+      - **Purpose**: Component for rendering the Plotly chart
+      - **Location**: `frontend/src/components/stock/ChartDisplay.js`
+      - **Key Features**:
+        - Renders the Plotly chart with the provided data
+        - Handles loading states
+        - Shows previous chart while loading new data
+        - Responsive design that adjusts to container size
+      - **Props**:
+        ```typescript
+        interface ChartDisplayProps {
+          chartData: string;           // JSON string of Plotly chart data
+          isLoading: boolean;          // Loading state
+          prevChartData: string;       // Previous chart data for smooth transitions
+        }
+        ```
+    - `ErrorMessage.js`:
+      - **Purpose**: Reusable component for displaying error messages
+      - **Location**: `frontend/src/components/stock/ErrorMessage.js`
+      - **Key Features**:
+        - Displays error messages in a consistent style
+        - Only renders when a message is provided
+        - Red left border for clear error indication
+      - **Props**:
+        ```typescript
+        interface ErrorMessageProps {
+          message: string;  // Error message to display
+        }
+        ```
+    - `LoadingOverlay.js`:
+      - **Purpose**: Reusable component for displaying loading states
+      - **Location**: `frontend/src/components/stock/LoadingOverlay.js`
+      - **Key Features**:
+        - Displays a loading overlay with customizable message
+        - Can wrap any content
+        - Only displays when loading state is active
+      - **Props**:
+        ```typescript
+        interface LoadingOverlayProps {
+          isLoading: boolean;          // Whether to show the loading overlay
+          children: React.ReactNode;   // Child components to render under the overlay
+          message?: string;            // Optional custom loading message
+        }
+        ```
   - `common/`: Shared components used across multiple features
   - `reports/`: Components specific to the financial reporting functionality
 
@@ -360,7 +441,12 @@ npm start
 The Stock Analysis feature provides interactive stock charts with customizable technical indicators. Users can select different timeframes, intervals, chart types, and technical indicators to analyze stock market data.
 
 ### 2. Components
-- **StockChart**: Main component for displaying stock data visualizations
+- **StockChart.js**: Main container component that orchestrates the entire stock chart functionality
+- **ChartConfigurationForm.js**: Handles user inputs for ticker, days, interval, chart type, and indicator selection
+- **IndicatorConfigurationPanel.js**: Manages parameter inputs for each selected indicator and panel assignments
+- **ChartDisplay.js**: Renders the Plotly chart and manages loading states
+- **ErrorMessage.js**: Displays error messages in a consistent style
+- **LoadingOverlay.js**: Provides a reusable loading overlay component
 - **Stock Analysis Page**: Container page that hosts the StockChart component and handles API connectivity
 
 ### 3. Configuration Options
@@ -417,7 +503,20 @@ The Stock Analysis feature provides interactive stock charts with customizable t
      - Average True Range (ATR)
      - Other volatility metrics
 
-### 5. API Communication
+### 5. Component Interaction
+- **Data Flow**:
+  - StockChart maintains the central state
+  - User inputs from ChartConfigurationForm update the configuration state
+  - Parameter changes from IndicatorConfigurationPanel update indicator configurations
+  - Updated configuration triggers API calls to fetch new chart data
+  - Chart data is passed to ChartDisplay for rendering
+- **Event Handling**:
+  - User input changes are captured and processed in the appropriate component
+  - Events are propagated up to the StockChart component via callback props
+  - State updates trigger re-renders of affected components
+  - Loading states and errors are managed at the StockChart level and propagated down
+
+### 6. API Communication
 - **Service Layer**: The `stock.js` service handles communication with the backend API
 - **Endpoints**:
   - `/api/stocks/analyze`: Fetch stock data and generate chart visualizations
@@ -429,7 +528,7 @@ The Stock Analysis feature provides interactive stock charts with customizable t
   - **Smarter state updates to minimize rendering cycles**
   - **Batched updates to prevent UI flicker**
 
-### 6. User Experience Features
+### 7. User Experience Features
 - **API Status Indicator**: Shows the connection status to the backend API
 - **Loading States**: Maintains the current chart while loading new data
 - **Error Messages**: Provides clear error messages and troubleshooting instructions
@@ -541,19 +640,26 @@ The Stock Analysis feature provides interactive stock charts with customizable t
    - Maintain consistent styling patterns
    - Follow the established dark theme color scheme
 
-3. **Best Practices**
+3. **Component Design Principles**
+   - **Single Responsibility**: Each component should have a single, well-defined purpose
+   - **Modular Structure**: Break down large components into smaller, focused ones
+   - **Prop-Based Configuration**: Components should be configurable via props
+   - **Smart/Dumb Component Pattern**: Separate container components (state management) from presentational components
+   - **Reusability**: Utilize components that can be reused across the application
+
+4. **Best Practices**
    - Follow React hooks guidelines
    - Implement proper error boundaries
    - Maintain proper TypeScript types
    - Use proper loading states for data fetching 
 
-4. **Logging Best Practices**
+5. **Logging Best Practices**
    - Use appropriate log levels (debug for development details, info for significant events, warn for potential issues, error for failures)
    - Include contextual information in log messages
    - Wrap critical code sections in try/catch blocks with error logging
    - Avoid logging sensitive information 
 
-5. **Backend Integration Guidelines**
+6. **Backend Integration Guidelines**
    - Use the services layer for all API communication
    - Implement proper error handling for all API calls
    - Check API health before attempting data operations

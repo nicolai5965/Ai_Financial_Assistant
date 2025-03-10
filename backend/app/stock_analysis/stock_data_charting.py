@@ -116,7 +116,8 @@ def add_selected_indicators(fig, data, ticker, indicators):
         fig (go.Figure): The Plotly figure to update.
         data (DataFrame): The historical data for the ticker.
         ticker (str): The stock ticker symbol.
-        indicators (list): List of indicator names to add.
+        indicators (list): List of indicator names or configurations to add.
+                           Can be strings or dictionaries with 'name' and parameters.
         
     Returns:
         go.Figure: The updated Plotly figure.
@@ -127,12 +128,25 @@ def add_selected_indicators(fig, data, ticker, indicators):
     if not indicators:
         logger.debug("No indicators selected for %s.", ticker)
         return fig
-        
-    logger.info("Adding %d indicators to chart for %s: %s", len(indicators), ticker, ", ".join(indicators))
+    
+    indicator_names = []
+    for indicator in indicators:
+        if isinstance(indicator, str):
+            indicator_names.append(indicator)
+        elif isinstance(indicator, dict) and 'name' in indicator:
+            indicator_names.append(indicator['name'])
+        else:
+            logger.warning("Invalid indicator format: %s", indicator)
+            
+    logger.info("Adding %d indicators to chart for %s: %s", 
+               len(indicators), ticker, ", ".join(indicator_names))
+    
     for indicator in indicators:
         added = add_indicator_to_chart(fig, data, indicator, ticker)
         if not added:
-            logger.warning("Failed to add indicator '%s' to chart for %s.", indicator, ticker)
+            # Get the indicator name for logging
+            indicator_name = indicator if isinstance(indicator, str) else indicator.get('name', 'Unknown')
+            logger.warning("Failed to add indicator '%s' to chart for %s.", indicator_name, ticker)
     
     return fig
 
@@ -197,7 +211,7 @@ def main():
         "tickers": "AAPL",               # Comma-separated ticker symbols
         "date_range_days": 10,           # Number of days to look back
         "interval": "5m",                # Data interval (e.g., '1d', '1wk', '1mo', '1h', '5m', '1m')
-        "technical_indicators": ["20-Day SMA"],  # List of indicators to display
+        "technical_indicators": ["SMA"],  # List of indicators to display
         "chart_type": "line"             # "line" or "candlestick"
     }
     

@@ -269,15 +269,22 @@ if __name__ == "__main__":
 - **Purpose**: This file contains functions for calculating technical indicators and returning Plotly traces.
 - **Location**: `backend/app/stock_analysis/stock_indicators.py`
 - **Key Functions**:
-  - `calculate_20day_SMA(data, ticker)`: Calculates 20-Day Simple Moving Average
-  - `calculate_20day_EMA(data, ticker)`: Calculates 20-Day Exponential Moving Average
-  - `calculate_20day_Bollinger_Bands(data, ticker)`: Calculates 20-Day Bollinger Bands
+  - `calculate_SMA(data, ticker, default_window=20)`: Calculates Simple Moving Average with dynamic window size
+  - `calculate_EMA(data, ticker, default_window=20)`: Calculates Exponential Moving Average with dynamic window size
+  - `calculate_Bollinger_Bands(data, ticker, default_window=20)`: Calculates Bollinger Bands with dynamic window size
   - `calculate_VWAP(data, ticker)`: Calculates Volume Weighted Average Price
+  - `calculate_RSI(data, ticker, default_window=14)`: Calculates Relative Strength Index 
+  - `calculate_MACD(data, ticker, fast_window=12, slow_window=26, signal_window=9)`: Calculates Moving Average Convergence Divergence
+  - `calculate_ATR(data, ticker, default_window=14)`: Calculates Average True Range
+  - `calculate_OBV(data, ticker)`: Calculates On-Balance Volume
+  - `calculate_stochastic_oscillator(data, ticker, k_window=14, d_window=3)`: Calculates Stochastic Oscillator
+  - `calculate_ichimoku_cloud(data, ticker, conversion_line_period=9, base_line_period=26, leading_span_b_period=52)`: Calculates Ichimoku Cloud components
   - `add_indicator_to_chart(fig, data, indicator_name, ticker)`: Adds indicator traces to an existing chart
 - **Key Features**:
   - Uses a dispatcher pattern to map indicator names to calculation functions
   - Returns Plotly traces ready to be added to charts
   - Designed for easy addition of new indicators in the future
+  - Features dynamic window size adjustment based on available data points
 
 ### 11. `app/stock_analysis/stock_data_charting.py`
 - **Purpose**: This file handles all chart building and visualization functionality.
@@ -481,36 +488,17 @@ The stock analysis endpoint accepts the following parameters:
   "days": 10,               // Number of days to look back (optional, default: 10)
   "interval": "1d",         // Data interval (optional, default: "1d")
   "indicators": [           // List of technical indicators (optional, default: [])
-    "20-Day SMA",
-    "20-Day EMA",
-    "20-Day Bollinger Bands",
-    "VWAP"
+    "SMA",
+    "EMA",
+    "Bollinger Bands",
+    "VWAP",
+    "RSI",
+    "MACD",
+    "ATR",
+    "OBV",
+    "Stochastic Oscillator",
+    "Ichimoku Cloud"
   ],
   "chart_type": "candlestick" // Chart type: "candlestick" or "line" (optional, default: "candlestick")
 }
 ```
-
-### 3. API Response Format
-The API returns a JSON object with the following structure:
-```json
-{
-  "chart": "{...}",  // Plotly figure as JSON string
-  "ticker": "AAPL"   // The requested ticker symbol
-}
-```
-
-### 4. Interval Validation
-The API validates interval parameters and enforces these limits:
-- `1m`: maximum 7 days of history
-- `2m`, `5m`, `15m`, `30m`, `60m`, `90m`: maximum 60 days of history
-- `1h`: maximum 730 days of history
-- `1d`, `1wk`, `1mo`: no limit
-
-### 5. Error Handling
-The API returns appropriate HTTP status codes:
-- 200 OK: Successful request
-- 404 Not Found: When no data is found for the requested ticker or timeframe
-- 500 Internal Server Error: For unexpected errors during processing
-
-### 6. CORS Configuration
-The API is configured to allow cross-origin requests from any origin, which is suitable for development. For production, you should restrict this to specific origins.

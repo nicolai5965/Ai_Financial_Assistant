@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import date, timedelta
 import logging
 
@@ -33,6 +33,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Define indicator configuration model
+class IndicatorConfig(BaseModel):
+    """
+    Configuration model for a technical indicator.
+    """
+    name: str = Field(..., description="Name of the technical indicator")
+    window: Optional[int] = Field(None, description="Window size for indicators that use a single window")
+    # MACD specific parameters
+    fast_window: Optional[int] = Field(None, description="Fast EMA window size for MACD")
+    slow_window: Optional[int] = Field(None, description="Slow EMA window size for MACD")
+    signal_window: Optional[int] = Field(None, description="Signal line window size for MACD")
+    # Stochastic Oscillator specific parameters
+    k_window: Optional[int] = Field(None, description="Window size for %K calculation")
+    d_window: Optional[int] = Field(None, description="Window size for %D calculation")
+    # Ichimoku Cloud specific parameters
+    conversion_period: Optional[int] = Field(None, description="Period for Conversion Line (Tenkan-sen)")
+    base_period: Optional[int] = Field(None, description="Period for Base Line (Kijun-sen)")
+    lagging_span_b_period: Optional[int] = Field(None, description="Period for Lagging Span B")
+    # Bollinger Bands specific parameters
+    std_dev: Optional[int] = Field(None, description="Number of standard deviations for Bollinger Bands")
+    
+    model_config = {
+        "extra": "allow",  # Allow additional fields for future extensibility
+        "populate_by_name": True,  # Allow populating by field name
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "name": "RSI",
+                    "window": 14
+                },
+                {
+                    "name": "MACD",
+                    "fast_window": 12,
+                    "slow_window": 26,
+                    "signal_window": 9
+                }
+            ]
+        }
+    }
+
 # Define request model
 class StockAnalysisRequest(BaseModel):
     """
@@ -41,7 +81,10 @@ class StockAnalysisRequest(BaseModel):
     ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
     days: Optional[int] = Field(10, description="Number of days to look back")
     interval: str = Field("1d", description="Data interval (e.g., '1d', '1h', '5m', '1m', '1wk', '1mo')")
-    indicators: List[str] = Field(default=[], description="List of technical indicators to include")
+    indicators: List[Union[str, IndicatorConfig]] = Field(
+        default=[], 
+        description="List of technical indicators to include. Can be simple strings or detailed configurations."
+    )
     chart_type: str = Field("candlestick", description="Chart type: 'candlestick' or 'line'")
 
 # Create API endpoints

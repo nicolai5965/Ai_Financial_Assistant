@@ -13,7 +13,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
  * @param {string} config.ticker - Stock ticker symbol (e.g., 'AAPL')
  * @param {number} [config.days=10] - Number of days to look back
  * @param {string} [config.interval='1d'] - Data interval ('1d', '1h', '5m', etc.)
- * @param {string[]} [config.indicators=[]] - List of technical indicators to include
+ * @param {Array} [config.indicators=[]] - List of technical indicators to include. 
+ *                                         Can be strings or objects with name and parameters.
  * @param {string} [config.chartType='candlestick'] - Chart type ('candlestick' or 'line')
  * @returns {Promise<Object>} - The chart data as a Plotly JSON object
  */
@@ -21,7 +22,40 @@ export async function fetchStockChart(config) {
   const { ticker, days = 10, interval = '1d', indicators = [], chartType = 'candlestick' } = config;
   
   try {
-    logger.info(`Fetching stock chart for ${ticker} with ${interval} interval`);
+    logger.info(`Fetching stock chart for ${ticker} with ${indicators.length} indicators`);
+    
+    // Format the request body to convert indicator objects to the format expected by the backend
+    const formattedIndicators = indicators.map(ind => {
+      if (typeof ind === 'string') {
+        return ind;
+      } else if (typeof ind === 'object' && ind.name) {
+        // Create a properly formatted indicator config object
+        const formattedInd = { name: ind.name };
+        
+        // Process each parameter to ensure proper typing
+        Object.entries(ind).forEach(([key, value]) => {
+          // Skip the name field as we've already added it
+          if (key === 'name') return;
+          
+          // Skip null or undefined values
+          if (value === null || value === undefined) return;
+          
+          // Convert numeric strings to actual numbers
+          if (typeof value === 'string' && !isNaN(value)) {
+            formattedInd[key] = Number(value);
+          } else {
+            formattedInd[key] = value;
+          }
+        });
+        
+        return formattedInd;
+      } else {
+        logger.warning('Invalid indicator format, using default', ind);
+        return typeof ind === 'string' ? ind : String(ind);
+      }
+    });
+    
+    logger.debug('Formatted indicators for API request:', formattedIndicators);
     
     const response = await fetch(`${API_URL}/api/stocks/analyze`, {
       method: 'POST',
@@ -32,7 +66,7 @@ export async function fetchStockChart(config) {
         ticker,
         days,
         interval,
-        indicators,
+        indicators: formattedIndicators,
         chart_type: chartType
       }),
     });

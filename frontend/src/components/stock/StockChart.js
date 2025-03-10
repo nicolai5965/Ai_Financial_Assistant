@@ -7,10 +7,16 @@ import { fetchStockChart } from '../../services/api/stock';
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
 const AVAILABLE_INDICATORS = [
-  { value: '20-Day SMA', label: 'Simple Moving Average (20)' },
-  { value: '20-Day EMA', label: 'Exponential Moving Average (20)' },
-  { value: '20-Day Bollinger Bands', label: 'Bollinger Bands (20)' },
-  { value: 'VWAP', label: 'Volume Weighted Average Price' }
+  { value: 'SMA', label: 'Simple Moving Average' },
+  { value: 'EMA', label: 'Exponential Moving Average' },
+  { value: 'Bollinger Bands', label: 'Bollinger Bands' },
+  { value: 'VWAP', label: 'Volume Weighted Average Price' },
+  { value: 'RSI', label: 'Relative Strength Index' },
+  { value: 'MACD', label: 'Moving Average Convergence Divergence' },
+  { value: 'ATR', label: 'Average True Range' },
+  { value: 'OBV', label: 'On-Balance Volume' },
+  { value: 'Stochastic Oscillator', label: 'Stochastic Oscillator' },
+  { value: 'Ichimoku Cloud', label: 'Ichimoku Cloud' }
 ];
 
 const INTERVALS = [
@@ -29,11 +35,38 @@ const CHART_TYPES = [
   { value: 'line', label: 'Line' },
 ];
 
+// Define default parameters for each indicator type
+const DEFAULT_INDICATOR_PARAMS = {
+  'SMA': { window: 20 },
+  'EMA': { window: 20 },
+  'Bollinger Bands': { window: 20, std_dev: 2 },
+  'RSI': { window: 14 },
+  'MACD': { fast_window: 12, slow_window: 26, signal_window: 9 },
+  'ATR': { window: 14 },
+  'Stochastic Oscillator': { k_window: 14, d_window: 3 },
+  'Ichimoku Cloud': { conversion_period: 9, base_period: 26, lagging_span_b_period: 52 }
+  // VWAP and OBV don't have configurable parameters
+};
+
+// Input field type mapping for each parameter
+const PARAM_INPUT_TYPES = {
+  window: { type: 'number', min: 2, max: 200, step: 1 },
+  std_dev: { type: 'number', min: 1, max: 4, step: 0.5 },
+  fast_window: { type: 'number', min: 2, max: 50, step: 1 },
+  slow_window: { type: 'number', min: 5, max: 100, step: 1 },
+  signal_window: { type: 'number', min: 2, max: 50, step: 1 },
+  k_window: { type: 'number', min: 2, max: 50, step: 1 },
+  d_window: { type: 'number', min: 2, max: 20, step: 1 },
+  conversion_period: { type: 'number', min: 2, max: 50, step: 1 },
+  base_period: { type: 'number', min: 2, max: 100, step: 1 },
+  lagging_span_b_period: { type: 'number', min: 2, max: 200, step: 1 },
+};
+
 // Default configuration
 const DEFAULT_CONFIG = {
   ticker: 'AAPL',
-  days: 10,
-  interval: '1d',
+  days: 30,
+  interval: '1h',
   indicators: [],
   chartType: 'candlestick'
 };
@@ -49,6 +82,9 @@ const StockChart = () => {
   
   // State for the chart data
   const [chartData, setChartData] = useState(null);
+  
+  // State for indicator configurations
+  const [indicatorConfigs, setIndicatorConfigs] = useState({});
   
   // Ref to keep track of the previous chart while loading new one
   const prevChartRef = useRef(null);
@@ -69,14 +105,75 @@ const StockChart = () => {
   // Handle indicator selection
   const handleIndicatorChange = (e) => {
     const value = e.target.value;
+    
     setConfig(prev => {
-      // Toggle indicator selection
-      const newIndicators = prev.indicators.includes(value)
-        ? prev.indicators.filter(i => i !== value)
-        : [...prev.indicators, value];
+      // Check if the indicator is already selected
+      const isSelected = prev.indicators.some(ind => 
+        typeof ind === 'string' ? ind === value : ind.name === value
+      );
       
-      logger.debug(`Indicators updated: ${newIndicators.join(', ')}`);
+      let newIndicators;
+      
+      if (isSelected) {
+        // Remove the indicator
+        newIndicators = prev.indicators.filter(ind => 
+          typeof ind === 'string' ? ind !== value : ind.name !== value
+        );
+        
+        // Also remove from configurations
+        const newConfigs = { ...indicatorConfigs };
+        delete newConfigs[value];
+        setIndicatorConfigs(newConfigs);
+      } else {
+        // Add the indicator with default config if it has parameters
+        if (value in DEFAULT_INDICATOR_PARAMS) {
+          // Create a new configuration object with default values
+          const defaultParams = DEFAULT_INDICATOR_PARAMS[value];
+          setIndicatorConfigs(prev => ({
+            ...prev,
+            [value]: { ...defaultParams }
+          }));
+          
+          // Add to indicators list as an object with name
+          newIndicators = [...prev.indicators, { name: value }];
+        } else {
+          // Add simple string for indicators without parameters
+          newIndicators = [...prev.indicators, value];
+        }
+      }
+      
+      logger.debug(`Indicators updated: ${newIndicators.map(ind => 
+        typeof ind === 'string' ? ind : ind.name).join(', ')}`);
       return { ...prev, indicators: newIndicators };
+    });
+  };
+  
+  // Handle parameter change for indicators
+  const handleParamChange = (indicatorName, paramName, value) => {
+    setIndicatorConfigs(prev => {
+      const newConfigs = {
+        ...prev,
+        [indicatorName]: {
+          ...prev[indicatorName],
+          [paramName]: Number(value)
+        }
+      };
+      
+      logger.debug(`Updated ${paramName} for ${indicatorName} to ${value}`);
+      
+      // Also update the config.indicators array
+      setConfig(prevConfig => {
+        const newIndicators = prevConfig.indicators.map(ind => {
+          if (typeof ind === 'object' && ind.name === indicatorName) {
+            return { name: indicatorName, ...newConfigs[indicatorName] };
+          }
+          return ind;
+        });
+        
+        return { ...prevConfig, indicators: newIndicators };
+      });
+      
+      return newConfigs;
     });
   };
   
@@ -92,12 +189,56 @@ const StockChart = () => {
     
     try {
       logger.info(`Loading chart for ${chartConfig.ticker} with ${chartConfig.indicators.length} indicators`);
-      const data = await fetchStockChart(chartConfig);
+      
+      // Apply the latest indicator configurations before sending
+      const configToSend = {
+        ...chartConfig,
+        indicators: chartConfig.indicators.map(ind => {
+          if (typeof ind === 'string') {
+            return ind;
+          } else {
+            const name = ind.name;
+            // Ensure all parameter values are numbers, not strings
+            const params = { name };
+            
+            if (indicatorConfigs[name]) {
+              Object.entries(indicatorConfigs[name]).forEach(([key, value]) => {
+                // Convert string values to numbers for numeric parameters
+                if (typeof value === 'string' && !isNaN(value)) {
+                  params[key] = Number(value);
+                } else {
+                  params[key] = value;
+                }
+              });
+            }
+            
+            return params;
+          }
+        })
+      };
+      
+      logger.debug('Sending chart configuration:', configToSend);
+      
+      const data = await fetchStockChart(configToSend);
       setChartData(data);
       logger.info('Chart data loaded successfully');
     } catch (err) {
-      setError(err.message);
-      logger.error(`Failed to load chart: ${err.message}`);
+      // Extract the most helpful error message
+      let errorMessage = err.message || 'Unknown error';
+      
+      // Check if it's an API error with more details
+      if (errorMessage.includes('Error processing request') || 
+          errorMessage.includes('Validation Error')) {
+        logger.error('API Error Details:', err);
+        
+        // Try to extract specific error about indicator configuration
+        if (errorMessage.includes('IndicatorConfig')) {
+          errorMessage = 'Error with indicator configuration. Please check the parameters and try again.';
+        }
+      }
+      
+      setError(errorMessage);
+      logger.error(`Failed to load chart: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -107,6 +248,44 @@ const StockChart = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     loadChart(config);
+  };
+
+  // Render parameter configuration panel for an indicator
+  const renderParamConfig = (indicatorName) => {
+    // If this indicator doesn't have configurable parameters, return nothing
+    if (!(indicatorName in DEFAULT_INDICATOR_PARAMS)) {
+      return null;
+    }
+    
+    const params = indicatorConfigs[indicatorName] || DEFAULT_INDICATOR_PARAMS[indicatorName];
+    
+    return (
+      <div className="parameter-config" key={`params-${indicatorName}`}>
+        <h4>{indicatorName} Parameters</h4>
+        <div className="parameter-inputs">
+          {Object.entries(params).map(([paramName, defaultValue]) => {
+            const inputConfig = PARAM_INPUT_TYPES[paramName] || { type: 'number', min: 1, max: 100 };
+            
+            return (
+              <div className="param-input" key={`${indicatorName}-${paramName}`}>
+                <label htmlFor={`param-${indicatorName}-${paramName}`}>
+                  {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}:
+                </label>
+                <input
+                  id={`param-${indicatorName}-${paramName}`}
+                  type={inputConfig.type}
+                  min={inputConfig.min}
+                  max={inputConfig.max}
+                  step={inputConfig.step}
+                  value={params[paramName]}
+                  onChange={(e) => handleParamChange(indicatorName, paramName, e.target.value)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
   
   return (
@@ -181,7 +360,9 @@ const StockChart = () => {
                   type="checkbox"
                   id={`indicator-${indicator.value}`}
                   value={indicator.value}
-                  checked={config.indicators.includes(indicator.value)}
+                  checked={config.indicators.some(ind => 
+                    typeof ind === 'string' ? ind === indicator.value : ind.name === indicator.value
+                  )}
                   onChange={handleIndicatorChange}
                 />
                 <label htmlFor={`indicator-${indicator.value}`}>
@@ -191,6 +372,18 @@ const StockChart = () => {
             ))}
           </div>
         </div>
+        
+        {/* Indicator Parameter Configuration Panels */}
+        {config.indicators.length > 0 && (
+          <div className="indicator-parameters">
+            <h3>Indicator Parameters</h3>
+            {config.indicators
+              .map(ind => typeof ind === 'string' ? ind : ind.name)
+              .filter(name => name in DEFAULT_INDICATOR_PARAMS)
+              .map(indicatorName => renderParamConfig(indicatorName))
+            }
+          </div>
+        )}
         
         <button type="submit" disabled={isLoading}>
           {isLoading ? 'Loading...' : 'Update Chart'}
@@ -303,6 +496,52 @@ const StockChart = () => {
         .indicator-checkbox input {
           margin-right: 5px;
           width: auto;
+        }
+        
+        .indicator-parameters {
+          grid-column: 1 / -1;
+          margin-top: 15px;
+          padding: 15px;
+          background-color: rgba(0, 0, 0, 0.2);
+          border-radius: 4px;
+        }
+        
+        .indicator-parameters h3 {
+          margin-top: 0;
+          margin-bottom: 15px;
+          border-bottom: 1px solid #444;
+          padding-bottom: 8px;
+        }
+        
+        .parameter-config {
+          margin-bottom: 20px;
+        }
+        
+        .parameter-config h4 {
+          margin-top: 0;
+          margin-bottom: 10px;
+          color: #79B6F2;
+        }
+        
+        .parameter-inputs {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+          gap: 10px;
+        }
+        
+        .param-input {
+          margin-bottom: 5px;
+        }
+        
+        .param-input label {
+          font-size: 0.9em;
+          text-transform: capitalize;
+        }
+        
+        .param-input input {
+          width: 100%;
+          padding: 5px;
+          font-size: 0.9em;
         }
         
         .chart-display {

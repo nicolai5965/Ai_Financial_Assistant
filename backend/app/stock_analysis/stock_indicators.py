@@ -4,88 +4,112 @@ from ..core.logging_config import get_logger
 
 logger = get_logger()
 
-def calculate_20day_SMA(data, ticker):
+def determine_window_size(data, default_window=20):
     """
-    Calculate 20-Day Simple Moving Average and return a Plotly trace.
+    Determine an appropriate window size for indicator calculations based on the available data.
     
     Parameters:
-        data (DataFrame): The stock price data DataFrame.
-        ticker (str): The stock ticker symbol (for logging).
+        data (DataFrame): The stock price data.
+        default_window (int): The default window size.
         
     Returns:
-        go.Scatter: A Plotly scatter trace for the SMA line.
+        int: An adjusted window size.
+    """
+    available_points = len(data)
+    # If available data is less than the default, use a smaller window (but at least 3 points)
+    if available_points < default_window:
+        window = max(3, available_points)
+    else:
+        window = default_window
+    logger.debug("Using window size %d (default was %d, available points: %d)", window, default_window, available_points)
+    return window
+
+def calculate_SMA(data, ticker, window=None, default_window=20):
+    """
+    Calculate Simple Moving Average with dynamic or custom window size and return a Plotly trace.
+    
+    Parameters:
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        window (int, optional): Custom window size to override the default.
+        default_window (int): The default window size if no custom window is provided.
+        
+    Returns:
+        go.Scatter: A Plotly scatter trace for SMA.
     """
     try:
-        sma = data['Close'].rolling(window=20).mean()
-        trace = go.Scatter(x=data.index, y=sma, mode='lines', name='SMA (20)')
-        logger.debug("Calculated 20-Day SMA for %s.", ticker)
+        # Use custom window if provided, otherwise determine dynamically
+        window_size = window if window is not None else determine_window_size(data, default_window)
+        sma = data['Close'].rolling(window=window_size).mean()
+        trace = go.Scatter(x=data.index, y=sma, mode='lines', name=f'SMA ({window_size})')
+        logger.debug("Calculated SMA (%d) for %s.", window_size, ticker)
         return trace
     except Exception as e:
-        logger.exception("Error calculating 20-Day SMA for %s: %s", ticker, str(e))
+        logger.exception("Error calculating SMA for %s: %s", ticker, str(e))
         return None
 
-def calculate_20day_EMA(data, ticker):
+def calculate_EMA(data, ticker, window=None, default_window=20):
     """
-    Calculate 20-Day Exponential Moving Average and return a Plotly trace.
+    Calculate Exponential Moving Average with dynamic or custom window size and return a Plotly trace.
     
     Parameters:
-        data (DataFrame): The stock price data DataFrame.
-        ticker (str): The stock ticker symbol (for logging).
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        window (int, optional): Custom window size to override the default.
+        default_window (int): The default window size if no custom window is provided.
         
     Returns:
-        go.Scatter: A Plotly scatter trace for the EMA line.
+        go.Scatter: A Plotly scatter trace for EMA.
     """
     try:
-        ema = data['Close'].ewm(span=20).mean()
-        trace = go.Scatter(x=data.index, y=ema, mode='lines', name='EMA (20)')
-        logger.debug("Calculated 20-Day EMA for %s.", ticker)
+        # Use custom window if provided, otherwise determine dynamically
+        window_size = window if window is not None else determine_window_size(data, default_window)
+        ema = data['Close'].ewm(span=window_size).mean()
+        trace = go.Scatter(x=data.index, y=ema, mode='lines', name=f'EMA ({window_size})')
+        logger.debug("Calculated EMA (%d) for %s.", window_size, ticker)
         return trace
     except Exception as e:
-        logger.exception("Error calculating 20-Day EMA for %s: %s", ticker, str(e))
+        logger.exception("Error calculating EMA for %s: %s", ticker, str(e))
         return None
 
-def calculate_20day_Bollinger_Bands(data, ticker):
+def calculate_Bollinger_Bands(data, ticker, window=None, default_window=20, std_dev=2):
     """
-    Calculate 20-Day Bollinger Bands and return upper and lower band Plotly traces.
+    Calculate Bollinger Bands with dynamic or custom window size and return upper and lower band traces.
     
     Parameters:
-        data (DataFrame): The stock price data DataFrame.
-        ticker (str): The stock ticker symbol (for logging).
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        window (int, optional): Custom window size to override the default.
+        default_window (int): The default window size if no custom window is provided.
+        std_dev (int): Number of standard deviations for the bands (default: 2).
         
     Returns:
-        tuple: A tuple containing (upper_band_trace, lower_band_trace).
+        tuple: (upper_trace, lower_trace) for Bollinger Bands.
     """
     try:
-        sma = data['Close'].rolling(window=20).mean()
-        std = data['Close'].rolling(window=20).std()
-        bb_upper = sma + 2 * std
-        bb_lower = sma - 2 * std
+        # Use custom window if provided, otherwise determine dynamically
+        window_size = window if window is not None else determine_window_size(data, default_window)
+        sma = data['Close'].rolling(window=window_size).mean()
+        std = data['Close'].rolling(window=window_size).std()
+        bb_upper = sma + std_dev * std
+        bb_lower = sma - std_dev * std
         
-        upper_trace = go.Scatter(x=data.index, y=bb_upper, mode='lines', name='BB Upper')
-        lower_trace = go.Scatter(x=data.index, y=bb_lower, mode='lines', name='BB Lower')
+        upper_trace = go.Scatter(x=data.index, y=bb_upper, mode='lines', name=f'BB Upper ({window_size}, {std_dev}σ)')
+        lower_trace = go.Scatter(x=data.index, y=bb_lower, mode='lines', name=f'BB Lower ({window_size}, {std_dev}σ)')
         
-        logger.debug("Calculated 20-Day Bollinger Bands for %s.", ticker)
+        logger.debug("Calculated Bollinger Bands (%d) for %s.", window_size, ticker)
         return (upper_trace, lower_trace)
     except Exception as e:
-        logger.exception("Error calculating 20-Day Bollinger Bands for %s: %s", ticker, str(e))
+        logger.exception("Error calculating Bollinger Bands for %s: %s", ticker, str(e))
         return (None, None)
 
 def calculate_VWAP(data, ticker):
     """
     Calculate Volume Weighted Average Price (VWAP) and return a Plotly trace.
-    
-    Parameters:
-        data (DataFrame): The stock price data DataFrame.
-        ticker (str): The stock ticker symbol (for logging).
-        
-    Returns:
-        go.Scatter: A Plotly scatter trace for the VWAP line.
     """
     try:
-        # Create a copy to avoid modifying the original DataFrame
         temp_data = data.copy()
         temp_data['VWAP'] = (data['Close'] * data['Volume']).cumsum() / data['Volume'].cumsum()
-        
         trace = go.Scatter(x=data.index, y=temp_data['VWAP'], mode='lines', name='VWAP')
         logger.debug("Calculated VWAP for %s.", ticker)
         return trace
@@ -93,42 +117,290 @@ def calculate_VWAP(data, ticker):
         logger.exception("Error calculating VWAP for %s: %s", ticker, str(e))
         return None
 
-def add_indicator_to_chart(fig, data, indicator_name, ticker):
+
+def calculate_RSI(data, ticker, window=None, default_window=14):
+    """
+    Calculate the Relative Strength Index (RSI) and return a Plotly trace.
+    
+    Parameters:
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        window (int, optional): Custom window size to override the default.
+        default_window (int): Default window size for RSI calculation.
+        
+    Returns:
+        go.Scatter: A Plotly scatter trace for RSI.
+    """
+    try:
+        # Use custom window if provided, otherwise determine dynamically
+        window_size = window if window is not None else determine_window_size(data, default_window)
+        delta = data['Close'].diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        avg_gain = gain.rolling(window=window_size, min_periods=window_size).mean()
+        avg_loss = loss.rolling(window=window_size, min_periods=window_size).mean()
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        trace = go.Scatter(x=data.index, y=rsi, mode='lines', name=f'RSI ({window_size})')
+        logger.debug("Calculated RSI (%d) for %s.", window_size, ticker)
+        return trace
+    except Exception as e:
+        logger.exception("Error calculating RSI for %s: %s", ticker, str(e))
+        return None
+
+def calculate_MACD(data, ticker, fast_window=None, slow_window=None, signal_window=None, 
+                  default_fast_window=12, default_slow_window=26, default_signal_window=9):
+    """
+    Calculate the MACD and its signal line, returning Plotly traces for both.
+    
+    Parameters:
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        fast_window (int, optional): Custom window size for the fast EMA.
+        slow_window (int, optional): Custom window size for the slow EMA.
+        signal_window (int, optional): Custom window size for the signal line.
+        default_fast_window (int): Default window size for the fast EMA.
+        default_slow_window (int): Default window size for the slow EMA.
+        default_signal_window (int): Default window size for the signal line.
+        
+    Returns:
+        tuple: (macd_trace, signal_trace)
+    """
+    try:
+        # Use custom windows if provided, otherwise use defaults
+        fast = fast_window if fast_window is not None else default_fast_window
+        slow = slow_window if slow_window is not None else default_slow_window
+        signal = signal_window if signal_window is not None else default_signal_window
+        
+        fast_ema = data['Close'].ewm(span=fast, adjust=False).mean()
+        slow_ema = data['Close'].ewm(span=slow, adjust=False).mean()
+        macd = fast_ema - slow_ema
+        signal_line = macd.ewm(span=signal, adjust=False).mean()
+        
+        macd_trace = go.Scatter(x=data.index, y=macd, mode='lines', name=f'MACD ({fast}-{slow})')
+        signal_trace = go.Scatter(x=data.index, y=signal_line, mode='lines', name=f'Signal ({signal})')
+        
+        logger.debug("Calculated MACD for %s with parameters: fast=%d, slow=%d, signal=%d.", 
+                    ticker, fast, slow, signal)
+        return (macd_trace, signal_trace)
+    except Exception as e:
+        logger.exception("Error calculating MACD for %s: %s", ticker, str(e))
+        return (None, None)
+
+def calculate_ATR(data, ticker, window=None, default_window=14):
+    """
+    Calculate the Average True Range (ATR) and return a Plotly trace.
+    
+    Parameters:
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        window (int, optional): Custom window size to override the default.
+        default_window (int): Default window size for ATR calculation.
+        
+    Returns:
+        go.Scatter: A Plotly scatter trace for ATR.
+    """
+    try:
+        # Use custom window if provided, otherwise determine dynamically
+        window_size = window if window is not None else determine_window_size(data, default_window)
+        
+        high_low = data['High'] - data['Low']
+        high_close = (data['High'] - data['Close'].shift()).abs()
+        low_close = (data['Low'] - data['Close'].shift()).abs()
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        atr = true_range.rolling(window=window_size, min_periods=window_size).mean()
+        
+        trace = go.Scatter(x=data.index, y=atr, mode='lines', name=f'ATR ({window_size})')
+        logger.debug("Calculated ATR (%d) for %s.", window_size, ticker)
+        return trace
+    except Exception as e:
+        logger.exception("Error calculating ATR for %s: %s", ticker, str(e))
+        return None
+
+def calculate_OBV(data, ticker):
+    """
+    Calculate the On-Balance Volume (OBV) and return a Plotly trace.
+    
+    Parameters:
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        
+    Returns:
+        go.Scatter: A Plotly scatter trace for OBV.
+    """
+    try:
+        import numpy as np
+        delta = data['Close'].diff()
+        # Create an array where positive change gets volume, negative gets -volume, zero gets 0.
+        obv_values = np.where(delta > 0, data['Volume'],
+                              np.where(delta < 0, -data['Volume'], 0))
+        obv = pd.Series(obv_values, index=data.index).cumsum()
+        trace = go.Scatter(x=data.index, y=obv, mode='lines', name='OBV')
+        logger.debug("Calculated OBV for %s.", ticker)
+        return trace
+    except Exception as e:
+        logger.exception("Error calculating OBV for %s: %s", ticker, str(e))
+        return None
+
+def calculate_stochastic_oscillator(data, ticker, k_window=None, d_window=None, 
+                                   default_k_window=14, default_d_window=3):
+    """
+    Calculate the Stochastic Oscillator (%K and %D) and return Plotly traces.
+    
+    Parameters:
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        k_window (int, optional): Custom window size for %K calculation.
+        d_window (int, optional): Custom window size for %D (moving average of %K).
+        default_k_window (int): Default window size for %K calculation.
+        default_d_window (int): Default window size for %D calculation.
+        
+    Returns:
+        tuple: (k_trace, d_trace)
+    """
+    try:
+        # Use custom windows if provided, otherwise use defaults
+        k_size = k_window if k_window is not None else default_k_window
+        d_size = d_window if d_window is not None else default_d_window
+        
+        low_min = data['Low'].rolling(window=k_size).min()
+        high_max = data['High'].rolling(window=k_size).max()
+        k_percent = 100 * ((data['Close'] - low_min) / (high_max - low_min))
+        d_percent = k_percent.rolling(window=d_size).mean()
+        
+        k_trace = go.Scatter(x=data.index, y=k_percent, mode='lines', name=f'Stoch %K ({k_size})')
+        d_trace = go.Scatter(x=data.index, y=d_percent, mode='lines', name=f'Stoch %D ({d_size})')
+        
+        logger.debug("Calculated Stochastic Oscillator for %s with %K=%d, %D=%d.", ticker, k_size, d_size)
+        return (k_trace, d_trace)
+    except Exception as e:
+        logger.exception("Error calculating Stochastic Oscillator for %s: %s", ticker, str(e))
+        return (None, None)
+
+def calculate_ichimoku_cloud(data, ticker, conversion_period=None, base_period=None, lagging_span_b_period=None,
+                            default_conversion_period=9, default_base_period=26, default_lagging_span_b_period=52):
+    """
+    Calculate Ichimoku Cloud components and return Plotly traces.
+    
+    Parameters:
+        data (DataFrame): The stock price data.
+        ticker (str): The stock ticker symbol.
+        conversion_period (int, optional): Custom period for the Conversion Line (Tenkan-sen).
+        base_period (int, optional): Custom period for the Base Line (Kijun-sen).
+        lagging_span_b_period (int, optional): Custom period for the Lagging Span B.
+        default_conversion_period (int): Default period for the Conversion Line.
+        default_base_period (int): Default period for the Base Line.
+        default_lagging_span_b_period (int): Default period for the Lagging Span B.
+        
+    Returns:
+        tuple: (conversion_trace, base_trace, leading_span_a_trace, leading_span_b_trace)
+    """
+    try:
+        # Use custom periods if provided, otherwise use defaults
+        conv_period = conversion_period if conversion_period is not None else default_conversion_period
+        base_p = base_period if base_period is not None else default_base_period
+        lagging_p = lagging_span_b_period if lagging_span_b_period is not None else default_lagging_span_b_period
+        
+        conversion_line = (data['High'].rolling(window=conv_period).max() +
+                          data['Low'].rolling(window=conv_period).min()) / 2
+        base_line = (data['High'].rolling(window=base_p).max() +
+                    data['Low'].rolling(window=base_p).min()) / 2
+        leading_span_a = ((conversion_line + base_line) / 2).shift(base_p)
+        leading_span_b = ((data['High'].rolling(window=lagging_p).max() +
+                          data['Low'].rolling(window=lagging_p).min()) / 2).shift(base_p)
+        
+        conversion_trace = go.Scatter(x=data.index, y=conversion_line, mode='lines', 
+                                     name=f'Ichimoku Conversion ({conv_period})')
+        base_trace = go.Scatter(x=data.index, y=base_line, mode='lines', 
+                               name=f'Ichimoku Base ({base_p})')
+        leading_a_trace = go.Scatter(x=data.index, y=leading_span_a, mode='lines', 
+                                    name=f'Ichimoku Leading A (shifted {base_p})')
+        leading_b_trace = go.Scatter(x=data.index, y=leading_span_b, mode='lines', 
+                                    name=f'Ichimoku Leading B (shifted {base_p})')
+        
+        logger.debug("Calculated Ichimoku Cloud for %s with parameters: conv=%d, base=%d, lagging=%d.", 
+                    ticker, conv_period, base_p, lagging_p)
+        return (conversion_trace, base_trace, leading_a_trace, leading_b_trace)
+    except Exception as e:
+        logger.exception("Error calculating Ichimoku Cloud for %s: %s", ticker, str(e))
+        return (None, None, None, None)
+
+
+def add_indicator_to_chart(fig, data, indicator_config, ticker):
     """
     Add a technical indicator to the provided Plotly figure.
     
     Parameters:
         fig (go.Figure): The Plotly figure to add the indicator to.
-        data (DataFrame): The stock price data DataFrame.
-        indicator_name (str): The name of the indicator to add.
+        data (DataFrame): The stock price data.
+        indicator_config (str or dict or IndicatorConfig): Either a string with the indicator name or 
+                                                         a dictionary/object with indicator name and parameters.
         ticker (str): The stock ticker symbol.
         
     Returns:
         bool: True if the indicator was added successfully, False otherwise.
     """
     try:
-        # Use a dictionary to map indicator names to their respective functions
+        # Map indicator names to their respective functions
         indicator_functions = {
-            "20-Day SMA": calculate_20day_SMA,
-            "20-Day EMA": calculate_20day_EMA,
-            "20-Day Bollinger Bands": calculate_20day_Bollinger_Bands,
-            "VWAP": calculate_VWAP
+            "SMA": calculate_SMA,
+            "EMA": calculate_EMA,
+            "Bollinger Bands": calculate_Bollinger_Bands,
+            "VWAP": calculate_VWAP,
+            "RSI": calculate_RSI,
+            "MACD": calculate_MACD,
+            "ATR": calculate_ATR,
+            "OBV": calculate_OBV,
+            "Stochastic Oscillator": calculate_stochastic_oscillator,
+            "Ichimoku Cloud": calculate_ichimoku_cloud
         }
+        
+        # Check what type of indicator_config we received and extract name and parameters
+        if isinstance(indicator_config, str):
+            # Simple string case
+            indicator_name = indicator_config
+            params = {}
+        elif isinstance(indicator_config, dict):
+            # Dictionary case
+            indicator_name = indicator_config.get("name")
+            # Remove 'name' from params to avoid passing it to the function
+            params = {k: v for k, v in indicator_config.items() if k != "name"}
+        elif hasattr(indicator_config, "dict") and callable(getattr(indicator_config, "dict")):
+            # Pydantic model case - has a dict() method
+            config_dict = indicator_config.dict()
+            indicator_name = config_dict.get("name")
+            # Remove 'name' from params
+            params = {k: v for k, v in config_dict.items() if k != "name" and v is not None}
+        elif hasattr(indicator_config, "name"):
+            # Object with name attribute
+            indicator_name = indicator_config.name
+            # Extract all other attributes that aren't None and don't start with underscore
+            params = {}
+            for attr in dir(indicator_config):
+                if (not attr.startswith('_') and attr != 'name' and 
+                    getattr(indicator_config, attr) is not None and 
+                    not callable(getattr(indicator_config, attr))):
+                    params[attr] = getattr(indicator_config, attr)
+        else:
+            logger.warning("Invalid indicator configuration format for %s. Expected string, dict, or object with name attribute.", ticker)
+            return False
         
         if indicator_name not in indicator_functions:
             logger.warning("Unknown indicator '%s' for %s. Skipping.", indicator_name, ticker)
             return False
             
-        # Call the appropriate function based on the indicator name
-        result = indicator_functions[indicator_name](data, ticker)
+        # Log the parameters we're using
+        logger.debug("Adding indicator '%s' for %s with parameters: %s", indicator_name, ticker, params)
+            
+        # Call the indicator function with the parameters
+        result = indicator_functions[indicator_name](data, ticker, **params)
         
-        # Handle the result based on the indicator type
-        if indicator_name == "20-Day Bollinger Bands":
-            upper_trace, lower_trace = result
-            if upper_trace and lower_trace:
-                fig.add_trace(upper_trace)
-                fig.add_trace(lower_trace)
-                return True
+        # Handle multiple-trace results for indicators that return tuples
+        if isinstance(result, tuple):
+            for trace in result:
+                if trace is not None:
+                    fig.add_trace(trace)
+            return True
         else:
             if result:
                 fig.add_trace(result)
@@ -136,5 +408,8 @@ def add_indicator_to_chart(fig, data, indicator_name, ticker):
                 
         return False
     except Exception as e:
-        logger.exception("Error adding indicator '%s' for %s: %s", indicator_name, ticker, str(e))
-        return False 
+        logger.exception("Error adding indicator '%s' for %s: %s", 
+                        indicator_name if 'indicator_name' in locals() else 'Unknown', 
+                        ticker, str(e))
+        return False
+

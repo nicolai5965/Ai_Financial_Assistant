@@ -89,10 +89,20 @@ export async function fetchStockChart(config) {
         const errorData = await response.json();
         if (errorData && typeof errorData === 'object') {
           errorMessage = errorData.detail || errorData.message || errorMessage;
+          
+          // Check specifically for 404 errors related to tickers
+          if (response.status === 404 && errorMessage.includes('No data')) {
+            errorMessage = `No data found for ticker ${ticker}`;
+          }
         }
       } catch (jsonError) {
         // If parsing JSON fails, use the default error message
         logger.error(`Error parsing error response: ${jsonError.message}`);
+        
+        // Special case for 404 ticker errors if JSON parsing failed
+        if (response.status === 404) {
+          errorMessage = `No data found for ticker ${ticker}`;
+        }
       }
       
       logger.error(`Error fetching stock data: ${errorMessage}`);

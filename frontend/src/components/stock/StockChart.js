@@ -7,6 +7,7 @@ import ChartConfigurationForm from './ChartConfigurationForm';
 import IndicatorConfigurationPanel from './IndicatorConfigurationPanel';
 import ChartDisplay from './ChartDisplay';
 import ErrorMessage from './ErrorMessage';
+import StockSettingsSidebar from './StockSettingsSidebar';
 
 // Default panel placement for each indicator
 const DEFAULT_PANEL_PLACEMENT = {
@@ -62,6 +63,9 @@ const StockChart = () => {
   
   // State for panel assignments
   const [panelAssignments, setPanelAssignments] = useState({});
+  
+  // State for settings sidebar visibility
+  const [isSettingsSidebarOpen, setIsSettingsSidebarOpen] = useState(false);
   
   // Ref to keep track of the previous chart while loading new one
   const prevChartRef = useRef(null);
@@ -250,8 +254,13 @@ const StockChart = () => {
       // Extract the most helpful error message
       let errorMessage = err.message || 'Unknown error';
       
+      // Check for "No data found for ticker" errors
+      if (errorMessage.includes('No data found for ticker')) {
+        const ticker = config.ticker.toUpperCase();
+        errorMessage = `No data found for ticker "${ticker}". Please check if the ticker symbol is correct or try another one.`;
+      } 
       // Check if it's an API error with more details
-      if (errorMessage.includes('Error processing request') || 
+      else if (errorMessage.includes('Error processing request') || 
           errorMessage.includes('Validation Error')) {
         logger.error('API Error Details:', err);
         
@@ -263,6 +272,9 @@ const StockChart = () => {
       
       setError(errorMessage);
       logger.error(`Failed to load chart: ${errorMessage}`);
+      
+      // Set chartData to null to prevent displaying incorrect chart
+      setChartData(null);
     } finally {
       setIsLoading(false);
     }
@@ -270,34 +282,35 @@ const StockChart = () => {
   
   // Handle form submission for ticker/time period changes
   const handleSubmit = (e) => {
-    e.preventDefault();
-    logger.info('Submitting new ticker/time period configuration');
+    if (e) e.preventDefault();
+    logger.info('Submitting new configuration');
     loadChart(config);
+  };
+
+  // Toggle settings sidebar
+  const toggleSettingsSidebar = () => {
+    setIsSettingsSidebarOpen(!isSettingsSidebarOpen);
+    logger.debug(`Settings sidebar toggled: ${!isSettingsSidebarOpen ? 'open' : 'closed'}`);
   };
 
   return (
     <div className="stock-chart-container">
       <h2>Stock Chart Analysis</h2>
       
-      {/* Configuration Form */}
-      <ChartConfigurationForm
-        config={config}
-        onInputChange={handleInputChange}
-        onIndicatorChange={handleIndicatorChange}
-        onSubmit={handleSubmit}
-        isLoading={isLoading}
-      />
-      
-      {/* Indicator Parameter Configuration Panels */}
-      {config.indicators.length > 0 && (
-        <IndicatorConfigurationPanel
-          selectedIndicators={config.indicators}
-          indicatorConfigs={indicatorConfigs}
-          panelAssignments={panelAssignments}
-          onParamChange={handleParamChange}
-          onPanelChange={handlePanelChange}
-        />
-      )}
+      {/* Ticker Symbol Input - Extracted from the form */}
+      <div className="ticker-input-container">
+        <form className="ticker-form" onSubmit={(e) => e.preventDefault()}>
+          <label htmlFor="ticker">Ticker Symbol:</label>
+          <input
+            type="text"
+            id="ticker"
+            name="ticker"
+            value={config.ticker}
+            onChange={handleInputChange}
+            required
+          />
+        </form>
+      </div>
       
       {/* Error Message */}
       <ErrorMessage message={error} />
@@ -309,6 +322,21 @@ const StockChart = () => {
         prevChartData={prevChartRef.current}
       />
       
+      {/* Stock Settings Sidebar */}
+      <StockSettingsSidebar
+        isOpen={isSettingsSidebarOpen}
+        toggleSidebar={toggleSettingsSidebar}
+        config={config}
+        onInputChange={handleInputChange}
+        onIndicatorChange={handleIndicatorChange}
+        onSubmit={handleSubmit}
+        isLoading={isLoading}
+        indicatorConfigs={indicatorConfigs}
+        panelAssignments={panelAssignments}
+        onParamChange={handleParamChange}
+        onPanelChange={handlePanelChange}
+      />
+      
       <style jsx>{`
         .stock-chart-container {
           padding: 20px;
@@ -316,6 +344,36 @@ const StockChart = () => {
           border-radius: 8px;
           margin: 20px 0;
           color: #fff;
+          position: relative; /* For proper positioning of sidebar toggle button */
+        }
+        
+        .ticker-input-container {
+          margin-bottom: 20px;
+          width: 100%;
+        }
+        
+        .ticker-form {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          max-width: 400px;
+        }
+        
+        .ticker-input-container label {
+          font-weight: bold;
+          margin-right: 5px;
+          white-space: nowrap;
+        }
+        
+        .ticker-input-container input {
+          padding: 8px;
+          border: 1px solid #444;
+          border-radius: 4px;
+          background-color: #0d1b2a;
+          color: #fff;
+          flex: 1;
+          min-width: 100px;
+          max-width: 200px;
         }
       `}</style>
     </div>

@@ -39,21 +39,24 @@ const ChartConfigurationForm = ({
   onInputChange, 
   onIndicatorChange, 
   onSubmit, 
-  isLoading 
+  isLoading,
+  hideTicker = false
 }) => {
   return (
     <form onSubmit={onSubmit} className="stock-chart-form">
-      <div className="form-group">
-        <label htmlFor="ticker">Ticker Symbol:</label>
-        <input
-          type="text"
-          id="ticker"
-          name="ticker"
-          value={config.ticker}
-          onChange={onInputChange}
-          required
-        />
-      </div>
+      {!hideTicker && (
+        <div className="form-group">
+          <label htmlFor="ticker">Ticker Symbol:</label>
+          <input
+            type="text"
+            id="ticker"
+            name="ticker"
+            value={config.ticker}
+            onChange={onInputChange}
+            required
+          />
+        </div>
+      )}
       
       <div className="form-group">
         <label htmlFor="days">Days of History:</label>
@@ -123,7 +126,7 @@ const ChartConfigurationForm = ({
       </div>
       
       <button type="submit" disabled={isLoading}>
-        {isLoading ? 'Loading...' : 'Update Ticker/Time Period'}
+        {isLoading ? 'Loading...' : hideTicker ? 'Update Chart Configuration' : 'Update Ticker/Time Period'}
       </button>
 
       <style jsx>{`

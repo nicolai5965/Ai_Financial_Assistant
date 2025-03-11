@@ -58,13 +58,13 @@ const StocksPage = () => {
 
   return (
     <div className="stocks-page">
-      <h1>Stock Market Analysis</h1>
-      
-      {/* API Status Indicator */}
+      {/* API Status Indicator - moved above the title */}
       <div className={`api-status ${apiStatus.healthy ? 'healthy' : 'unhealthy'}`}>
         <span className="status-indicator"></span>
         <span className="status-text">{apiStatus.message || 'Status unknown'}</span>
       </div>
+      
+      <h1>Stock Market Analysis</h1>
       
       {/* Render StockChart only if API is healthy */}
       {apiStatus.healthy ? (
@@ -96,12 +96,13 @@ const StocksPage = () => {
         }
         
         .api-status {
-          display: flex;
+          display: inline-flex; /* Changed from flex to inline-flex */
           align-items: center;
           margin-bottom: 20px;
           padding: 10px 15px;
           border-radius: 4px;
           background-color: #0d1b2a;
+          width: auto; /* Let it be only as wide as content */
         }
         
         .api-status.healthy {

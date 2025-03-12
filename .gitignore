@@ -15,8 +15,7 @@ __pycache__/
 */*.pyc
 */*/__pycache__/
 
-# Ignore Cursor IDE settings
-.cursor/
+
 
 # Ignore VSCode settings
 .vscode/
@@ -27,12 +26,6 @@ python-installer.exe
 # Ignore the test_file.py
 test_file.py
 **/test_*.py
-
-# Ignore .cursorrules file
-.cursorrules
-
-# Ignore to-do list
-to_do_list.md
 
 # Ignore the logs folder and any log files
 backend/logs/
@@ -59,5 +52,18 @@ backend/tests/
 .DS_Store
 Thumbs.db
 
-
+# Ignore node_modules
 node_modules
+
+## Files / Folders for Cursor IDE and for my own reference
+# Ignore Cursor IDE settings
+.cursor/
+
+# Ignore .cursorrules file
+.cursorrules
+
+# Ignore to-do list
+to_do_list.md
+
+# Ignore REFACTORING_PROGRESS.md
+REFACTORING_PROGRESS.md

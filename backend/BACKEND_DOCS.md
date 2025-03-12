@@ -328,10 +328,14 @@ if __name__ == "__main__":
 - **Purpose**: This file provides a system for organizing technical indicators into logical panel groups.
 - **Location**: `backend/app/stock_analysis/indicator_panels.py`
 - **Key Functions**:
+  - `extract_indicator_name(indicator)`: Extracts the name from an indicator object regardless of its type
+  - `extract_custom_panel(indicator)`: Extracts custom panel assignment from an indicator object if available
   - `get_indicator_metadata(indicator_name)`: Returns metadata about indicators including their default panel assignment
   - `organize_indicators_into_panels(indicators)`: Groups indicators by their panel assignments
   - `calculate_panel_heights(panels)`: Determines appropriate height ratios for panels
   - `create_panel_config(indicators)`: Creates a complete panel configuration based on selected indicators
+  - `get_panel_title(panel_name, ticker)`: Gets an appropriate title for a panel based on its type
+  - `configure_panel_axes(fig, panel_name, row_idx)`: Configures the axes for a specific panel type
   - `initialize_multi_panel_figure(panel_config, ticker)`: Creates a Plotly figure with properly configured subplots
 - **Key Features**:
   - Categorizes indicators based on their natural visualization properties
@@ -345,6 +349,8 @@ if __name__ == "__main__":
   - **Detailed logging of panel creation and configuration process**
   - **Removes dynamic height calculation to let frontend control chart height**
   - **Preserves relative height ratios between panels while allowing frontend to set absolute height**
+  - **Improved modularity with dedicated helper functions for name extraction, panel assignment, and axis configuration**
+  - **Centralized default metadata through constants for consistent handling of unknown indicators**
 
 ### 13. `app/stock_analysis/stock_analysis.py` (Deprecated)
 - **Purpose**: Legacy file maintained for backward compatibility only.

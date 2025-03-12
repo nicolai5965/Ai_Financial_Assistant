@@ -87,6 +87,50 @@ INDICATOR_METADATA = {
     }
 }
 
+# Default metadata for unknown indicators
+DEFAULT_INDICATOR_METADATA = {
+    "display_category": "unknown",
+    "default_panel": "main",
+    "y_range": None,
+    "description": "Unknown Indicator"
+}
+
+def extract_indicator_name(indicator: Any) -> str:
+    """
+    Extract the name from an indicator object regardless of its type.
+    
+    Args:
+        indicator: Indicator object (string, dict, or object with name attribute)
+        
+    Returns:
+        Extracted indicator name as string
+    """
+    if isinstance(indicator, str):
+        return indicator
+    elif isinstance(indicator, dict) and 'name' in indicator:
+        return indicator['name']
+    elif hasattr(indicator, 'name'):
+        return indicator.name
+    else:
+        logger.warning(f"Cannot extract name from indicator object: {type(indicator)}")
+        return "unknown"
+
+def extract_custom_panel(indicator: Any) -> Optional[str]:
+    """
+    Extract custom panel assignment from an indicator object if available.
+    
+    Args:
+        indicator: Indicator object (dict or object with panel attribute)
+        
+    Returns:
+        Custom panel name or None if not specified
+    """
+    if isinstance(indicator, dict) and 'panel' in indicator:
+        return indicator['panel']
+    elif hasattr(indicator, 'panel') and indicator.panel:
+        return indicator.panel
+    return None
+
 def get_indicator_metadata(indicator_name: str) -> Dict[str, Any]:
     """
     Get metadata for a specific indicator.
@@ -99,25 +143,9 @@ def get_indicator_metadata(indicator_name: str) -> Dict[str, Any]:
     """
     # Extract the actual indicator name if an object was passed
     if not isinstance(indicator_name, str):
-        if isinstance(indicator_name, dict) and 'name' in indicator_name:
-            indicator_name = indicator_name['name']
-        elif hasattr(indicator_name, 'name'):
-            indicator_name = indicator_name.name
-        else:
-            logger.warning(f"Cannot extract name from indicator object: {type(indicator_name)}")
-            return {
-                "display_category": "unknown",
-                "default_panel": "main",
-                "y_range": None,
-                "description": "Unknown Indicator"
-            }
+        indicator_name = extract_indicator_name(indicator_name)
         
-    return INDICATOR_METADATA.get(indicator_name, {
-        "display_category": "unknown",
-        "default_panel": "main",
-        "y_range": None,
-        "description": "Unknown Indicator"
-    })
+    return INDICATOR_METADATA.get(indicator_name, DEFAULT_INDICATOR_METADATA)
 
 def organize_indicators_into_panels(indicators: List[Any]) -> Dict[str, List[Any]]:
     """
@@ -139,29 +167,11 @@ def organize_indicators_into_panels(indicators: List[Any]) -> Dict[str, List[Any
     
     # Group indicators by their assigned or default panels
     for indicator in indicators:
-        # Check if indicator has a custom panel assignment
-        custom_panel = None
-        indicator_name = None
-        
-        # Handle different indicator types
-        if isinstance(indicator, str):
-            # Simple string case
-            indicator_name = indicator
-        elif isinstance(indicator, dict) and 'name' in indicator:
-            # Dictionary case
-            indicator_name = indicator['name']
-            if 'panel' in indicator:
-                custom_panel = indicator['panel']
-        elif hasattr(indicator, 'name'):
-            # Pydantic model or object with name attribute
-            indicator_name = indicator.name
-            if hasattr(indicator, 'panel') and indicator.panel:
-                custom_panel = indicator.panel
-        else:
-            logger.warning(f"Unrecognized indicator format: {type(indicator)}")
-            continue
+        # Extract indicator name and any custom panel assignment
+        indicator_name = extract_indicator_name(indicator)
+        custom_panel = extract_custom_panel(indicator)
             
-        # Use custom panel if provided, otherwise use default
+        # Use custom panel if provided, otherwise use default from metadata
         if custom_panel and custom_panel in panels:
             panel = custom_panel
             logger.debug(f"Using custom panel '{panel}' for indicator '{indicator_name}'")
@@ -170,11 +180,10 @@ def organize_indicators_into_panels(indicators: List[Any]) -> Dict[str, List[Any
             panel = metadata["default_panel"]
             logger.debug(f"Using default panel '{panel}' for indicator '{indicator_name}'")
         
-        # Add to appropriate panel
+        # Add to appropriate panel, defaulting to main if panel doesn't exist
         if panel in panels:
             panels[panel].append(indicator)
         else:
-            # If panel doesn't exist, add to main
             logger.warning(f"Panel '{panel}' doesn't exist, adding '{indicator_name}' to main panel")
             panels["main"].append(indicator)
     
@@ -193,7 +202,7 @@ def calculate_panel_heights(panels: Dict[str, List[Any]]) -> List[float]:
     """
     num_panels = len(panels)
     
-    if num_panels == 0 or num_panels == 1:
+    if num_panels <= 1:
         return [1.0]  # Single panel gets full height
     
     # Main panel gets 50% of space, others share remaining 50%
@@ -232,11 +241,9 @@ def create_panel_config(indicators: List[Any]) -> Tuple[Dict[str, List[Any]], Di
         logger.debug("No indicators assigned to panels, ensuring at least main panel exists")
         panels = {"main": []}
     
-    # Calculate panel count and extract panel names in order
+    # Extract panel names and calculate configuration parameters
     panel_names = list(panels.keys())
     num_panels = len(panel_names)
-    
-    # Calculate panel heights
     heights = calculate_panel_heights(panels)
     
     # Create configuration object
@@ -250,6 +257,59 @@ def create_panel_config(indicators: List[Any]) -> Tuple[Dict[str, List[Any]], Di
     logger.debug(f"Created panel configuration with {num_panels} panels: {panel_names}")
     
     return panels, config
+
+def get_panel_title(panel_name: str, ticker: str = None) -> str:
+    """
+    Get an appropriate title for a panel based on its type.
+    
+    Args:
+        panel_name: Name of the panel
+        ticker: Optional ticker symbol for main panel
+        
+    Returns:
+        Formatted panel title
+    """
+    panel_titles = {
+        "main": f"{ticker} Price Chart" if ticker else "Price Chart",
+        "oscillator": "Oscillators (0-100)",
+        "macd": "MACD",
+        "volume": "Volume Indicators",
+        "volatility": "Volatility"
+    }
+    
+    return panel_titles.get(panel_name, panel_name.capitalize())
+
+def configure_panel_axes(fig: go.Figure, panel_name: str, row_idx: int) -> None:
+    """
+    Configure the axes for a specific panel type.
+    
+    Args:
+        fig: Plotly figure object
+        panel_name: Name of the panel
+        row_idx: Row index (1-indexed) for the panel
+    """
+    # Add reference lines and set y-axis configurations based on panel type
+    if panel_name == "oscillator":
+        # Add reference lines at 30 and 70 for RSI
+        fig.add_hline(y=30, line_dash="dash", line_color="red", row=row_idx, col=1, opacity=0.7)
+        fig.add_hline(y=70, line_dash="dash", line_color="red", row=row_idx, col=1, opacity=0.7)
+        fig.add_hline(y=50, line_dash="dash", line_color="gray", row=row_idx, col=1, opacity=0.5)
+        # Set y-axis range for oscillator panel
+        fig.update_yaxes(range=[0, 100], row=row_idx, col=1, title_text="Oscillator Value")
+        
+    elif panel_name == "macd":
+        # Add a zero line for MACD
+        fig.add_hline(y=0, line_dash="solid", line_color="gray", row=row_idx, col=1, opacity=0.7)
+        fig.update_yaxes(title_text="MACD Value", row=row_idx, col=1)
+        
+    elif panel_name == "volume":
+        fig.update_yaxes(title_text="Volume", row=row_idx, col=1)
+        
+    elif panel_name == "volatility":
+        fig.update_yaxes(title_text="Volatility", row=row_idx, col=1)
+        
+    elif panel_name == "main":
+        fig.update_yaxes(title_text="Price", row=row_idx, col=1)
 
 def initialize_multi_panel_figure(panel_config: Dict[str, Any], ticker: str) -> go.Figure:
     """
@@ -274,20 +334,7 @@ def initialize_multi_panel_figure(panel_config: Dict[str, Any], ticker: str) -> 
         heights = [1.0]
     
     # Create subplot titles
-    subplot_titles = []
-    for panel in panel_names:
-        if panel == "main":
-            subplot_titles.append(f"{ticker} Price Chart")
-        elif panel == "oscillator":
-            subplot_titles.append("Oscillators (0-100)")
-        elif panel == "macd":
-            subplot_titles.append("MACD")
-        elif panel == "volume":
-            subplot_titles.append("Volume Indicators")
-        elif panel == "volatility":
-            subplot_titles.append("Volatility")
-        else:
-            subplot_titles.append(panel.capitalize())
+    subplot_titles = [get_panel_title(panel, ticker) for panel in panel_names]
     
     # Log subplot creation details
     logger.debug("Creating subplots with %d panels: %s", num_panels, panel_names)
@@ -313,10 +360,11 @@ def initialize_multi_panel_figure(panel_config: Dict[str, Any], ticker: str) -> 
     fig.update_layout(
         showlegend=True,
         legend=dict(orientation="h", y=1.02, xanchor="right", x=1),
-        margin=dict(l=50, r=50, t=50, b=50)
+        margin=dict(l=50, r=50, t=50, b=50),
+        template="plotly_dark"  # Set basic template
     )
     
-    # Hide rangeslider on all but the bottom panel
+    # Configure rangeslider visibility
     for i in range(1, num_panels):
         fig.update_xaxes(rangeslider_visible=False, row=i, col=1)
     
@@ -324,34 +372,9 @@ def initialize_multi_panel_figure(panel_config: Dict[str, Any], ticker: str) -> 
     if num_panels > 1:
         fig.update_xaxes(rangeslider_visible=True, row=num_panels, col=1)
     
-    # Add reference lines and set y-axis ranges for specific panel types
+    # Configure each panel's axes
     for i, panel in enumerate(panel_names):
         row_idx = i + 1  # Convert to 1-indexed
-        
-        if panel == "oscillator":
-            # Add reference lines at 30 and 70 for RSI
-            fig.add_hline(y=30, line_dash="dash", line_color="red", row=row_idx, col=1, opacity=0.7)
-            fig.add_hline(y=70, line_dash="dash", line_color="red", row=row_idx, col=1, opacity=0.7)
-            # Also add 50 line
-            fig.add_hline(y=50, line_dash="dash", line_color="gray", row=row_idx, col=1, opacity=0.5)
-            # Set y-axis range for oscillator panel
-            fig.update_yaxes(range=[0, 100], row=row_idx, col=1, title_text="Oscillator Value")
-            
-        elif panel == "macd":
-            # Add a zero line for MACD
-            fig.add_hline(y=0, line_dash="solid", line_color="gray", row=row_idx, col=1, opacity=0.7)
-            fig.update_yaxes(title_text="MACD Value", row=row_idx, col=1)
-            
-        elif panel == "volume":
-            fig.update_yaxes(title_text="Volume", row=row_idx, col=1)
-            
-        elif panel == "volatility":
-            fig.update_yaxes(title_text="Volatility", row=row_idx, col=1)
-            
-        elif panel == "main":
-            fig.update_yaxes(title_text="Price", row=row_idx, col=1)
-    
-    # Set basic template - can be customized based on user preference
-    fig.update_layout(template="plotly_dark")
+        configure_panel_axes(fig, panel, row_idx)
     
     return fig 

@@ -71,4 +71,26 @@ def get_market_hours(ticker):
         logger.warning("Exchange '%s' not recognized for %s.", exchange, ticker)
         return None
         
-    return {"exchange": exchange, **market_hours[exchange]} 
+    return {"exchange": exchange, **market_hours[exchange]}
+
+def get_company_name(ticker):
+    """
+    Get the company name for a given ticker symbol using yfinance.
+    
+    Parameters:
+        ticker (str): The stock ticker symbol.
+        
+    Returns:
+        str: The company name or the ticker symbol if not found.
+        
+    Logging:
+        Logs any errors encountered during the process.
+    """
+    try:
+        ticker = yf.Ticker(ticker)
+        company_name = ticker.info.get('longName', ticker)
+        logger.info(f"Retrieved company name for {ticker}: {company_name}")
+        return company_name
+    except Exception as e:
+        logger.error(f"Error retrieving company name for {ticker}: {str(e)}")
+        return ticker 

@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any, Union
 from datetime import date, timedelta
 import logging
 
-from ..stock_analysis.stock_data_fetcher import fetch_stock_data
+from ..stock_analysis.stock_data_fetcher import fetch_stock_data, get_company_name
 from ..stock_analysis.stock_data_charting import analyze_ticker
 from ..core.logging_config import get_logger
 
@@ -103,7 +103,10 @@ async def analyze_stock(request: StockAnalysisRequest):
         JSON: Plotly figure JSON representation
     """
     try:
-        logger.info(f"Analyzing stock data for {request.ticker} with {request.interval} interval")
+        # Store ticker in a local variable to avoid repeated access to request.ticker
+        ticker = request.ticker
+        
+        logger.info(f"Analyzing stock data for {ticker} with {request.interval} interval")
         
         # Pre-process indicators to ensure they're properly structured
         processed_indicators = []
@@ -159,7 +162,7 @@ async def analyze_stock(request: StockAnalysisRequest):
             "15m": 60,
             "30m": 60,
             "1h": 730
-            # "1d", "1wk", and "1mo" have no maximum day limits
+            # For "1d", "1wk", and "1mo", no maximum day limits are enforced
         }
         
         if request.interval in interval_max_days:
@@ -169,23 +172,26 @@ async def analyze_stock(request: StockAnalysisRequest):
                 start_date = end_date - timedelta(days=max_allowed)
         
         # Fetch stock data
-        tickers = [request.ticker]
+        tickers = [ticker]
         stock_data = fetch_stock_data(tickers, start_date, end_date, request.interval)
         
-        if not stock_data or request.ticker not in stock_data:
-            logger.error(f"No data found for ticker {request.ticker}")
-            raise HTTPException(status_code=404, detail=f"No data found for ticker {request.ticker}")
+        if not stock_data or ticker not in stock_data:
+            logger.error(f"No data found for ticker {ticker}")
+            raise HTTPException(status_code=404, detail=f"No data found for ticker {ticker}")
         
         # Use the stock data directly without filtering
-        ticker_data = stock_data[request.ticker]
+        ticker_data = stock_data[ticker]
         
         if ticker_data.empty:
-            logger.error(f"No trading data found for {request.ticker}")
-            raise HTTPException(status_code=404, detail=f"No trading data found for {request.ticker}")
+            logger.error(f"No trading data found for {ticker}")
+            raise HTTPException(status_code=404, detail=f"No trading data found for {ticker}")
+        
+        # Get company name (only once)
+        company_name = get_company_name(ticker)
         
         # Generate chart using processed indicators
         fig = analyze_ticker(
-            request.ticker, 
+            ticker, 
             ticker_data, 
             processed_indicators, 
             request.interval,
@@ -195,11 +201,12 @@ async def analyze_stock(request: StockAnalysisRequest):
         # Convert to JSON
         chart_json = fig.to_json()
         
-        return JSONResponse(content={"chart": chart_json, "ticker": request.ticker})
+        return JSONResponse(content={"chart": chart_json, "ticker": ticker, "company_name": company_name})
     
     except Exception as e:
-        logger.exception(f"Error processing stock analysis request: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+        logger.exception(f"Error analyzing stock data: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error processing request")
+
 
 # Simple health check endpoint
 @app.get("/api/health")

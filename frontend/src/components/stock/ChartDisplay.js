@@ -11,6 +11,7 @@ const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
  * ChartDisplay component for rendering the Plotly chart and managing loading states
  * Handles displaying the chart, loading spinner, and previous chart during loading
  * Now includes full-screen toggle functionality via a modal overlay
+ * Adds a banner above the plot with title and fullscreen button
  */
 const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
   // State to track full-screen mode
@@ -40,20 +41,21 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
     };
   }, [isFullScreen]);
 
+  // Extract chart title from chartData if available
+  const getChartTitle = () => {
+    if (!chartData) return "Chart";
+    try {
+      const layout = JSON.parse(chartData).layout || {};
+      return layout.title?.text || layout.title || "Chart";
+    } catch (error) {
+      logger.error("Error extracting chart title:", error);
+      return "Chart";
+    }
+  };
+
   return (
     <div className="chart-display">
       {isLoading && !prevChartData && <p>Loading chart...</p>}
-      
-      {/* Full-screen toggle button */}
-      {!isLoading && chartData && (
-        <button 
-          onClick={toggleFullScreen} 
-          className="full-screen-toggle"
-          title="Toggle full-screen mode"
-        >
-          {isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
-        </button>
-      )}
       
       {/* Show previous chart while loading */}
       {isLoading && prevChartData && (
@@ -70,31 +72,53 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
         </div>
       )}
       
-      {/* Show current chart when not loading */}
+      {/* Chart banner and regular chart view */}
       {!isLoading && chartData && !isFullScreen && (
-        <Plot 
-          data={chartData ? JSON.parse(chartData).data || [] : []}
-          layout={chartData ? JSON.parse(chartData).layout || {} : {}}
-          style={{ width: "100%", height: "600px" }}
-          useResizeHandler={true}
-          config={{
-            responsive: true,
-            displayModeBar: false, // Show mode bar on hover in regular view
-            modeBarButtonsToAdd: ['toImage'],
-            modeBarButtonsToRemove: ['sendDataToCloud'],
-            displaylogo: false, // Hide the plotly logo
-          }}
-        />
+        <>
+          <div className="chart-banner">
+            <h3 className="chart-title">{getChartTitle()}</h3>
+            <button 
+              onClick={toggleFullScreen} 
+              className="full-screen-toggle"
+              title="Toggle full-screen mode"
+            >
+              Full Screen
+            </button>
+          </div>
+          <Plot 
+            data={chartData ? JSON.parse(chartData).data || [] : []}
+            layout={chartData ? JSON.parse(chartData).layout || {} : {}}
+            style={{ width: "100%", height: "600px" }}
+            useResizeHandler={true}
+            config={{
+              responsive: true,
+              displayModeBar: false, // Show mode bar on hover in regular view
+              modeBarButtonsToAdd: ['toImage'],
+              modeBarButtonsToRemove: ['sendDataToCloud'],
+              displaylogo: false, // Hide the plotly logo
+            }}
+          />
+        </>
       )}
       
       {/* Full-screen modal */}
       {isFullScreen && chartData && (
         <div className="full-screen-modal">
           <div className="full-screen-content">
+            <div className="chart-banner fullscreen">
+              <h3 className="chart-title">{getChartTitle()}</h3>
+              <button 
+                onClick={toggleFullScreen} 
+                className="full-screen-toggle"
+                title="Exit full-screen mode"
+              >
+                Exit Full Screen
+              </button>
+            </div>
             <Plot 
               data={chartData ? JSON.parse(chartData).data || [] : []}
               layout={chartData ? JSON.parse(chartData).layout || {} : {}}
-              style={{ width: "100%", height: "100%" }}
+              style={{ width: "100%", height: "calc(100% - 50px)" }}
               useResizeHandler={true}
               config={{
                 responsive: true,
@@ -104,13 +128,6 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
                 displaylogo: false, // Hide the plotly logo
               }}
             />
-            <button 
-              onClick={toggleFullScreen} 
-              className="exit-full-screen"
-              title="Exit full-screen mode"
-            >
-              Exit Full Screen
-            </button>
             <div className="keyboard-hint">
               Press ESC to exit full-screen
             </div>
@@ -140,13 +157,39 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
           z-index: 10;
         }
         
+        /* Chart banner styles */
+        .chart-banner {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background-color: #333333;
+          color: white;
+          padding: 8px 16px;
+          border-top-left-radius: 4px;
+          border-top-right-radius: 4px;
+          height: 50px;
+          position: relative;
+          z-index: 5;
+        }
+        
+        .chart-banner.fullscreen {
+          border-radius: 0;
+          width: 100%;
+        }
+        
+        .chart-title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 500;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          max-width: 80%;
+        }
+        
         /* Full-screen toggle button styles */
         .full-screen-toggle {
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          z-index: 5;
-          background-color: rgba(0, 0, 0, 0.7);
+          background-color: rgba(0, 0, 0, 0.5);
           color: white;
           border: none;
           padding: 8px 12px;
@@ -157,7 +200,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
         }
         
         .full-screen-toggle:hover {
-          background-color: rgba(0, 0, 0, 0.9);
+          background-color: rgba(0, 0, 0, 0.7);
         }
         
         /* Full-screen modal styles */
@@ -181,25 +224,8 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
           background-color: #1B1610; /* Shadow Black to match app's theme */
           border-radius: 8px;
           overflow: hidden;
-        }
-        
-        .exit-full-screen {
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          z-index: 1001;
-          background-color: rgba(0, 0, 0, 0.7);
-          color: white;
-          border: none;
-          padding: 8px 12px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: background-color 0.2s;
-        }
-        
-        .exit-full-screen:hover {
-          background-color: rgba(0, 0, 0, 0.9);
+          display: flex;
+          flex-direction: column;
         }
         
         .keyboard-hint {

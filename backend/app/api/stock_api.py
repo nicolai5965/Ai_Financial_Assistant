@@ -90,6 +90,101 @@ class StockAnalysisRequest(BaseModel):
     )
     chart_type: str = Field("candlestick", description="Chart type: 'candlestick' or 'line'")
 
+
+def process_indicators(indicators: List[Union[str, IndicatorConfig]]) -> List[Dict]:
+    """
+    Process and standardize different indicator input formats into a uniform dictionary format.
+    
+    Args:
+        indicators: List of indicators which can be strings or IndicatorConfig objects
+        
+    Returns:
+        List of indicator dictionaries with standardized format
+    """
+    processed_indicators = []
+    
+    for indicator in indicators:
+        # Case 1: Simple string indicator
+        if isinstance(indicator, str):
+            logger.debug(f"Converting string indicator '{indicator}' to dict format")
+            processed_indicators.append({"name": indicator})
+            
+        # Case 2: Pydantic v2 model
+        elif hasattr(indicator, 'model_dump') and callable(getattr(indicator, 'model_dump')):
+            try:
+                indicator_dict = indicator.model_dump(exclude_none=True)
+                logger.debug(f"Converted Pydantic v2 model to dict: {indicator_dict}")
+                processed_indicators.append(indicator_dict)
+            except Exception as e:
+                logger.error(f"Error converting Pydantic v2 model: {str(e)}")
+                # Fallback to minimal dict if conversion fails
+                if hasattr(indicator, 'name'):
+                    processed_indicators.append({"name": indicator.name})
+                    
+        # Case 3: Pydantic v1 model
+        elif hasattr(indicator, 'dict') and callable(getattr(indicator, 'dict')):
+            try:
+                indicator_dict = indicator.dict(exclude_none=True)
+                logger.debug(f"Converted Pydantic v1 model to dict: {indicator_dict}")
+                processed_indicators.append(indicator_dict)
+            except Exception as e:
+                logger.error(f"Error converting Pydantic model: {str(e)}")
+                # Fallback to minimal dict if conversion fails
+                if hasattr(indicator, 'name'):
+                    processed_indicators.append({"name": indicator.name})
+                    
+        # Case 4: Already a dict or other object
+        else:
+            processed_indicators.append(indicator)
+    
+    # Log indicator panel assignments for clarity
+    for indicator in processed_indicators:
+        if isinstance(indicator, dict) and 'name' in indicator:
+            panel = indicator.get('panel', 'main')
+            logger.debug(f"Indicator '{indicator['name']}' assigned to panel '{panel}'")
+        elif hasattr(indicator, 'name'):
+            panel = indicator.panel if hasattr(indicator, 'panel') and indicator.panel else 'main'
+            logger.debug(f"Indicator '{indicator.name}' assigned to panel '{panel}'")
+            
+    return processed_indicators
+
+
+def calculate_date_range(days: int, interval: str) -> tuple:
+    """
+    Calculate and validate the appropriate date range based on the interval and days.
+    Some intervals have maximum allowed time periods per the data provider's limitations.
+    
+    Args:
+        days: Number of days to look back
+        interval: Data interval string (e.g., '1d', '1h', '5m')
+        
+    Returns:
+        Tuple of (start_date, end_date) after validation
+    """
+    # End date is tomorrow to ensure today's data is included (yfinance treats end as exclusive)
+    end_date = date.today() + timedelta(days=1)
+    start_date = end_date - timedelta(days=days)
+    
+    # Interval-specific maximum day limits
+    interval_max_days = {
+        "1m": 7,
+        "2m": 60,
+        "5m": 60,
+        "15m": 60,
+        "30m": 60,
+        "1h": 730
+    }
+    
+    # Adjust start_date if days exceeds the maximum for this interval
+    if interval in interval_max_days:
+        max_allowed = interval_max_days[interval]
+        if days > max_allowed:
+            logger.warning(f"Requested {days} days for interval {interval}, but max allowed is {max_allowed}")
+            start_date = end_date - timedelta(days=max_allowed)
+    
+    return start_date, end_date
+
+
 # Create API endpoints
 @app.post("/api/stocks/analyze")
 async def analyze_stock(request: StockAnalysisRequest):
@@ -112,61 +207,11 @@ async def analyze_stock(request: StockAnalysisRequest):
 
         logger.info(f"Analyzing stock data for {ticker} with {interval} interval")
         
-        # Pre-process indicators to ensure they're properly structured
-        processed_indicators = []
-        for indicator in indicators:
-            if isinstance(indicator, str):
-                logger.debug(f"Converting string indicator '{indicator}' to dict format")
-                processed_indicators.append({"name": indicator})
-            elif hasattr(indicator, 'model_dump') and callable(getattr(indicator, 'model_dump')):
-                try:
-                    indicator_dict = indicator.model_dump(exclude_none=True)
-                    logger.debug(f"Converted Pydantic v2 model to dict: {indicator_dict}")
-                    processed_indicators.append(indicator_dict)
-                except Exception as e:
-                    logger.error(f"Error converting Pydantic v2 model: {str(e)}")
-                    if hasattr(indicator, 'name'):
-                        processed_indicators.append({"name": indicator.name})
-            elif hasattr(indicator, 'dict') and callable(getattr(indicator, 'dict')):
-                try:
-                    indicator_dict = indicator.dict(exclude_none=True)
-                    logger.debug(f"Converted Pydantic v1 model to dict: {indicator_dict}")
-                    processed_indicators.append(indicator_dict)
-                except Exception as e:
-                    logger.error(f"Error converting Pydantic model: {str(e)}")
-                    if hasattr(indicator, 'name'):
-                        processed_indicators.append({"name": indicator.name})
-            else:
-                processed_indicators.append(indicator)
+        # Process indicators into a standardized format
+        processed_indicators = process_indicators(indicators)
         
-        # Log indicator configurations with their panel assignments
-        for indicator in processed_indicators:
-            if isinstance(indicator, dict) and 'name' in indicator:
-                panel = indicator.get('panel', 'main')
-                logger.debug(f"Indicator '{indicator['name']}' assigned to panel '{panel}'")
-            elif hasattr(indicator, 'name'):
-                panel = indicator.panel if hasattr(indicator, 'panel') and indicator.panel else 'main'
-                logger.debug(f"Indicator '{indicator.name}' assigned to panel '{panel}'")
-        
-        # Calculate date range
-        end_date = date.today() + timedelta(days=1)  # Add 1 day because yfinance treats end date as exclusive
-        start_date = end_date - timedelta(days=days)
-        
-        # Validate interval and days
-        interval_max_days = {
-            "1m": 7,
-            "2m": 60,
-            "5m": 60,
-            "15m": 60,
-            "30m": 60,
-            "1h": 730
-        }
-        
-        if interval in interval_max_days:
-            max_allowed = interval_max_days[interval]
-            if days > max_allowed:
-                logger.warning(f"Requested {days} days for interval {interval}, but max allowed is {max_allowed}")
-                start_date = end_date - timedelta(days=max_allowed)
+        # Calculate and validate date range
+        start_date, end_date = calculate_date_range(days, interval)
         
         # Fetch stock data
         stock_data = fetch_stock_data([ticker], start_date, end_date, interval)
@@ -179,7 +224,7 @@ async def analyze_stock(request: StockAnalysisRequest):
             logger.error(f"No trading data found for {ticker}")
             raise HTTPException(status_code=404, detail=f"No trading data found for {ticker}")
         
-        # Get company name (only once)
+        # Get company name
         company_name = get_company_name(ticker)
         
         # Generate chart using processed indicators
@@ -191,7 +236,7 @@ async def analyze_stock(request: StockAnalysisRequest):
             chart_type=chart_type
         )
         
-        # Convert chart to JSON
+        # Convert chart to JSON and prepare response
         chart_json = fig.to_json()
         
         return JSONResponse(content={"chart": chart_json, "ticker": ticker, "company_name": company_name})
@@ -200,6 +245,7 @@ async def analyze_stock(request: StockAnalysisRequest):
         logger.exception(f"Error analyzing stock data: {str(e)}")
         raise HTTPException(status_code=500, detail="Error processing request")
 
+
 # Simple health check endpoint
 @app.get("/api/health")
 async def health_check():
@@ -207,6 +253,7 @@ async def health_check():
     Health check endpoint to verify the API is running.
     """
     return {"status": "healthy", "service": "stock-analysis-api"}
+
 
 # Global exception handler for unhandled exceptions
 @app.exception_handler(Exception)

@@ -103,42 +103,40 @@ async def analyze_stock(request: StockAnalysisRequest):
         JSON: Plotly figure JSON representation
     """
     try:
-        # Store ticker in a local variable to avoid repeated access to request.ticker
+        # Store repeated request values in local variables
         ticker = request.ticker
-        
-        logger.info(f"Analyzing stock data for {ticker} with {request.interval} interval")
+        interval = request.interval
+        days = request.days
+        chart_type = request.chart_type
+        indicators = request.indicators
+
+        logger.info(f"Analyzing stock data for {ticker} with {interval} interval")
         
         # Pre-process indicators to ensure they're properly structured
         processed_indicators = []
-        for indicator in request.indicators:
+        for indicator in indicators:
             if isinstance(indicator, str):
-                # Convert string indicators to dict format with name
                 logger.debug(f"Converting string indicator '{indicator}' to dict format")
                 processed_indicators.append({"name": indicator})
             elif hasattr(indicator, 'model_dump') and callable(getattr(indicator, 'model_dump')):
-                # Handle Pydantic v2 models
                 try:
                     indicator_dict = indicator.model_dump(exclude_none=True)
                     logger.debug(f"Converted Pydantic v2 model to dict: {indicator_dict}")
                     processed_indicators.append(indicator_dict)
                 except Exception as e:
                     logger.error(f"Error converting Pydantic v2 model: {str(e)}")
-                    # Fallback: convert to dict with just the name
                     if hasattr(indicator, 'name'):
                         processed_indicators.append({"name": indicator.name})
             elif hasattr(indicator, 'dict') and callable(getattr(indicator, 'dict')):
-                # Handle Pydantic v1 models
                 try:
                     indicator_dict = indicator.dict(exclude_none=True)
                     logger.debug(f"Converted Pydantic v1 model to dict: {indicator_dict}")
                     processed_indicators.append(indicator_dict)
                 except Exception as e:
                     logger.error(f"Error converting Pydantic model: {str(e)}")
-                    # Fallback: convert to dict with just the name
                     if hasattr(indicator, 'name'):
                         processed_indicators.append({"name": indicator.name})
             else:
-                # Keep other types as they are (they'll be handled by add_indicator_to_chart)
                 processed_indicators.append(indicator)
         
         # Log indicator configurations with their panel assignments
@@ -152,7 +150,7 @@ async def analyze_stock(request: StockAnalysisRequest):
         
         # Calculate date range
         end_date = date.today() + timedelta(days=1)  # Add 1 day because yfinance treats end date as exclusive
-        start_date = end_date - timedelta(days=request.days)
+        start_date = end_date - timedelta(days=days)
         
         # Validate interval and days
         interval_max_days = {
@@ -162,26 +160,21 @@ async def analyze_stock(request: StockAnalysisRequest):
             "15m": 60,
             "30m": 60,
             "1h": 730
-            # For "1d", "1wk", and "1mo", no maximum day limits are enforced
         }
         
-        if request.interval in interval_max_days:
-            max_allowed = interval_max_days[request.interval]
-            if request.days > max_allowed:
-                logger.warning(f"Requested {request.days} days for interval {request.interval}, but max allowed is {max_allowed}")
+        if interval in interval_max_days:
+            max_allowed = interval_max_days[interval]
+            if days > max_allowed:
+                logger.warning(f"Requested {days} days for interval {interval}, but max allowed is {max_allowed}")
                 start_date = end_date - timedelta(days=max_allowed)
         
         # Fetch stock data
-        tickers = [ticker]
-        stock_data = fetch_stock_data(tickers, start_date, end_date, request.interval)
-        
+        stock_data = fetch_stock_data([ticker], start_date, end_date, interval)
         if not stock_data or ticker not in stock_data:
             logger.error(f"No data found for ticker {ticker}")
             raise HTTPException(status_code=404, detail=f"No data found for ticker {ticker}")
         
-        # Use the stock data directly without filtering
         ticker_data = stock_data[ticker]
-        
         if ticker_data.empty:
             logger.error(f"No trading data found for {ticker}")
             raise HTTPException(status_code=404, detail=f"No trading data found for {ticker}")
@@ -194,11 +187,11 @@ async def analyze_stock(request: StockAnalysisRequest):
             ticker, 
             ticker_data, 
             processed_indicators, 
-            request.interval,
-            chart_type=request.chart_type
+            interval,
+            chart_type=chart_type
         )
         
-        # Convert to JSON
+        # Convert chart to JSON
         chart_json = fig.to_json()
         
         return JSONResponse(content={"chart": chart_json, "ticker": ticker, "company_name": company_name})
@@ -206,7 +199,6 @@ async def analyze_stock(request: StockAnalysisRequest):
     except Exception as e:
         logger.exception(f"Error analyzing stock data: {str(e)}")
         raise HTTPException(status_code=500, detail="Error processing request")
-
 
 # Simple health check endpoint
 @app.get("/api/health")
@@ -216,14 +208,11 @@ async def health_check():
     """
     return {"status": "healthy", "service": "stock-analysis-api"}
 
-# Error handling
+# Global exception handler for unhandled exceptions
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    """
-    Global exception handler for the API.
-    """
     logger.exception(f"Unhandled exception: {str(exc)}")
     return JSONResponse(
         status_code=500,
         content={"detail": f"Internal server error: {str(exc)}"}
-    ) 
+    )

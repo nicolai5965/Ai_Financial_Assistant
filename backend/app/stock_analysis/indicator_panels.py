@@ -311,7 +311,6 @@ def initialize_multi_panel_figure(panel_config: Dict[str, Any], ticker: str) -> 
     
     # Update layout for clean appearance
     fig.update_layout(
-        height=max(300, 200 * num_panels),  # Dynamic height based on panel count
         showlegend=True,
         legend=dict(orientation="h", y=1.02, xanchor="right", x=1),
         margin=dict(l=50, r=50, t=50, b=50)

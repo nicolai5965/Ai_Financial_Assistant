@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import Plotly from 'plotly.js-dist-min'; // Import Plotly for the resize method
 
 // Import logger utility
 const logger = require('../../utils/logger');
@@ -7,15 +8,24 @@ const logger = require('../../utils/logger');
 // Dynamically import Plot with no SSR to avoid server-side rendering issues
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
+// Constants for chart dimensions
+const CHART_HEIGHT = '600px';
+const CHART_WIDTH = '100%';
+
 /**
- * ChartDisplay component for rendering the Plotly chart and managing loading states
- * Handles displaying the chart, loading spinner, and previous chart during loading
- * Now includes full-screen toggle functionality via a modal overlay
- * Adds a banner above the plot with title and fullscreen button
+ * ChartDisplay component for rendering the Plotly chart and managing loading states.
+ * Handles displaying the chart, loading spinner, and previous chart during loading.
+ * Includes full-screen toggle functionality via a modal overlay.
  */
 const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
   // State to track full-screen mode
   const [isFullScreen, setIsFullScreen] = useState(false);
+  // Ref to store debounce timeout for resize handling
+  const resizeTimeoutRef = useRef(null);
+  // Ref to track if the component is mounted
+  const isMountedRef = useRef(true);
+  // Ref to store the Plot's DOM element
+  const plotDivRef = useRef(null);
 
   // Toggle full-screen mode
   const toggleFullScreen = () => {
@@ -23,8 +33,40 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
     setIsFullScreen(newState);
     logger.info(`Chart full-screen mode ${newState ? 'enabled' : 'disabled'}`);
   };
-  
-  // Add event listener for escape key to exit full-screen mode
+
+  // Process chart data to ensure consistent layout settings
+  const processChartData = (data) => {
+    if (!data) return { data: [], layout: {} };
+    try {
+      const parsedData = JSON.parse(data);
+      if (!parsedData.layout) {
+        parsedData.layout = {};
+      }
+      // Enforce autosize and ensure the layout doesn't override our fixed height
+      parsedData.layout.autosize = true;
+      return parsedData;
+    } catch (error) {
+      logger.error("Error processing chart data:", error);
+      return { data: [], layout: {} };
+    }
+  };
+
+  // Handle resize events with debouncing
+  const handleResize = () => {
+    if (!plotDivRef.current) return;
+    if (resizeTimeoutRef.current) {
+      clearTimeout(resizeTimeoutRef.current);
+    }
+    resizeTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current && plotDivRef.current) {
+        // Use Plotly's resize method to recalculate layout
+        Plotly.Plots.resize(plotDivRef.current);
+        logger.debug("Plotly resize triggered");
+      }
+    }, 250);
+  };
+
+  // Set up event listeners for window resize and Escape key
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape' && isFullScreen) {
@@ -32,16 +74,20 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
         logger.info('Chart full-screen mode disabled via Escape key');
       }
     };
-    
     window.addEventListener('keydown', handleKeyDown);
-    
-    // Clean up event listener on component unmount
+    window.addEventListener('resize', handleResize);
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleResize);
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
     };
   }, [isFullScreen]);
 
-  // Extract chart title from chartData if available
+  // Extract chart title from chartData
   const getChartTitle = () => {
     if (!chartData) return "Chart";
     try {
@@ -53,6 +99,19 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
     }
   };
 
+  // Process the chart data for both current and previous charts
+  const processedChartData = chartData ? processChartData(chartData) : { data: [], layout: {} };
+  const processedPrevChartData = prevChartData ? processChartData(prevChartData) : { data: [], layout: {} };
+
+  // Plotly configuration options
+  const plotlyConfig = {
+    responsive: true,
+    displayModeBar: false,
+    modeBarButtonsToAdd: ['toImage'],
+    modeBarButtonsToRemove: ['sendDataToCloud'],
+    displaylogo: false,
+  };
+
   return (
     <div className="chart-display">
       {isLoading && !prevChartData && <p>Loading chart...</p>}
@@ -61,10 +120,12 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
       {isLoading && prevChartData && (
         <div className="loading-overlay">
           <Plot 
-            data={prevChartData ? JSON.parse(prevChartData).data || [] : []}
-            layout={prevChartData ? JSON.parse(prevChartData).layout || {} : {}}
-            style={{ width: "100%", height: "600px" }}
+            data={processedPrevChartData.data}
+            layout={processedPrevChartData.layout}
+            style={{ width: CHART_WIDTH, height: CHART_HEIGHT }}
             useResizeHandler={true}
+            config={plotlyConfig}
+            ref={plotDivRef}
           />
           <div className="loading-spinner">
             Loading...
@@ -72,7 +133,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
         </div>
       )}
       
-      {/* Chart banner and regular chart view */}
+      {/* Regular chart view with banner */}
       {!isLoading && chartData && !isFullScreen && (
         <>
           <div className="chart-banner">
@@ -86,22 +147,23 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
             </button>
           </div>
           <Plot 
-            data={chartData ? JSON.parse(chartData).data || [] : []}
-            layout={chartData ? JSON.parse(chartData).layout || {} : {}}
-            style={{ width: "100%", height: "600px" }}
+            data={processedChartData.data}
+            layout={processedChartData.layout}
+            style={{ width: CHART_WIDTH, height: CHART_HEIGHT }}
             useResizeHandler={true}
-            config={{
-              responsive: true,
-              displayModeBar: false, // Show mode bar on hover in regular view
-              modeBarButtonsToAdd: ['toImage'],
-              modeBarButtonsToRemove: ['sendDataToCloud'],
-              displaylogo: false, // Hide the plotly logo
+            config={plotlyConfig}
+            ref={plotDivRef}
+            onRelayout={(layout) => {
+              // If height is altered by a user action, trigger a resize to enforce our fixed height
+              if (layout.height && layout.height !== parseInt(CHART_HEIGHT)) {
+                Plotly.Plots.resize(plotDivRef.current);
+              }
             }}
           />
         </>
       )}
       
-      {/* Full-screen modal */}
+      {/* Full-screen modal view */}
       {isFullScreen && chartData && (
         <div className="full-screen-modal">
           <div className="full-screen-content">
@@ -116,17 +178,12 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
               </button>
             </div>
             <Plot 
-              data={chartData ? JSON.parse(chartData).data || [] : []}
-              layout={chartData ? JSON.parse(chartData).layout || {} : {}}
+              data={processedChartData.data}
+              layout={processedChartData.layout}
               style={{ width: "100%", height: "calc(100% - 50px)" }}
               useResizeHandler={true}
-              config={{
-                responsive: true,
-                displayModeBar: false, // Always show the mode bar in full-screen
-                modeBarButtonsToAdd: ['toImage'],
-                modeBarButtonsToRemove: ['sendDataToCloud'],
-                displaylogo: false, // Hide the plotly logo
-              }}
+              config={plotlyConfig}
+              ref={plotDivRef}
             />
             <div className="keyboard-hint">
               Press ESC to exit full-screen
@@ -221,7 +278,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
           position: relative;
           width: 95%;
           height: 90%;
-          background-color: #1B1610; /* Shadow Black to match app's theme */
+          background-color: #1B1610;
           border-radius: 8px;
           overflow: hidden;
           display: flex;
@@ -244,4 +301,4 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
   );
 };
 
-export default ChartDisplay; 
+export default ChartDisplay;

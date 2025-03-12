@@ -8,6 +8,11 @@ from ..core.logging_config import get_logger
 
 logger = get_logger()
 
+# Constants for common chart configuration
+# Define constants to avoid redundant definitions
+WEEKEND_RANGEBREAK = dict(bounds=["sat", "mon"])
+NON_INTRADAY_INTERVALS = ["1d", "1mo", "1wk"]
+
 def build_candlestick_chart(ticker, data):
     """
     Build a basic candlestick chart for the given ticker.
@@ -86,14 +91,12 @@ def apply_rangebreaks(fig, ticker, data, interval, row=1):
     Logging:
         Logs the application of rangebreaks.
     """
-    # Define weekend rangebreak configuration for reuse
-    weekend_rangebreak = dict(bounds=["sat", "mon"])
-    
+    # Use global constant for weekend rangebreak
     # For daily, weekly, or monthly data, we don't need to remove intraday gaps
-    if interval in ["1d", "1mo", "1wk"]:
+    if interval in NON_INTRADAY_INTERVALS:
         # But we still want to remove weekend gaps
         fig.update_xaxes(
-            rangebreaks=[weekend_rangebreak],  # Remove weekends
+            rangebreaks=[WEEKEND_RANGEBREAK],  # Remove weekends
             row=row,
             col=1
         )
@@ -113,7 +116,7 @@ def apply_rangebreaks(fig, ticker, data, interval, row=1):
             # Apply both weekend and after-hours rangebreaks
             fig.update_xaxes(
                 rangebreaks=[
-                    weekend_rangebreak,  # Remove weekends
+                    WEEKEND_RANGEBREAK,  # Remove weekends
                     dict(bounds=[close_numeric, open_numeric], pattern="hour")  # Remove after-hours gap
                 ],
                 row=row,
@@ -124,7 +127,7 @@ def apply_rangebreaks(fig, ticker, data, interval, row=1):
         else:
             # Fallback to just removing weekends if we can't determine market hours
             fig.update_xaxes(
-                rangebreaks=[weekend_rangebreak],  # Remove weekends
+                rangebreaks=[WEEKEND_RANGEBREAK],  # Remove weekends
                 row=row,
                 col=1
             )
@@ -252,6 +255,7 @@ def analyze_ticker_single_panel(ticker, data, indicators, interval, chart_type="
     fig = add_selected_indicators(fig, data, ticker, indicators)
     
     # Update layout: hide the range slider and add a title
+    # Do all layout updates in a single call to avoid multiple re-renders
     fig.update_layout(
         xaxis_rangeslider_visible=False, 
         title=f"{chart_type.capitalize()} Chart for {ticker}"
@@ -274,7 +278,10 @@ def add_price_chart_to_panel(fig, data, chart_type, row, col=1):
     Returns:
         None: The figure is modified in-place.
     """
-    if chart_type.lower() == "line":
+    # Cache lowercased chart type to avoid repeated calls
+    chart_type_lower = chart_type.lower()
+    
+    if chart_type_lower == "line":
         fig.add_trace(
             go.Scatter(
                 x=data.index,
@@ -354,9 +361,17 @@ def analyze_ticker_multi_panel(ticker, data, indicators, interval, chart_type="c
             # Add the indicator to the appropriate panel
             add_indicator_to_chart(fig, data, indicator, ticker, panel_idx=panel_idx)
     
-    # Apply rangebreaks to all panels
+    # Apply rangebreaks to all panels in a single batch to minimize layout recalculations
+    # This prevents multiple re-renders of the chart which can cause flickering
     for i, panel_name in enumerate(panel_names):
         fig = apply_rangebreaks(fig, ticker, data, interval, row=i+1)
+    
+    # Set final layout properties in a single update to prevent multiple re-renders
+    # ADDED: Set a consistent UI (avoids layout calculation conflicts with frontend)
+    fig.update_layout(
+        title=f"{chart_type.capitalize()} Chart for {ticker}",
+        uirevision=f"{ticker}-{len(indicators)}"  # Maintain consistent state across updates
+    )
         
     logger.info("Analysis complete for %s (multi-panel).", ticker)
     return fig

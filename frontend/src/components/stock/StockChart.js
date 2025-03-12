@@ -45,11 +45,19 @@ const DEFAULT_CONFIG = {
   chartType: 'candlestick'
 };
 
+// Generate a simple unique ID for component instance tracking
+const generateInstanceId = () => {
+  return 'chart-' + Math.random().toString(36).substring(2, 9);
+}
+
 /**
  * StockChart component for displaying stock charts with technical indicators.
  * Acts as the main container orchestrating the form, indicator panel, and chart display.
  */
 const StockChart = () => {
+  // Create a unique instance ID for this component
+  const instanceId = useRef(generateInstanceId());
+  
   // State for form controls
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +80,7 @@ const StockChart = () => {
   
   // Load initial chart on component mount
   useEffect(() => {
-    logger.debug('StockChart component mounted, loading initial chart');
+    logger.debug(`StockChart component mounted (instance: ${instanceId.current}), loading initial chart`);
     loadChart(DEFAULT_CONFIG);
   }, []);
   
@@ -90,6 +98,13 @@ const StockChart = () => {
     // Clean up timeout
     return () => clearTimeout(handler);
   }, [config]); // Re-run when config changes
+  
+  // Log when component unmounts
+  useEffect(() => {
+    return () => {
+      logger.debug(`StockChart component unmounting (instance: ${instanceId.current})`);
+    };
+  }, []);
   
   // Handle input changes
   const handleInputChange = (e) => {
@@ -209,7 +224,7 @@ const StockChart = () => {
     }
     
     try {
-      logger.info(`Loading chart for ${chartConfig.ticker} with ${chartConfig.indicators.length} indicators`);
+      logger.info(`Loading chart for ${chartConfig.ticker} with ${chartConfig.indicators.length} indicators (instance: ${instanceId.current})`);
       
       // Apply the latest indicator configurations and panel assignments before sending
       const configToSend = {
@@ -245,11 +260,11 @@ const StockChart = () => {
         })
       };
       
-      logger.debug('Sending chart configuration:', configToSend);
+      logger.debug(`Sending chart configuration (instance: ${instanceId.current}):`, configToSend);
       
       const data = await fetchStockChart(configToSend);
       setChartData(data);
-      logger.info('Chart data loaded successfully');
+      logger.info(`Chart data loaded successfully (instance: ${instanceId.current})`);
     } catch (err) {
       // Extract the most helpful error message
       let errorMessage = err.message || 'Unknown error';
@@ -271,7 +286,7 @@ const StockChart = () => {
       }
       
       setError(errorMessage);
-      logger.error(`Failed to load chart: ${errorMessage}`);
+      logger.error(`Failed to load chart (instance: ${instanceId.current}): ${errorMessage}`);
       
       // Set chartData to null to prevent displaying incorrect chart
       setChartData(null);

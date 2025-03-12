@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 const logger = require('../../utils/logger');
 import { checkApiHealth } from '../../services/api/stock';
+
+// Generate a simple unique ID for component instance tracking
+const generateInstanceId = () => {
+  return 'page-' + Math.random().toString(36).substring(2, 9);
+}
 
 // Dynamically import the StockChart component
 const StockChart = dynamic(() => import('../../components/stock/StockChart'), {
@@ -10,17 +15,29 @@ const StockChart = dynamic(() => import('../../components/stock/StockChart'), {
 });
 
 const StocksPage = () => {
+  // Create a unique instance ID for this page component
+  const instanceId = useRef(generateInstanceId());
+  
   const [apiStatus, setApiStatus] = useState({
     checked: false,
     healthy: false,
     message: 'Checking API status...'
   });
 
+  // Log when page component mounts
+  useEffect(() => {
+    logger.debug(`StocksPage component mounted (instance: ${instanceId.current})`);
+    
+    return () => {
+      logger.debug(`StocksPage component unmounting (instance: ${instanceId.current})`);
+    };
+  }, []);
+
   // Check API status on component mount
   useEffect(() => {
     const checkAPI = async () => {
       try {
-        logger.info('Checking API health');
+        logger.info(`Checking API health (instance: ${instanceId.current})`);
         
         // Perform the health check with error handling
         let isHealthy = false;
@@ -28,7 +45,7 @@ const StocksPage = () => {
         try {
           isHealthy = await checkApiHealth();
         } catch (healthError) {
-          logger.error(`Error during health check: ${healthError?.message || 'Unknown error'}`);
+          logger.error(`Error during health check (instance: ${instanceId.current}): ${healthError?.message || 'Unknown error'}`);
           isHealthy = false;
         }
         
@@ -40,10 +57,10 @@ const StocksPage = () => {
             : 'API connection failed. Please ensure the backend server is running.'
         });
         
-        logger.info(`API health check complete. Status: ${isHealthy ? 'healthy' : 'unhealthy'}`);
+        logger.info(`API health check complete (instance: ${instanceId.current}). Status: ${isHealthy ? 'healthy' : 'unhealthy'}`);
       } catch (error) {
         const errorMessage = error?.message || 'Unknown error occurred';
-        logger.error(`API health check error: ${errorMessage}`);
+        logger.error(`API health check error (instance: ${instanceId.current}): ${errorMessage}`);
         
         setApiStatus({
           checked: true,

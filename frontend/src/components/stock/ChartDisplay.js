@@ -79,7 +79,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
           useResizeHandler={true}
           config={{
             responsive: true,
-            displayModeBar: 'hover', // Show mode bar on hover in regular view
+            displayModeBar: false, // Show mode bar on hover in regular view
             modeBarButtonsToAdd: ['toImage'],
             modeBarButtonsToRemove: ['sendDataToCloud'],
             displaylogo: false, // Hide the plotly logo
@@ -98,7 +98,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
               useResizeHandler={true}
               config={{
                 responsive: true,
-                displayModeBar: true, // Always show the mode bar in full-screen
+                displayModeBar: false, // Always show the mode bar in full-screen
                 modeBarButtonsToAdd: ['toImage'],
                 modeBarButtonsToRemove: ['sendDataToCloud'],
                 displaylogo: false, // Hide the plotly logo

@@ -356,12 +356,7 @@ def analyze_ticker_multi_panel(ticker, data, indicators, interval, chart_type="c
     # Apply rangebreaks to all panels
     for i, panel_name in enumerate(panel_names):
         fig = apply_rangebreaks(fig, ticker, data, interval, row=i+1)
-    
-    # Update layout
-    fig.update_layout(
-        title=f"Technical Analysis for {ticker}"
-    )
-    
+        
     logger.info("Analysis complete for %s (multi-panel).", ticker)
     return fig
 

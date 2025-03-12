@@ -6,6 +6,11 @@ const logger = require('../../utils/logger');
 // Default API URL - adjust this based on your environment
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Generate a simple unique ID for request tracking
+const generateRequestId = () => {
+  return 'req-' + Math.random().toString(36).substring(2, 9);
+}
+
 /**
  * Fetch stock data and generate a chart based on provided parameters.
  * 
@@ -20,9 +25,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
  */
 export async function fetchStockChart(config) {
   const { ticker, days = 10, interval = '1d', indicators = [], chartType = 'candlestick' } = config;
+  const requestId = generateRequestId(); // Generate unique ID for this request
   
   try {
-    logger.info(`Fetching stock chart for ${ticker} with ${indicators.length} indicators`);
+    logger.info(`Fetching stock chart for ${ticker} with ${indicators.length} indicators (request: ${requestId})`);
     
     // Format the request body to convert indicator objects to the format expected by the backend
     const formattedIndicators = indicators.map(ind => {
@@ -65,7 +71,7 @@ export async function fetchStockChart(config) {
       }
     });
     
-    logger.debug('Formatted indicators for API request:', formattedIndicators);
+    logger.debug(`Formatted indicators for API request (request: ${requestId}):`, formattedIndicators);
     
     const response = await fetch(`${API_URL}/api/stocks/analyze`, {
       method: 'POST',
@@ -97,7 +103,7 @@ export async function fetchStockChart(config) {
         }
       } catch (jsonError) {
         // If parsing JSON fails, use the default error message
-        logger.error(`Error parsing error response: ${jsonError.message}`);
+        logger.error(`Error parsing error response (request: ${requestId}): ${jsonError.message}`);
         
         // Special case for 404 ticker errors if JSON parsing failed
         if (response.status === 404) {
@@ -105,17 +111,17 @@ export async function fetchStockChart(config) {
         }
       }
       
-      logger.error(`Error fetching stock data: ${errorMessage}`);
+      logger.error(`Error fetching stock data (request: ${requestId}): ${errorMessage}`);
       throw new Error(errorMessage);
     }
 
     const data = await response.json();
-    logger.info(`Successfully fetched stock chart for ${ticker}`);
+    logger.info(`Successfully fetched stock chart for ${ticker} (request: ${requestId})`);
     return data;
   } catch (error) {
     // Safer error logging
     const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
-    logger.error(`Failed to fetch stock chart: ${errorMessage}`);
+    logger.error(`Failed to fetch stock chart (request: ${requestId}): ${errorMessage}`);
     throw error;
   }
 }

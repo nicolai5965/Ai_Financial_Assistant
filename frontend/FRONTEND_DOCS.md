@@ -18,10 +18,11 @@ frontend/
 │   │   ├── stock/        # Stock analysis-specific components
 │   │   │   ├── StockChart.js           # Main container for stock chart functionality
 │   │   │   ├── ChartConfigurationForm.js # Form for ticker, timeframe, and indicator selection
-│   │   │   ├── IndicatorConfigurationPanel.js # Panel for indicator parameter configuration
 │   │   │   ├── ChartDisplay.js         # Component for rendering Plotly charts
 │   │   │   ├── ErrorMessage.js         # Component for displaying error messages
+│   │   │   ├── IndicatorConfigurationPanel.js # Panel for indicator parameter configuration
 │   │   │   └── LoadingOverlay.js       # Component for displaying loading states
+│   │   │   └── StockSettingsSidebar.js   # Component for stock settings sidebar
 │   │   └── reports/      # Report-specific components
 │   ├── pages/            # Next.js pages (each file becomes a route)
 │   │   ├── api/          # API routes for backend communication
@@ -538,6 +539,32 @@ The Stock Analysis feature provides interactive stock charts with customizable t
   - **Auto-refreshes when indicators are added/removed**
   - **Clear button labels indicating purpose (e.g., "Update Ticker/Time Period")**
   - **Updated UI feedback for all user interactions**
+- **Full-screen Mode**:
+  - Toggle button in the chart interface for expanding to full-screen view
+  - Escape key support for exiting full-screen mode
+  - Modal overlay that preserves all chart interactions
+  - On-screen hint for keyboard shortcuts
+
+### 8. Development Mode Behavior
+- **React StrictMode Effects**:
+  - The application uses React StrictMode in development (configured in `next.config.js` with `reactStrictMode: true`)
+  - This causes components to mount, unmount, and remount during development (but not in production)
+  - Results in duplicate lifecycle method calls, useEffect triggers, and API requests
+  - You will see duplicate logs and API calls in the browser console during development
+  - This is **intentional behavior** designed to catch potential bugs and side effects
+  - Example logs with instance tracking:
+    ```
+    StockChart component mounted (instance: chart-xxx)
+    Loading chart for NVDA with 0 indicators (instance: chart-xxx)
+    StockChart component unmounting (instance: chart-xxx)
+    StockChart component mounted (instance: chart-xxx)  // Same instance remounting
+    Loading chart for NVDA with 0 indicators (instance: chart-xxx)
+    ```
+  - **Production Behavior**: In production builds, this double-mounting doesn't occur, and API calls are made only once
+  - **Benefits**: Helps identify impure rendering logic, unsafe lifecycle methods, and deprecated API usage
+  - This behavior is kept intentionally to maintain development quality standards
+
+## User Interface Components
 
 ## Logging and Error Handling
 

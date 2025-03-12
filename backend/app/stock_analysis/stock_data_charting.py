@@ -258,7 +258,8 @@ def analyze_ticker_single_panel(ticker, data, indicators, interval, chart_type="
     # Do all layout updates in a single call to avoid multiple re-renders
     fig.update_layout(
         xaxis_rangeslider_visible=False, 
-        title=f"{chart_type.capitalize()} Chart for {ticker}"
+        title=f"{chart_type.capitalize()} Chart for {ticker}",
+        
     )
     
     logger.info("Analysis complete for %s (single panel).", ticker)

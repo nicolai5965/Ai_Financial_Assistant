@@ -318,6 +318,11 @@ if __name__ == "__main__":
   - Applies appropriate styling and configuration to each panel
   - **Includes robust error handling and fallbacks for edge cases**
   - **Enhanced logging for easier debugging of chart generation issues**
+  - **Uses global constants for common chart elements to avoid redundant definitions**
+  - **Batches rangebreak application to minimize layout recalculations and reduce flickering**
+  - **Implements uirevision parameter for consistent state preservation across updates**
+  - **Consolidates layout updates to avoid multiple re-renders**
+  - **Caches lowercased chart type to avoid repeated function calls**
 
 ### 12. `app/stock_analysis/indicator_panels.py`
 - **Purpose**: This file provides a system for organizing technical indicators into logical panel groups.
@@ -338,6 +343,8 @@ if __name__ == "__main__":
   - **Provides comprehensive error handling for invalid panel configurations**
   - **Fallback mechanisms to prevent subplot errors with empty indicator lists**
   - **Detailed logging of panel creation and configuration process**
+  - **Removes dynamic height calculation to let frontend control chart height**
+  - **Preserves relative height ratios between panels while allowing frontend to set absolute height**
 
 ### 13. `app/stock_analysis/stock_analysis.py` (Deprecated)
 - **Purpose**: Legacy file maintained for backward compatibility only.
@@ -568,3 +575,32 @@ The stock analysis endpoint accepts the following parameters:
   "chart_type": "candlestick" // Chart type: "candlestick" or "line" (optional, default: "candlestick")
 }
 ```
+
+|--------------------------------|
+|     Chart Rendering System     |
+|--------------------------------|
+
+### 1. Chart Height Control
+- **Purpose**: Ensures consistent chart heights for multi-panel Plotly charts.
+- **Implementation**:
+  - **Frontend-controlled Height**: Chart height is controlled by the frontend component, not the backend
+  - **Removed Dynamic Backend Sizing**: The backend no longer sets chart height based on panel count (`height=max(300, 200 * num_panels)`)
+  - **Panel Height Ratios**: While backend doesn't set absolute heights, it still maintains relative height ratios between panels
+  - **Single Source of Truth**: Chart height is defined as a constant in the frontend, ensuring consistency
+
+### 2. Optimized Layout Updates
+- **Purpose**: Minimizes redundant layout recalculations to prevent chart flickering and height inconsistencies.
+- **Implementation**:
+  - **Batched Rangebreak Application**: Applies all panel rangebreaks in a single batch to reduce layout recalculations
+  - **Consolidated Layout Updates**: Uses a single `update_layout` call rather than multiple separate calls
+  - **Cached Values**: Uses module-level constants (like `WEEKEND_RANGEBREAK` and `NON_INTRADAY_INTERVALS`) for frequently used values
+  - **State Preservation**: Implements `uirevision` parameter to maintain consistent state across updates
+  - **Optimized Variable Usage**: Caches lowercased values and other frequently accessed properties
+
+### 3. Improved Error Handling
+- **Purpose**: Provides graceful degradation and fallback mechanisms for chart rendering.
+- **Implementation**:
+  - **Subplot Creation Fallbacks**: Includes fallback to single panel if subplot creation fails
+  - **Panel Configuration Safety Checks**: Ensures at least one panel exists, even if no indicators are provided
+  - **Detailed Logging**: Adds comprehensive logging to track chart creation process and identify issues
+  - **Error Recovery**: Returns empty figures with appropriate logging rather than crashing when errors occur

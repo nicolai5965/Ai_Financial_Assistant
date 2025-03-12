@@ -221,6 +221,8 @@ frontend/
         - Handles loading states
         - Shows previous chart while loading new data
         - Responsive design that adjusts to container size
+        - Implements full-screen viewing mode
+        - Ensures consistent fixed chart height of 600px
       - **Props**:
         ```typescript
         interface ChartDisplayProps {
@@ -229,6 +231,15 @@ frontend/
           prevChartData: string;       // Previous chart data for smooth transitions
         }
         ```
+      - **Optimization Features**:
+        - **Fixed Height Enforcement**: Uses constants for chart dimensions (600px height) to maintain consistent size
+        - **Chart Processing**: Pre-processes chart data to ensure proper layout configuration
+        - **Direct DOM Manipulation**: Accesses the Plotly DOM element directly via ref for efficient resize operations
+        - **Debounced Resize Handler**: Implements a 250ms debounce on window resize events to prevent excessive rendering
+        - **Plotly.Plots.resize Method**: Uses the native Plotly resize method instead of the React wrapper's resizeHandler
+        - **Mounted State Tracking**: Maintains a reference to mounted state to prevent operations on unmounted components
+        - **Layout Preservation**: Preserves layout during manual user zoom operations to ensure consistent display
+        - **Cleanup on Unmount**: Properly removes event listeners and clears timeouts when the component unmounts
     - `ErrorMessage.js`:
       - **Purpose**: Reusable component for displaying error messages
       - **Location**: `frontend/src/components/stock/ErrorMessage.js`
@@ -307,6 +318,48 @@ frontend/
       - Consistent logging patterns across the application
       - Easy to enable/disable logs based on environment
       - Centralized control over logging behavior
+
+## Chart Rendering System Optimizations
+
+The chart rendering system has been optimized to address several issues related to chart flickering, inconsistent heights, and performance issues. Key optimizations include:
+
+### 1. Fixed Chart Height Implementation
+- **Purpose**: Ensures consistent chart height across all chart displays and during updates
+- **Location**: `frontend/src/components/stock/ChartDisplay.js`
+- **Key Features**:
+  - **Constants for Dimensions**: Defines `CHART_HEIGHT` and `CHART_WIDTH` at the module level as a single source of truth
+  - **Style Enforcement**: Applies fixed height of 600px to all chart instances
+  - **Layout Processing**: Pre-processes chart data to ensure consistent height settings
+
+### 2. Debounced Resize Handling
+- **Purpose**: Prevents excessive re-renders during window resize events
+- **Implementation**:
+  - **Timeout Management**: Uses `setTimeout` and `clearTimeout` for debouncing with a 250ms delay
+  - **Ref for DOM Element**: Maintains a reference to the Plotly DOM element via `plotDivRef`
+  - **Direct Plotly Resize**: Uses `Plotly.Plots.resize(plotDivRef.current)` to force Plotly to recalculate layout
+  - **Mount State Tracking**: Uses a ref to track component mount state to prevent operations on unmounted components
+
+### 3. Optimized Chart Data Processing
+- **Purpose**: Ensures chart data is properly formatted for consistent display
+- **Implementation**:
+  - **processChartData Function**: Pre-processes chart data to ensure proper layout settings
+  - **Layout Normalization**: Ensures layout object exists and has appropriate configuration
+  - **Autosize Enforcement**: Sets `autosize: true` to ensure proper responsiveness
+
+### 4. Full-Screen Mode Implementation
+- **Purpose**: Provides an immersive chart viewing experience
+- **Key Features**:
+  - **Toggle Function**: Switches between normal and full-screen modes
+  - **Modal Overlay**: Creates a full-screen modal for enlarged chart display
+  - **Keyboard Shortcut**: Supports ESC key to exit full-screen mode
+  - **Style Preservation**: Maintains consistent styling in both modes
+
+### 5. Clean Event Handling
+- **Purpose**: Prevents memory leaks and ensures proper cleanup
+- **Implementation**:
+  - **Effect Cleanup**: Properly removes event listeners in useEffect cleanup function
+  - **Timeout Clearing**: Clears any pending debounce timeouts on component unmount
+  - **Mount State Management**: Tracks component mounted state to prevent operations on unmounted components
 
 ## Scripts and Commands
 

@@ -114,55 +114,50 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
 
   return (
     <div className="chart-display">
-      {isLoading && !prevChartData && <p>Loading chart...</p>}
-      
-      {/* Show previous chart while loading */}
-      {isLoading && prevChartData && (
-        <div className="loading-overlay">
-          <Plot 
-            data={processedPrevChartData.data}
-            layout={processedPrevChartData.layout}
-            style={{ width: CHART_WIDTH, height: CHART_HEIGHT }}
-            useResizeHandler={true}
-            config={plotlyConfig}
-            ref={plotDivRef}
-          />
-          <div className="loading-spinner">
-            Loading...
-          </div>
+      {/* Chart Banner for regular view (non-fullscreen) */}
+      {!isFullScreen && chartData && (
+        <div className="chart-banner">
+          <h3 className="chart-title">{getChartTitle()}</h3>
+          <button 
+            onClick={toggleFullScreen} 
+            className="full-screen-toggle"
+            title="Toggle full-screen mode"
+          >
+            Full Screen
+          </button>
         </div>
       )}
-      
-      {/* Regular chart view with banner */}
-      {!isLoading && chartData && !isFullScreen && (
-        <>
-          <div className="chart-banner">
-            <h3 className="chart-title">{getChartTitle()}</h3>
-            <button 
-              onClick={toggleFullScreen} 
-              className="full-screen-toggle"
-              title="Toggle full-screen mode"
-            >
-              Full Screen
-            </button>
+
+      {/* Regular chart view (non-fullscreen) */}
+      {!isFullScreen && chartData && (
+        <div style={{ position: 'relative' }}>
+          <div ref={plotDivRef} style={{ width: CHART_WIDTH, height: CHART_HEIGHT }}>
+            <Plot 
+              data={processedChartData.data}
+              layout={processedChartData.layout}
+              style={{ width: "100%", height: "100%" }}
+              useResizeHandler={true}
+              config={plotlyConfig}
+              onRelayout={(layout) => {
+                // If height is altered by a user action, trigger a resize to enforce our fixed height
+                if (layout.height && layout.height !== parseInt(CHART_HEIGHT)) {
+                  Plotly.Plots.resize(plotDivRef.current);
+                }
+              }}
+            />
           </div>
-          <Plot 
-            data={processedChartData.data}
-            layout={processedChartData.layout}
-            style={{ width: CHART_WIDTH, height: CHART_HEIGHT }}
-            useResizeHandler={true}
-            config={plotlyConfig}
-            ref={plotDivRef}
-            onRelayout={(layout) => {
-              // If height is altered by a user action, trigger a resize to enforce our fixed height
-              if (layout.height && layout.height !== parseInt(CHART_HEIGHT)) {
-                Plotly.Plots.resize(plotDivRef.current);
-              }
-            }}
-          />
-        </>
+          {/* Loading overlay if loading with previous chart data */}
+          {isLoading && prevChartData && (
+            <div className="loading-overlay">
+              <div className="loading-spinner">Loading...</div>
+            </div>
+          )}
+        </div>
       )}
-      
+
+      {/* Loading state when there is no previous data */}
+      {isLoading && !prevChartData && <p>Loading chart...</p>}
+
       {/* Full-screen modal view */}
       {isFullScreen && chartData && (
         <div className="full-screen-modal">
@@ -177,14 +172,15 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
                 Exit Full Screen
               </button>
             </div>
-            <Plot 
-              data={processedChartData.data}
-              layout={processedChartData.layout}
-              style={{ width: "100%", height: "calc(100% - 50px)" }}
-              useResizeHandler={true}
-              config={plotlyConfig}
-              ref={plotDivRef}
-            />
+            <div ref={plotDivRef} style={{ width: "100%", height: "calc(100% - 50px)" }}>
+              <Plot 
+                data={processedChartData.data}
+                layout={processedChartData.layout}
+                style={{ width: "100%", height: "100%" }}
+                useResizeHandler={true}
+                config={plotlyConfig}
+              />
+            </div>
             <div className="keyboard-hint">
               Press ESC to exit full-screen
             </div>
@@ -200,18 +196,22 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
         }
         
         .loading-overlay {
-          position: relative;
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 10;
         }
         
         .loading-spinner {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
           background-color: rgba(0, 0, 0, 0.7);
           padding: 15px 30px;
           border-radius: 4px;
-          z-index: 10;
+          color: #fff;
         }
         
         /* Chart banner styles */

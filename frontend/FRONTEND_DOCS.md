@@ -270,18 +270,26 @@ frontend/
         - **Layout Preservation**: Preserves layout during manual user zoom operations to ensure consistent display
         - **Cleanup on Unmount**: Properly removes event listeners and clears timeouts when the component unmounts
     - `ErrorMessage.js`:
-      - **Purpose**: Reusable component for displaying error messages
+      - **Purpose**: Reusable component for displaying error messages in a consistent style
       - **Location**: `frontend/src/components/stock/ErrorMessage.js`
       - **Key Features**:
         - Displays error messages in a consistent style
         - Only renders when a message is provided
+        - Special handling for ticker-related errors with additional suggestions
+        - Customized styling based on error type
         - Red left border for clear error indication
+        - Consistent color scheme using extracted constants
       - **Props**:
         ```typescript
         interface ErrorMessageProps {
           message: string;  // Error message to display
         }
         ```
+      - **Implementation Details**:
+        - Detects ticker-related errors using string pattern matching
+        - Conditionally renders helpful suggestions for ticker errors
+        - Uses styled-jsx for component-scoped styles
+        - Follows DRY principles with extracted CSS constants
     - `LoadingOverlay.js`:
       - **Purpose**: Reusable component for displaying loading states
       - **Location**: `frontend/src/components/stock/LoadingOverlay.js`
@@ -289,6 +297,9 @@ frontend/
         - Displays a loading overlay with customizable message
         - Can wrap any content
         - Only displays when loading state is active
+        - Uses extracted styling constants for consistent theming
+        - Comprehensive JSDoc documentation with detailed descriptions
+        - Clear, readable CSS with explanatory comments
       - **Props**:
         ```typescript
         interface LoadingOverlayProps {
@@ -297,6 +308,58 @@ frontend/
           message?: string;            // Optional custom loading message
         }
         ```
+      - **Implementation Details**:
+        - Uses a relative container with an absolutely positioned overlay
+        - Leverages styled-jsx for component-scoped styling
+        - Follows DRY principles with extracted styling constants
+        - Maintains clean, organized code with proper documentation
+    - `StockSettingsSidebar.js`:
+      - **Purpose**: Provides a toggleable sidebar for configuring chart settings and technical indicators
+      - **Location**: `frontend/src/components/stock/StockSettingsSidebar.js`
+      - **Key Features**:
+        - Toggleable sidebar for adjusting chart settings without leaving the main view
+        - Form inputs for days of history, interval, and chart type
+        - Categorized technical indicator selection organized by panel type
+        - Parameter configuration for selected indicators
+        - Panel assignment controls to determine where each indicator appears
+        - Responsive design that works well on various screen sizes
+      - **Props**:
+        ```typescript
+        interface StockSettingsSidebarProps {
+          isOpen: boolean;             // Whether the sidebar is open
+          toggleSidebar: () => void;   // Function to toggle sidebar state
+          config: object;              // Current chart configuration
+          onInputChange: (e) => void;  // Handler for input changes
+          onIndicatorChange: (e) => void; // Handler for indicator selection
+          onSubmit: (e) => void;       // Handler for form submission
+          isLoading: boolean;          // Whether a chart update is in progress
+          indicatorConfigs: object;    // Configuration for each indicator
+          panelAssignments: object;    // Panel assignments for indicators
+          onParamChange: (name, param, value) => void; // Handler for parameter changes
+          onPanelChange: (name, panel) => void; // Handler for panel assignment changes
+        }
+        ```
+      - **Implementation Details**:
+        - **Modular Design**: 
+          - Breaks down UI rendering into helper functions for better maintainability
+          - Implements `renderFormGroup`, `renderIndicatorGroup`, and `renderParameterConfig` helper functions
+          - Extracts utility functions like `isIndicatorConfigured` and `getIndicatorName` to improve readability
+        - **Styling Constants**:
+          - Defines a comprehensive set of styling constants at the top of the file
+          - Uses constants for consistent styling across the component
+          - Implements variables for sizes, colors, and spacing for easy theming
+        - **Comprehensive JSDoc Documentation**:
+          - Detailed component description with proper JSDoc format
+          - Full documentation of all parameters, props, and helper functions
+          - Clear explanations of function purposes and return values
+        - **Event Handling**:
+          - Proper event handlers with appropriate debugging logs
+          - Consistent naming conventions for all handler functions
+          - Clear separation of event handlers and rendering logic
+        - **Clean, Maintainable Code**:
+          - Well-organized structure with logical grouping of related functions
+          - Follows DRY principles throughout the component
+          - Uses consistent naming conventions and formatting
   - `common/`: Shared components used across multiple features
   - `reports/`: Components specific to the financial reporting functionality
 

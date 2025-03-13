@@ -1,6 +1,9 @@
 import React from 'react';
 
-// Define default parameters for each indicator type
+/**
+ * Default parameters for each technical indicator type.
+ * These values are used when no configuration has been set by the user.
+ */
 const DEFAULT_INDICATOR_PARAMS = {
   'SMA': { window: 20 },
   'EMA': { window: 20 },
@@ -13,7 +16,10 @@ const DEFAULT_INDICATOR_PARAMS = {
   // VWAP and OBV don't have configurable parameters
 };
 
-// Input field type mapping for each parameter
+/**
+ * Input field type mapping and constraints for each parameter.
+ * Defines the input types, minimum/maximum values, and step size for numeric inputs.
+ */
 const PARAM_INPUT_TYPES = {
   window: { type: 'number', min: 2, max: 200, step: 1 },
   std_dev: { type: 'number', min: 1, max: 4, step: 0.5 },
@@ -27,7 +33,10 @@ const PARAM_INPUT_TYPES = {
   lagging_span_b_period: { type: 'number', min: 2, max: 200, step: 1 },
 };
 
-// Panel options for the dropdown
+/**
+ * Panel options for the dropdown selection.
+ * Each indicator can be assigned to a specific panel for better organization.
+ */
 const PANEL_OPTIONS = [
   { value: 'main', label: 'Main Price Chart' },
   { value: 'oscillator', label: 'Oscillator Panel (0-100)' },
@@ -36,9 +45,25 @@ const PANEL_OPTIONS = [
   { value: 'volatility', label: 'Volatility Panel' }
 ];
 
+// Styling constants for consistent appearance
+const STYLES = {
+  containerBgColor: 'rgba(0, 0, 0, 0.2)',
+  borderColor: '#444',
+  dotBorderColor: '#333',
+  accentColor: '#79B6F2',
+};
+
 /**
  * IndicatorConfigurationPanel component for rendering parameter inputs
- * for each selected indicator and panel assignment controls
+ * for each selected indicator and panel assignment controls.
+ * 
+ * @param {Object} props - Component props
+ * @param {Array} props.selectedIndicators - Array of selected indicator names or objects
+ * @param {Object} props.indicatorConfigs - Current configurations for each indicator
+ * @param {Object} props.panelAssignments - Current panel assignments for each indicator
+ * @param {Function} props.onParamChange - Handler for parameter value changes
+ * @param {Function} props.onPanelChange - Handler for panel assignment changes
+ * @returns {JSX.Element|null} The indicator configuration panel or null if no indicators selected
  */
 const IndicatorConfigurationPanel = ({
   selectedIndicators,
@@ -53,7 +78,67 @@ const IndicatorConfigurationPanel = ({
   }
 
   /**
+   * Renders an individual parameter input field
+   * 
+   * @param {string} indicatorName - The name of the indicator
+   * @param {string} paramName - The name of the parameter
+   * @param {number} paramValue - The current value of the parameter
+   * @param {Object} inputConfig - The input field configuration
+   * @returns {JSX.Element} The rendered parameter input field
+   */
+  const renderParameterInput = (indicatorName, paramName, paramValue, inputConfig) => {
+    // Format the parameter name for display (replace underscores with spaces, add spaces before capitals)
+    const displayName = paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase();
+    
+    return (
+      <div className="param-input" key={`${indicatorName}-${paramName}`}>
+        <label htmlFor={`param-${indicatorName}-${paramName}`}>
+          {displayName}:
+        </label>
+        <input
+          id={`param-${indicatorName}-${paramName}`}
+          type={inputConfig.type}
+          min={inputConfig.min}
+          max={inputConfig.max}
+          step={inputConfig.step}
+          value={paramValue}
+          onChange={(e) => onParamChange(indicatorName, paramName, e.target.value)}
+        />
+      </div>
+    );
+  };
+
+  /**
+   * Renders the panel selection dropdown for an indicator
+   * 
+   * @param {string} indicatorName - The name of the indicator
+   * @param {string} currentPanel - The currently selected panel
+   * @returns {JSX.Element} The rendered panel selection dropdown
+   */
+  const renderPanelSelection = (indicatorName, currentPanel) => {
+    return (
+      <div className="panel-selection">
+        <label htmlFor={`panel-${indicatorName}`}>
+          Display in:
+        </label>
+        <select
+          id={`panel-${indicatorName}`}
+          value={currentPanel || 'main'}
+          onChange={(e) => onPanelChange(indicatorName, e.target.value)}
+        >
+          {PANEL_OPTIONS.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  };
+
+  /**
    * Render parameter configuration panel for an indicator
+   * 
    * @param {string} indicatorName - The name of the indicator
    * @returns {JSX.Element|null} The parameter configuration panel or null if no configurable parameters
    */
@@ -63,90 +148,62 @@ const IndicatorConfigurationPanel = ({
       return null;
     }
     
+    // Get current parameters or use defaults if not yet configured
     const params = indicatorConfigs[indicatorName] || DEFAULT_INDICATOR_PARAMS[indicatorName];
+    const currentPanel = panelAssignments[indicatorName] || 'main';
     
     return (
       <div className="parameter-config" key={`params-${indicatorName}`}>
         <h4>{indicatorName} Parameters</h4>
         <div className="parameter-config-container">
           <div className="parameter-inputs">
-            {Object.entries(params).map(([paramName, defaultValue]) => {
+            {Object.entries(params).map(([paramName, paramValue]) => {
               const inputConfig = PARAM_INPUT_TYPES[paramName] || { type: 'number', min: 1, max: 100 };
-              
-              return (
-                <div className="param-input" key={`${indicatorName}-${paramName}`}>
-                  <label htmlFor={`param-${indicatorName}-${paramName}`}>
-                    {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}:
-                  </label>
-                  <input
-                    id={`param-${indicatorName}-${paramName}`}
-                    type={inputConfig.type}
-                    min={inputConfig.min}
-                    max={inputConfig.max}
-                    step={inputConfig.step}
-                    value={params[paramName]}
-                    onChange={(e) => onParamChange(indicatorName, paramName, e.target.value)}
-                  />
-                </div>
-              );
+              return renderParameterInput(indicatorName, paramName, paramValue, inputConfig);
             })}
           </div>
           
-          <div className="panel-selection">
-            <label htmlFor={`panel-${indicatorName}`}>
-              Display in:
-            </label>
-            <select
-              id={`panel-${indicatorName}`}
-              value={panelAssignments[indicatorName] || 'main'}
-              onChange={(e) => onPanelChange(indicatorName, e.target.value)}
-            >
-              {PANEL_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {renderPanelSelection(indicatorName, currentPanel)}
         </div>
       </div>
     );
   };
 
+  // Get normalized indicator names from the selectedIndicators array
+  const normalizedIndicatorNames = selectedIndicators
+    .map(ind => typeof ind === 'string' ? ind : ind.name);
+
   return (
     <div className="indicator-parameters">
       <h3>Indicator Parameters</h3>
-      {selectedIndicators
-        .map(ind => typeof ind === 'string' ? ind : ind.name)
-        .map(indicatorName => renderParamConfig(indicatorName))
-      }
+      {normalizedIndicatorNames.map(indicatorName => renderParamConfig(indicatorName))}
       
       <style jsx>{`
         .indicator-parameters {
           grid-column: 1 / -1;
           margin-top: 15px;
           padding: 15px;
-          background-color: rgba(0, 0, 0, 0.2);
+          background-color: ${STYLES.containerBgColor};
           border-radius: 4px;
         }
         
         .indicator-parameters h3 {
           margin-top: 0;
           margin-bottom: 15px;
-          border-bottom: 1px solid #444;
+          border-bottom: 1px solid ${STYLES.borderColor};
           padding-bottom: 8px;
         }
         
         .parameter-config {
           margin-bottom: 20px;
-          border-bottom: 1px dotted #333;
+          border-bottom: 1px dotted ${STYLES.dotBorderColor};
           padding-bottom: 15px;
         }
         
         .parameter-config h4 {
           margin-top: 0;
           margin-bottom: 10px;
-          color: #79B6F2;
+          color: ${STYLES.accentColor};
         }
         
         .parameter-config-container {

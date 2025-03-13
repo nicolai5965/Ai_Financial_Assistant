@@ -9,6 +9,7 @@ import ChartDisplay from './ChartDisplay';
 import ErrorMessage from './ErrorMessage';
 import StockSettingsSidebar from './StockSettingsSidebar';
 
+// Constants for configuration
 // Default panel placement for each indicator
 const DEFAULT_PANEL_PLACEMENT = {
   'SMA': 'main',
@@ -45,10 +46,17 @@ const DEFAULT_CONFIG = {
   chartType: 'candlestick'
 };
 
-// Generate a simple unique ID for component instance tracking
+// Styling constants
+const CONTAINER_BG_COLOR = '#1B1610';
+const TEXT_COLOR = '#fff';
+
+/**
+ * Generates a simple unique ID for component instance tracking
+ * @returns {string} A unique identifier for the component instance
+ */
 const generateInstanceId = () => {
   return 'chart-' + Math.random().toString(36).substring(2, 9);
-}
+};
 
 /**
  * StockChart component for displaying stock charts with technical indicators.
@@ -82,6 +90,11 @@ const StockChart = () => {
   useEffect(() => {
     logger.debug(`StockChart component mounted (instance: ${instanceId.current}), loading initial chart`);
     loadChart(DEFAULT_CONFIG);
+    
+    // Clean up when component unmounts
+    return () => {
+      logger.debug(`StockChart component unmounting (instance: ${instanceId.current})`);
+    };
   }, []);
   
   // Automatically reload chart when configuration changes
@@ -99,62 +112,54 @@ const StockChart = () => {
     return () => clearTimeout(handler);
   }, [config]); // Re-run when config changes
   
-  // Log when component unmounts
-  useEffect(() => {
-    return () => {
-      logger.debug(`StockChart component unmounting (instance: ${instanceId.current})`);
-    };
-  }, []);
-  
-  // Handle input changes
+  /**
+   * Handles form input changes
+   * @param {Object} e - Event object
+   */
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setConfig(prev => ({ ...prev, [name]: value }));
     logger.debug(`Config ${name} changed to ${value}`);
   };
   
-  // Handle indicator selection
-  const handleIndicatorChange = (e) => {
-    const value = e.target.value;
-    
-    // Check if the indicator is already selected in current config
-    const isSelected = config.indicators.some(ind => 
-      typeof ind === 'string' ? ind === value : ind.name === value
+  /**
+   * Checks if an indicator is selected in the current configuration
+   * @param {string} indicatorName - Name of the indicator to check
+   * @returns {boolean} Whether the indicator is currently selected
+   */
+  const isIndicatorSelected = (indicatorName) => {
+    return config.indicators.some(ind => 
+      typeof ind === 'string' ? ind === indicatorName : ind.name === indicatorName
     );
+  };
+  
+  /**
+   * Handles indicator selection/deselection
+   * @param {Object} e - Event object
+   */
+  const handleIndicatorChange = (e) => {
+    const indicatorName = e.target.value;
+    const selected = isIndicatorSelected(indicatorName);
     
     // Create state update objects
     let newIndicators;
     let newConfigs = { ...indicatorConfigs };
     let newPanelAssignments = { ...panelAssignments };
     
-    if (isSelected) {
+    if (selected) {
       // Remove the indicator
-      newIndicators = config.indicators.filter(ind => 
-        typeof ind === 'string' ? ind !== value : ind.name !== value
-      );
+      newIndicators = removeIndicator(indicatorName);
       
       // Also remove from configurations and panel assignments
-      delete newConfigs[value];
-      delete newPanelAssignments[value];
+      delete newConfigs[indicatorName];
+      delete newPanelAssignments[indicatorName];
     } else {
-      // Add the indicator with default config if it has parameters
-      if (value in DEFAULT_INDICATOR_PARAMS) {
-        // Create a new configuration object with default values
-        const defaultParams = DEFAULT_INDICATOR_PARAMS[value];
-        newConfigs[value] = { ...defaultParams };
-        
-        // Add to indicators list as an object with name
-        newIndicators = [...config.indicators, { name: value }];
-        
-        // Set default panel assignment
-        newPanelAssignments[value] = DEFAULT_PANEL_PLACEMENT[value] || 'main';
-      } else {
-        // Add simple string for indicators without parameters
-        newIndicators = [...config.indicators, value];
-        
-        // Set default panel assignment
-        newPanelAssignments[value] = DEFAULT_PANEL_PLACEMENT[value] || 'main';
-      }
+      // Add the indicator
+      [newIndicators, newConfigs, newPanelAssignments] = addIndicator(
+        indicatorName, 
+        newConfigs, 
+        newPanelAssignments
+      );
     }
     
     // Batch the state updates to reduce re-renders
@@ -168,18 +173,70 @@ const StockChart = () => {
     });
   };
   
-  // Handle parameter change for indicators
+  /**
+   * Removes an indicator from the configuration
+   * @param {string} indicatorName - Name of the indicator to remove
+   * @returns {Array} Updated list of indicators
+   */
+  const removeIndicator = (indicatorName) => {
+    return config.indicators.filter(ind => 
+      typeof ind === 'string' ? ind !== indicatorName : ind.name !== indicatorName
+    );
+  };
+  
+  /**
+   * Adds an indicator to the configuration with appropriate defaults
+   * @param {string} indicatorName - Name of the indicator to add
+   * @param {Object} configs - Current indicator configurations
+   * @param {Object} assignments - Current panel assignments
+   * @returns {Array} [newIndicators, newConfigs, newAssignments]
+   */
+  const addIndicator = (indicatorName, configs, assignments) => {
+    // Set default panel assignment
+    assignments[indicatorName] = DEFAULT_PANEL_PLACEMENT[indicatorName] || 'main';
+    
+    // Check if this indicator has configurable parameters
+    if (indicatorName in DEFAULT_INDICATOR_PARAMS) {
+      // Create a new configuration object with default values
+      const defaultParams = DEFAULT_INDICATOR_PARAMS[indicatorName];
+      configs[indicatorName] = { ...defaultParams };
+      
+      // Add to indicators list as an object with name
+      return [
+        [...config.indicators, { name: indicatorName }],
+        configs,
+        assignments
+      ];
+    } else {
+      // Add simple string for indicators without parameters
+      return [
+        [...config.indicators, indicatorName],
+        configs,
+        assignments
+      ];
+    }
+  };
+  
+  /**
+   * Handles parameter change for indicators
+   * @param {string} indicatorName - Name of the indicator
+   * @param {string} paramName - Name of the parameter
+   * @param {string|number} value - New parameter value
+   */
   const handleParamChange = (indicatorName, paramName, value) => {
-    // Create new configs object
+    // Convert string value to number if applicable
+    const numericValue = Number(value);
+    
+    // Create updated configurations
     const newConfigs = {
       ...indicatorConfigs,
       [indicatorName]: {
         ...indicatorConfigs[indicatorName],
-        [paramName]: Number(value)
+        [paramName]: numericValue
       }
     };
     
-    // Create new indicators array for config
+    // Create updated indicators array with the new parameter value
     const newIndicators = config.indicators.map(ind => {
       if (typeof ind === 'object' && ind.name === indicatorName) {
         return { name: indicatorName, ...newConfigs[indicatorName] };
@@ -187,7 +244,6 @@ const StockChart = () => {
       return ind;
     });
     
-    // Log once
     logger.debug(`Updated ${paramName} for ${indicatorName} to ${value}`);
     
     // Batch updates to minimize renders
@@ -198,22 +254,85 @@ const StockChart = () => {
     }));
   };
   
-  // Handle panel assignment change for indicators
+  /**
+   * Handles panel assignment change for indicators
+   * @param {string} indicatorName - Name of the indicator
+   * @param {string} panelName - Name of the panel
+   */
   const handlePanelChange = (indicatorName, panelName) => {
-    // Create new assignments object
+    // Create new assignments with updated panel
     const newAssignments = {
       ...panelAssignments,
       [indicatorName]: panelName
     };
     
-    // Log
     logger.debug(`Updated panel for ${indicatorName} to ${panelName}`);
-    
-    // Update panel assignments
     setPanelAssignments(newAssignments);
   };
   
-  // Load chart data from API
+  /**
+   * Prepares indicator configuration for API request
+   * @param {Array} indicators - List of indicators from current config
+   * @returns {Array} Formatted indicators with proper panel assignments and parameters
+   */
+  const prepareIndicatorsForRequest = (indicators) => {
+    return indicators.map(ind => {
+      const indicatorName = typeof ind === 'string' ? ind : ind.name;
+      
+      // Set up base configuration with panel assignment
+      const indicatorConfig = {
+        name: indicatorName,
+        panel: panelAssignments[indicatorName] || 
+               DEFAULT_PANEL_PLACEMENT[indicatorName] || 
+               'main'
+      };
+      
+      // For indicators with parameters, add them to the config
+      if (typeof ind !== 'string' && indicatorConfigs[indicatorName]) {
+        // Ensure all parameter values are numbers, not strings
+        Object.entries(indicatorConfigs[indicatorName]).forEach(([key, value]) => {
+          indicatorConfig[key] = typeof value === 'string' && !isNaN(value) 
+            ? Number(value) 
+            : value;
+        });
+      }
+      
+      return indicatorConfig;
+    });
+  };
+  
+  /**
+   * Process API error and generate a user-friendly message
+   * @param {Error} err - Error from API call
+   * @returns {string} Formatted error message
+   */
+  const processApiError = (err) => {
+    const errorMessage = err.message || 'Unknown error';
+    
+    // Check for "No data found for ticker" errors
+    if (errorMessage.includes('No data found for ticker')) {
+      const ticker = config.ticker.toUpperCase();
+      return `No data found for ticker "${ticker}". Please check if the ticker symbol is correct or try another one.`;
+    } 
+    
+    // Check if it's an API error with more details
+    if (errorMessage.includes('Error processing request') || 
+        errorMessage.includes('Validation Error')) {
+      logger.error('API Error Details:', err);
+      
+      // Extract specific error about indicator configuration
+      if (errorMessage.includes('IndicatorConfig')) {
+        return 'Error with indicator configuration. Please check the parameters and try again.';
+      }
+    }
+    
+    return errorMessage;
+  };
+  
+  /**
+   * Load chart data from API
+   * @param {Object} chartConfig - Current chart configuration
+   */
   const loadChart = async (chartConfig) => {
     setIsLoading(true);
     setError(null);
@@ -226,38 +345,10 @@ const StockChart = () => {
     try {
       logger.info(`Loading chart for ${chartConfig.ticker} with ${chartConfig.indicators.length} indicators (instance: ${instanceId.current})`);
       
-      // Apply the latest indicator configurations and panel assignments before sending
+      // Prepare configuration with processed indicators
       const configToSend = {
         ...chartConfig,
-        indicators: chartConfig.indicators.map(ind => {
-          if (typeof ind === 'string') {
-            // For simple string indicators, add panel assignment
-            return {
-              name: ind,
-              panel: panelAssignments[ind] || DEFAULT_PANEL_PLACEMENT[ind] || 'main'
-            };
-          } else {
-            const name = ind.name;
-            // Ensure all parameter values are numbers, not strings
-            const params = { 
-              name,
-              panel: panelAssignments[name] || DEFAULT_PANEL_PLACEMENT[name] || 'main'
-            };
-            
-            if (indicatorConfigs[name]) {
-              Object.entries(indicatorConfigs[name]).forEach(([key, value]) => {
-                // Convert string values to numbers for numeric parameters
-                if (typeof value === 'string' && !isNaN(value)) {
-                  params[key] = Number(value);
-                } else {
-                  params[key] = value;
-                }
-              });
-            }
-            
-            return params;
-          }
-        })
+        indicators: prepareIndicatorsForRequest(chartConfig.indicators)
       };
       
       logger.debug(`Sending chart configuration (instance: ${instanceId.current}):`, configToSend);
@@ -266,25 +357,7 @@ const StockChart = () => {
       setChartData(data);
       logger.info(`Chart data loaded successfully (instance: ${instanceId.current})`);
     } catch (err) {
-      // Extract the most helpful error message
-      let errorMessage = err.message || 'Unknown error';
-      
-      // Check for "No data found for ticker" errors
-      if (errorMessage.includes('No data found for ticker')) {
-        const ticker = config.ticker.toUpperCase();
-        errorMessage = `No data found for ticker "${ticker}". Please check if the ticker symbol is correct or try another one.`;
-      } 
-      // Check if it's an API error with more details
-      else if (errorMessage.includes('Error processing request') || 
-          errorMessage.includes('Validation Error')) {
-        logger.error('API Error Details:', err);
-        
-        // Try to extract specific error about indicator configuration
-        if (errorMessage.includes('IndicatorConfig')) {
-          errorMessage = 'Error with indicator configuration. Please check the parameters and try again.';
-        }
-      }
-      
+      const errorMessage = processApiError(err);
       setError(errorMessage);
       logger.error(`Failed to load chart (instance: ${instanceId.current}): ${errorMessage}`);
       
@@ -295,17 +368,23 @@ const StockChart = () => {
     }
   };
   
-  // Handle form submission for ticker/time period changes
+  /**
+   * Handle form submission for ticker/time period changes
+   * @param {Object} e - Event object
+   */
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
     logger.info('Submitting new configuration');
     loadChart(config);
   };
 
-  // Toggle settings sidebar
+  /**
+   * Toggle settings sidebar visibility
+   */
   const toggleSettingsSidebar = () => {
-    setIsSettingsSidebarOpen(!isSettingsSidebarOpen);
-    logger.debug(`Settings sidebar toggled: ${!isSettingsSidebarOpen ? 'open' : 'closed'}`);
+    const newState = !isSettingsSidebarOpen;
+    setIsSettingsSidebarOpen(newState);
+    logger.debug(`Settings sidebar toggled: ${newState ? 'open' : 'closed'}`);
   };
 
   return (
@@ -355,10 +434,10 @@ const StockChart = () => {
       <style jsx>{`
         .stock-chart-container {
           padding: 20px;
-          background-color: #1B1610;
+          background-color: ${CONTAINER_BG_COLOR};
           border-radius: 8px;
           margin: 20px 0;
-          color: #fff;
+          color: ${TEXT_COLOR};
           position: relative; /* For proper positioning of sidebar toggle button */
         }
         

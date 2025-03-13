@@ -1,6 +1,7 @@
 import React from 'react';
 
-// Constants from the original StockChart.js
+// Constants for configuration options
+// These represent all available technical indicators that can be applied to the stock chart
 const AVAILABLE_INDICATORS = [
   { value: 'SMA', label: 'Simple Moving Average' },
   { value: 'EMA', label: 'Exponential Moving Average' },
@@ -14,6 +15,7 @@ const AVAILABLE_INDICATORS = [
   { value: 'Ichimoku Cloud', label: 'Ichimoku Cloud' }
 ];
 
+// Time interval options for data granularity
 const INTERVALS = [
   { value: '1mo', label: 'Monthly' },
   { value: '1wk', label: 'Weekly' },
@@ -25,6 +27,7 @@ const INTERVALS = [
   { value: '1m', label: '1 Minute' },
 ];
 
+// Available chart visualization types
 const CHART_TYPES = [
   { value: 'candlestick', label: 'Candlestick' },
   { value: 'line', label: 'Line' },
@@ -33,6 +36,15 @@ const CHART_TYPES = [
 /**
  * ChartConfigurationForm component for handling stock chart configuration inputs
  * Including ticker symbol, time period, interval, chart type, and indicator selection
+ * 
+ * @param {Object} props - Component props
+ * @param {Object} props.config - The current chart configuration state
+ * @param {Function} props.onInputChange - Handler for input field changes
+ * @param {Function} props.onIndicatorChange - Handler for indicator selection changes
+ * @param {Function} props.onSubmit - Handler for form submission
+ * @param {boolean} props.isLoading - Loading state for the submit button
+ * @param {boolean} props.hideTicker - Whether to hide the ticker input field (default: false)
+ * @returns {React.Component} - Chart configuration form component
  */
 const ChartConfigurationForm = ({ 
   config, 
@@ -42,67 +54,64 @@ const ChartConfigurationForm = ({
   isLoading,
   hideTicker = false
 }) => {
+  // Helper function to render a basic form input field
+  const renderFormInput = (id, label, type, min, max) => (
+    <div className="form-group">
+      <label htmlFor={id}>{label}:</label>
+      <input
+        type={type}
+        id={id}
+        name={id}
+        min={min}
+        max={max}
+        value={config[id]}
+        onChange={onInputChange}
+        required={id === 'ticker'}
+      />
+    </div>
+  );
+
+  // Helper function to render a dropdown select field
+  const renderSelectField = (id, label, options) => (
+    <div className="form-group">
+      <label htmlFor={id}>{label}:</label>
+      <select 
+        id={id} 
+        name={id} 
+        value={config[id]} 
+        onChange={onInputChange}
+      >
+        {options.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  // Helper function to check if an indicator is selected
+  const isIndicatorSelected = (indicatorValue) => {
+    return config.indicators.some(ind => 
+      typeof ind === 'string' ? ind === indicatorValue : ind.name === indicatorValue
+    );
+  };
+
   return (
     <form onSubmit={onSubmit} className="stock-chart-form">
-      {!hideTicker && (
-        <div className="form-group">
-          <label htmlFor="ticker">Ticker Symbol:</label>
-          <input
-            type="text"
-            id="ticker"
-            name="ticker"
-            value={config.ticker}
-            onChange={onInputChange}
-            required
-          />
-        </div>
-      )}
+      {/* Ticker input field - conditionally rendered */}
+      {!hideTicker && renderFormInput('ticker', 'Ticker Symbol', 'text')}
       
-      <div className="form-group">
-        <label htmlFor="days">Days of History:</label>
-        <input
-          type="number"
-          id="days"
-          name="days"
-          min="1"
-          max="365"
-          value={config.days}
-          onChange={onInputChange}
-        />
-      </div>
+      {/* Days of history input */}
+      {renderFormInput('days', 'Days of History', 'number', '1', '365')}
       
-      <div className="form-group">
-        <label htmlFor="interval">Interval:</label>
-        <select 
-          id="interval" 
-          name="interval" 
-          value={config.interval} 
-          onChange={onInputChange}
-        >
-          {INTERVALS.map(interval => (
-            <option key={interval.value} value={interval.value}>
-              {interval.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Interval selection dropdown */}
+      {renderSelectField('interval', 'Interval', INTERVALS)}
       
-      <div className="form-group">
-        <label htmlFor="chartType">Chart Type:</label>
-        <select 
-          id="chartType" 
-          name="chartType" 
-          value={config.chartType} 
-          onChange={onInputChange}
-        >
-          {CHART_TYPES.map(type => (
-            <option key={type.value} value={type.value}>
-              {type.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Chart type selection dropdown */}
+      {renderSelectField('chartType', 'Chart Type', CHART_TYPES)}
       
+      {/* Technical indicators selection checkboxes */}
       <div className="form-group">
         <label>Technical Indicators:</label>
         <div className="indicators-checkboxes">
@@ -112,9 +121,7 @@ const ChartConfigurationForm = ({
                 type="checkbox"
                 id={`indicator-${indicator.value}`}
                 value={indicator.value}
-                checked={config.indicators.some(ind => 
-                  typeof ind === 'string' ? ind === indicator.value : ind.name === indicator.value
-                )}
+                checked={isIndicatorSelected(indicator.value)}
                 onChange={onIndicatorChange}
               />
               <label htmlFor={`indicator-${indicator.value}`}>
@@ -125,10 +132,12 @@ const ChartConfigurationForm = ({
         </div>
       </div>
       
+      {/* Submit button - text changes based on hideTicker prop */}
       <button type="submit" disabled={isLoading}>
         {isLoading ? 'Loading...' : hideTicker ? 'Update Chart Configuration' : 'Update Ticker/Time Period'}
       </button>
 
+      {/* Styled JSX for component-scoped styling */}
       <style jsx>{`
         .stock-chart-form {
           display: grid;

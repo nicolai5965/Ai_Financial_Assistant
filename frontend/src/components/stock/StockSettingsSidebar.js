@@ -2,6 +2,17 @@ import React from 'react';
 import Image from 'next/image';
 const logger = require('../../utils/logger');
 
+// Constants for styling
+const SIDEBAR_WIDTH = '300px';
+const SIDEBAR_BG_COLOR = 'rgba(13, 27, 42, 0.7)'; // Semi-transparent dark blue
+const SIDEBAR_Z_INDEX = 900;
+const HEADER_HEIGHT = '80px';
+const ACCENT_COLOR = '#79B6F2';
+const ACCENT_HOVER_COLOR = '#5a9cd9';
+const SECTION_BG_COLOR = 'rgba(0, 0, 0, 0.2)';
+const SECTION_PADDING = '10px';
+const SECTION_BORDER_RADIUS = '4px';
+
 // Constants for indicators and their panel assignments
 const AVAILABLE_INDICATORS = [
   { value: 'SMA', label: 'Simple Moving Average', panel: 'main' },
@@ -53,6 +64,19 @@ const CHART_TYPES = [
 /**
  * StockSettingsSidebar component for displaying and configuring stock chart settings
  * Organized by panel type for better usability
+ * 
+ * @param {Object} props - Component props
+ * @param {boolean} props.isOpen - Whether the sidebar is open
+ * @param {Function} props.toggleSidebar - Function to toggle sidebar open/closed state
+ * @param {Object} props.config - Current chart configuration
+ * @param {Function} props.onInputChange - Handler for input field changes
+ * @param {Function} props.onIndicatorChange - Handler for indicator selection changes
+ * @param {Function} props.onSubmit - Handler for form submission
+ * @param {boolean} props.isLoading - Whether a chart update is in progress
+ * @param {Object} props.indicatorConfigs - Configuration settings for each indicator
+ * @param {Object} props.panelAssignments - Panel assignments for each indicator
+ * @param {Function} props.onParamChange - Handler for indicator parameter changes
+ * @param {Function} props.onPanelChange - Handler for indicator panel assignment changes
  */
 const StockSettingsSidebar = ({ 
   isOpen, 
@@ -85,6 +109,140 @@ const StockSettingsSidebar = ({
     onSubmit(e);
   };
 
+  /**
+   * Renders a form input group with label and input/select element
+   * 
+   * @param {string} id - Input element ID
+   * @param {string} label - Label text
+   * @param {string} name - Input element name
+   * @param {string} type - Input element type (number, select, etc)
+   * @param {any} value - Current input value
+   * @param {Function} onChange - Change handler
+   * @param {Object} options - Additional options (min, max, options array for select)
+   * @returns {JSX.Element} Form group element
+   */
+  const renderFormGroup = (id, label, name, type, value, onChange, options = {}) => {
+    return (
+      <div className="form-group">
+        <label htmlFor={id}>{label}:</label>
+        {type === 'select' ? (
+          <select 
+            id={id} 
+            name={name} 
+            value={value} 
+            onChange={onChange}
+          >
+            {options.items && options.items.map(item => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={type}
+            id={id}
+            name={name}
+            min={options.min}
+            max={options.max}
+            value={value}
+            onChange={onChange}
+          />
+        )}
+      </div>
+    );
+  };
+
+  /**
+   * Renders an indicator group with checkboxes
+   * 
+   * @param {string} panelType - Type of panel (main, oscillator, etc)
+   * @returns {JSX.Element} Indicator group element
+   */
+  const renderIndicatorGroup = (panelType) => {
+    return (
+      <div key={panelType} className="indicator-group">
+        <h4>{PANEL_NAMES[panelType]}</h4>
+        <div className="indicators-checkboxes">
+          {PANEL_GROUPS[panelType].map(indicator => (
+            <div key={indicator.value} className="indicator-checkbox">
+              <input
+                type="checkbox"
+                id={`sidebar-indicator-${indicator.value}`}
+                value={indicator.value}
+                checked={config.indicators.some(ind => 
+                  typeof ind === 'string' ? ind === indicator.value : ind.name === indicator.value
+                )}
+                onChange={onIndicatorChange}
+              />
+              <label htmlFor={`sidebar-indicator-${indicator.value}`}>
+                {indicator.label}
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  /**
+   * Renders an indicator parameter configuration section
+   * 
+   * @param {string} indicatorName - Name of the indicator
+   * @param {Object} params - Parameter configuration object
+   * @returns {JSX.Element} Parameter configuration element
+   */
+  const renderParameterConfig = (indicatorName, params) => {
+    return (
+      <div className="parameter-config" key={`params-${indicatorName}`}>
+        <h4>{indicatorName} Parameters</h4>
+        <div className="parameter-config-container">
+          <div className="parameter-inputs">
+            {Object.entries(params).map(([paramName, paramValue]) => (
+              <div className="param-input" key={`${indicatorName}-${paramName}`}>
+                <label htmlFor={`sidebar-param-${indicatorName}-${paramName}`}>
+                  {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}:
+                </label>
+                <input
+                  id={`sidebar-param-${indicatorName}-${paramName}`}
+                  type="number"
+                  value={paramValue}
+                  onChange={(e) => onParamChange(indicatorName, paramName, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+          
+          <div className="panel-selection">
+            <label htmlFor={`sidebar-panel-${indicatorName}`}>
+              Display in:
+            </label>
+            <select
+              id={`sidebar-panel-${indicatorName}`}
+              value={panelAssignments[indicatorName] || 'main'}
+              onChange={(e) => onPanelChange(indicatorName, e.target.value)}
+            >
+              <option value="main">Main Price Chart</option>
+              <option value="oscillator">Oscillator Panel</option>
+              <option value="macd">MACD Panel</option>
+              <option value="volume">Volume Panel</option>
+              <option value="volatility">Volatility Panel</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Function to check if an indicator is configured
+  const isIndicatorConfigured = (ind) => {
+    const name = typeof ind === 'string' ? ind : ind.name;
+    return Object.entries(indicatorConfigs).some(([key]) => key === name);
+  };
+
+  // Function to get the indicator name from an indicator object or string
+  const getIndicatorName = (ind) => typeof ind === 'string' ? ind : ind.name;
+
   return (
     <>
       {/* Settings sidebar component */}
@@ -104,50 +262,35 @@ const StockSettingsSidebar = ({
           
           {/* Chart settings form */}
           <form onSubmit={handleFormSubmit} className="settings-form">
-            <div className="form-group">
-              <label htmlFor="days">Days of History:</label>
-              <input
-                type="number"
-                id="days"
-                name="days"
-                min="1"
-                max="365"
-                value={config.days}
-                onChange={onInputChange}
-              />
-            </div>
+            {renderFormGroup(
+              'days', 
+              'Days of History', 
+              'days', 
+              'number', 
+              config.days, 
+              onInputChange, 
+              { min: '1', max: '365' }
+            )}
             
-            <div className="form-group">
-              <label htmlFor="interval">Interval:</label>
-              <select 
-                id="interval" 
-                name="interval" 
-                value={config.interval} 
-                onChange={onInputChange}
-              >
-                {INTERVALS.map(interval => (
-                  <option key={interval.value} value={interval.value}>
-                    {interval.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {renderFormGroup(
+              'interval', 
+              'Interval', 
+              'interval', 
+              'select', 
+              config.interval, 
+              onInputChange, 
+              { items: INTERVALS }
+            )}
             
-            <div className="form-group">
-              <label htmlFor="chartType">Chart Type:</label>
-              <select 
-                id="chartType" 
-                name="chartType" 
-                value={config.chartType} 
-                onChange={onInputChange}
-              >
-                {CHART_TYPES.map(type => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {renderFormGroup(
+              'chartType', 
+              'Chart Type', 
+              'chartType', 
+              'select', 
+              config.chartType, 
+              onInputChange, 
+              { items: CHART_TYPES }
+            )}
             
             <button type="submit" disabled={isLoading}>
               {isLoading ? 'Loading...' : 'Update Chart'}
@@ -158,85 +301,22 @@ const StockSettingsSidebar = ({
             <h3>Technical Indicators</h3>
             
             {/* Indicators grouped by panel type */}
-            {Object.keys(PANEL_GROUPS).map(panelType => (
-              <div key={panelType} className="indicator-group">
-                <h4>{PANEL_NAMES[panelType]}</h4>
-                <div className="indicators-checkboxes">
-                  {PANEL_GROUPS[panelType].map(indicator => (
-                    <div key={indicator.value} className="indicator-checkbox">
-                      <input
-                        type="checkbox"
-                        id={`sidebar-indicator-${indicator.value}`}
-                        value={indicator.value}
-                        checked={config.indicators.some(ind => 
-                          typeof ind === 'string' ? ind === indicator.value : ind.name === indicator.value
-                        )}
-                        onChange={onIndicatorChange}
-                      />
-                      <label htmlFor={`sidebar-indicator-${indicator.value}`}>
-                        {indicator.label}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+            {Object.keys(PANEL_GROUPS).map(panelType => 
+              renderIndicatorGroup(panelType)
+            )}
           </div>
           
           {/* Indicator Configuration Panel embedded in sidebar */}
           {config.indicators.length > 0 && (
             <div className="indicator-configuration-section">
               <h3>Indicator Settings</h3>
-              {config.indicators.filter(ind => {
-                const name = typeof ind === 'string' ? ind : ind.name;
-                // Get all indicators with configurable parameters
-                return Object.entries(indicatorConfigs).some(([key]) => key === name);
-              }).map(ind => {
-                const indicatorName = typeof ind === 'string' ? ind : ind.name;
-                const params = indicatorConfigs[indicatorName] || {};
-                
-                return (
-                  <div className="parameter-config" key={`params-${indicatorName}`}>
-                    <h4>{indicatorName} Parameters</h4>
-                    <div className="parameter-config-container">
-                      <div className="parameter-inputs">
-                        {Object.entries(params).map(([paramName, paramValue]) => {
-                          return (
-                            <div className="param-input" key={`${indicatorName}-${paramName}`}>
-                              <label htmlFor={`sidebar-param-${indicatorName}-${paramName}`}>
-                                {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}:
-                              </label>
-                              <input
-                                id={`sidebar-param-${indicatorName}-${paramName}`}
-                                type="number"
-                                value={paramValue}
-                                onChange={(e) => onParamChange(indicatorName, paramName, e.target.value)}
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
-                      
-                      <div className="panel-selection">
-                        <label htmlFor={`sidebar-panel-${indicatorName}`}>
-                          Display in:
-                        </label>
-                        <select
-                          id={`sidebar-panel-${indicatorName}`}
-                          value={panelAssignments[indicatorName] || 'main'}
-                          onChange={(e) => onPanelChange(indicatorName, e.target.value)}
-                        >
-                          <option value="main">Main Price Chart</option>
-                          <option value="oscillator">Oscillator Panel</option>
-                          <option value="macd">MACD Panel</option>
-                          <option value="volume">Volume Panel</option>
-                          <option value="volatility">Volatility Panel</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {config.indicators
+                .filter(isIndicatorConfigured)
+                .map(ind => {
+                  const indicatorName = getIndicatorName(ind);
+                  const params = indicatorConfigs[indicatorName] || {};
+                  return renderParameterConfig(indicatorName, params);
+                })}
             </div>
           )}
         </div>
@@ -258,14 +338,14 @@ const StockSettingsSidebar = ({
       <style jsx>{`
         .stock-settings-sidebar {
           position: fixed;
-          top: 80px; /* Position below the header */
+          top: ${HEADER_HEIGHT}; /* Position below the header */
           right: 0; /* Position on the right side of the screen */
-          height: calc(100vh - 80px); /* Full height minus header */
-          background-color: rgba(13, 27, 42, 0.7); /* Semi-transparent dark blue */
+          height: calc(100vh - ${HEADER_HEIGHT}); /* Full height minus header */
+          background-color: ${SIDEBAR_BG_COLOR}; /* Semi-transparent dark blue */
           box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
           transition: transform 0.3s ease;
-          width: 300px;
-          z-index: 900; /* Lower than header but higher than content */
+          width: ${SIDEBAR_WIDTH};
+          z-index: ${SIDEBAR_Z_INDEX}; /* Lower than header but higher than content */
           overflow-y: auto; /* Enable scrolling for overflow content */
         }
         
@@ -304,7 +384,7 @@ const StockSettingsSidebar = ({
           padding: 0.5rem;
           border-radius: 50%;
           transition: opacity 0.2s;
-          background-color: rgba(13, 27, 42, 0.7); /* Semi-transparent dark blue */
+          background-color: ${SIDEBAR_BG_COLOR};
           display: flex;
           justify-content: center;
           align-items: center;
@@ -358,7 +438,7 @@ const StockSettingsSidebar = ({
         
         button {
           padding: 10px;
-          background-color: #79B6F2;
+          background-color: ${ACCENT_COLOR};
           color: #0d1b2a;
           border: none;
           border-radius: 4px;
@@ -368,7 +448,7 @@ const StockSettingsSidebar = ({
         }
         
         button:hover {
-          background-color: #5a9cd9;
+          background-color: ${ACCENT_HOVER_COLOR};
         }
         
         button:disabled {
@@ -382,9 +462,9 @@ const StockSettingsSidebar = ({
         
         .indicator-group {
           margin-bottom: 15px;
-          background-color: rgba(0, 0, 0, 0.2);
-          padding: 10px;
-          border-radius: 4px;
+          background-color: ${SECTION_BG_COLOR};
+          padding: ${SECTION_PADDING};
+          border-radius: ${SECTION_BORDER_RADIUS};
         }
         
         .indicators-checkboxes {
@@ -409,9 +489,9 @@ const StockSettingsSidebar = ({
         
         .parameter-config {
           margin-bottom: 15px;
-          background-color: rgba(0, 0, 0, 0.2);
-          padding: 10px;
-          border-radius: 4px;
+          background-color: ${SECTION_BG_COLOR};
+          padding: ${SECTION_PADDING};
+          border-radius: ${SECTION_BORDER_RADIUS};
         }
         
         .parameter-config-container {

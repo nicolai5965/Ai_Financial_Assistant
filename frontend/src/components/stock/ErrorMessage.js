@@ -4,17 +4,31 @@ import React from 'react';
  * ErrorMessage component for displaying error messages in a consistent style
  * @param {Object} props - Component props
  * @param {string} props.message - The error message to display
+ * @returns {React.ReactNode|null} - Returns the error component or null if no message
  */
 const ErrorMessage = ({ message }) => {
+  // If no message is provided, don't render anything
   if (!message) return null;
   
   // Check if it's a ticker not found error
   const isTickerError = message.includes('No data found for ticker');
   
+  // CSS class determined by error type
+  const errorClass = `error-message ${isTickerError ? 'ticker-error' : ''}`;
+  
+  // Font weight varies based on error type
+  const messageFontWeight = isTickerError ? 'bold' : 'normal';
+  
+  // Color constants for styling consistency
+  const ERROR_BORDER_COLOR = '#ff0000';
+  const ERROR_BG_COLOR = 'rgba(255, 0, 0, 0.1)';
+  const TICKER_ERROR_BG_COLOR = 'rgba(255, 0, 0, 0.15)';
+  
   return (
-    <div className={`error-message ${isTickerError ? 'ticker-error' : ''}`}>
+    <div className={errorClass}>
       <p>{message}</p>
       
+      {/* Only show suggestions for ticker-related errors */}
       {isTickerError && (
         <div className="error-suggestions">
           <p>Suggestions:</p>
@@ -29,20 +43,20 @@ const ErrorMessage = ({ message }) => {
       <style jsx>{`
         .error-message {
           padding: 15px;
-          background-color: rgba(255, 0, 0, 0.1);
-          border-left: 4px solid #ff0000;
+          background-color: ${ERROR_BG_COLOR};
+          border-left: 4px solid ${ERROR_BORDER_COLOR};
           margin-bottom: 20px;
           border-radius: 0 4px 4px 0;
         }
         
         .ticker-error {
-          background-color: rgba(255, 0, 0, 0.15);
-          border-left: 6px solid #ff0000;
+          background-color: ${TICKER_ERROR_BG_COLOR};
+          border-left: 6px solid ${ERROR_BORDER_COLOR};
         }
         
         .error-message p {
           margin: 0 0 10px 0;
-          font-weight: ${isTickerError ? 'bold' : 'normal'};
+          font-weight: ${messageFontWeight};
         }
         
         .error-suggestions {

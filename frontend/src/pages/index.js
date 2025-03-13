@@ -3,25 +3,46 @@ import Link from 'next/link';
 // Import logger from the utils directory
 const logger = require('../utils/logger');
 
+/**
+ * Home component - Main landing page for the AI Financial Assistant
+ * Displays welcome message and feature navigation cards
+ * Implements comprehensive logging of component lifecycle and user interactions
+ */
 export default function Home() {
+  // Component state
   const [isLoaded, setIsLoaded] = useState(false);
+  
+  // Constants for repeated values
+  const COMPONENT_NAME = 'Home page';
+  
+  // Theme constants for styling consistency
+  const THEME = {
+    headerFontColor: '#f8f8f8',
+    textColor: '#e0e0e0', 
+    cardBgColor: '#24201A',
+    cardBorderColor: '#333333',
+    cardHoverBorderColor: '#79b6f2',
+    cardShadow: '0 5px 10px rgba(0, 0, 0, 0.3)',
+  };
 
+  // Log component mount and setup cleanup
   useEffect(() => {
     try {
-      // Log component mount
-      logger.debug('Home page component mounted');
+      logger.debug(`${COMPONENT_NAME} component mounted`);
       setIsLoaded(true);
       
-      // Example of logging component lifecycle
       return () => {
-        logger.debug('Home page component unmounted');
+        logger.debug(`${COMPONENT_NAME} component unmounted`);
       };
     } catch (error) {
-      logger.error('Error in Home page initialization:', error);
+      logger.error(`Error in ${COMPONENT_NAME} initialization:`, error);
     }
   }, []);
 
-  // Example function to demonstrate logging user interactions
+  /**
+   * Handles user interaction with feature cards
+   * @param {string} featureName - The name of the feature that was clicked
+   */
   const handleFeatureClick = (featureName) => {
     try {
       logger.info(`User clicked on feature: ${featureName}`);
@@ -34,7 +55,7 @@ export default function Home() {
   // Log when the component is fully rendered
   useEffect(() => {
     if (isLoaded) {
-      logger.info('Home page fully rendered');
+      logger.info(`${COMPONENT_NAME} fully rendered`);
     }
   }, [isLoaded]);
 
@@ -91,14 +112,14 @@ export default function Home() {
           line-height: 1.15;
           font-size: 3rem;
           text-align: center;
-          color: #f8f8f8; /* Light color for better contrast on dark background */
+          color: ${THEME.headerFontColor}; /* Using theme constant for consistent colors */
         }
 
         p {
           text-align: center;
           line-height: 1.5;
           font-size: 1.5rem;
-          color: #e0e0e0; /* Slightly dimmer than headers for visual hierarchy */
+          color: ${THEME.textColor}; /* Using theme constant for consistent colors */
         }
 
         .grid {
@@ -120,9 +141,9 @@ export default function Home() {
         .card {
           padding: 1.5rem;
           text-align: left;
-          color: #e0e0e0;
-          border: 1px solid #333333; /* Darker border for cards on dark background */
-          background-color: #24201A; /* Slightly lighter than the background for cards */
+          color: ${THEME.textColor};
+          border: 1px solid ${THEME.cardBorderColor}; /* Using theme constant */
+          background-color: ${THEME.cardBgColor}; /* Using theme constant */
           border-radius: 10px;
           transition: all 0.15s ease;
           height: 100%;
@@ -133,15 +154,15 @@ export default function Home() {
         .card:focus,
         .card:active {
           color: #ffffff;
-          border-color: #79b6f2; /* Light blue border on hover to match link color */
+          border-color: ${THEME.cardHoverBorderColor}; /* Using theme constant */
           transform: translateY(-3px); /* Slight raise effect on hover */
-          box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3); /* Shadow on hover for depth */
+          box-shadow: ${THEME.cardShadow}; /* Using theme constant */
         }
 
         .card h2 {
           margin: 0 0 1rem 0;
           font-size: 1.5rem;
-          color: #f8f8f8; /* Bright headings */
+          color: ${THEME.headerFontColor}; /* Using theme constant */
         }
 
         .card p {

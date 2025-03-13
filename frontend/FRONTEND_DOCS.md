@@ -100,6 +100,11 @@ frontend/
       - Logs component lifecycle events (mount, unmount)
       - Tracks when the component is fully rendered
       - Logs user interactions with feature cards
+    - **Code Organization**:
+      - Follows DRY principle with extracted constants for styling (headerFontColor, textColor, etc.)
+      - Uses a THEME object to centralize and maintain consistent styling values
+      - Implements JSDoc documentation for component and functions
+      - Uses template literals with constants for consistent logging messages
   - `stocks/index.js`: 
     - The stock analysis page that hosts the StockChart component
     - Performs health check against the backend API
@@ -303,12 +308,16 @@ frontend/
     - **Purpose**: Provides functions for interacting with the stock analysis backend API
     - **Key Functions**:
       - `fetchStockChart(config)`: Fetches stock data and returns a chart visualization
-      - `checkApiHealth()`: Checks if the stock analysis API is available
+      - `checkApiHealth()`: Checks if the API is available
+      - `formatIndicator(ind)`: Helper function to format indicator configurations
+      - `processErrorResponse(response, ticker, requestId)`: Helper function for standardized error handling
     - **Features**:
       - Robust error handling with informative error messages
       - Typed function parameters and return values
       - Integration with the logging system
       - Configurable API URL for different environments
+      - Consistent request tracking with unique ID generation
+      - Modular design with extracted helper functions
 
 ### 6. Styles Directory (`src/styles/`)
 - **Purpose**: Central location for managing the application's styling system
@@ -333,15 +342,22 @@ frontend/
   - `logger.js`:
     - **Purpose**: Provides centralized, environment-aware logging functionality
     - **Features**:
-      - Configurable log levels based on environment (development vs. production)
-      - Supports standard log levels: debug, info, warn, error
-      - Prevents excessive logging in production (defaults to warn level)
-      - Extensible design for future backend logging integration
+      - Environment-aware log levels (debug in development, warn in production)
+      - Standardized logging methods (debug, info, warn, error)
+      - Consistent formatting across the application
+      - DRY implementation with utility functions to create loggers for different levels
+      - Constants for environment names and log level configuration
     - **Usage**: Imported in components to log events, errors, and user interactions
     - **Benefits**:
-      - Consistent logging patterns across the application
-      - Easy to enable/disable logs based on environment
-      - Centralized control over logging behavior
+      - Simplified debugging process
+      - Reduced console noise in production
+      - Foundation for future logging enhancements
+      - Better code maintainability through modular design
+    - **Recent Improvements**:
+      - **Prevention of duplicate log entries in event handlers**
+      - **More descriptive log messages for state changes**
+      - **Proper batching of operations that generate logs**
+      - **Enhanced documentation with JSDoc comments**
 
 ## Chart Rendering System Optimizations
 
@@ -651,14 +667,18 @@ The Stock Analysis feature provides interactive stock charts with customizable t
      - Environment-aware log levels (debug in development, warn in production)
      - Standardized logging methods (debug, info, warn, error)
      - Consistent formatting across the application
+     - DRY implementation with utility functions to create loggers for different levels
+     - Constants for environment names and log level configuration
    - **Benefits**:
      - Simplified debugging process
      - Reduced console noise in production
      - Foundation for future logging enhancements
+     - Better code maintainability through modular design
    - **Recent Improvements**:
      - **Prevention of duplicate log entries in event handlers**
      - **More descriptive log messages for state changes**
      - **Proper batching of operations that generate logs**
+     - **Enhanced documentation with JSDoc comments**
 
 2. **Application-Level Logging**
    - **Implementation**: `src/pages/_app.js`

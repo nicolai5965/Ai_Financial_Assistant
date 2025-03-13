@@ -4,6 +4,12 @@ import Link from 'next/link';
 // Import logger
 const logger = require('../../utils/logger');
 
+// Constants for styling and configuration
+const HEADER_HEIGHT = 80;
+const HEADER_BG_COLOR = '#010203'; // Rich Black
+const HEADER_TEXT_COLOR = '#ffffff';
+const LOGO_DIMENSIONS = { width: 60, height: 60 };
+
 /**
  * Header component that stays fixed at the top of the page
  * Contains the project logo/name and navigation elements
@@ -11,7 +17,7 @@ const logger = require('../../utils/logger');
  * Image is positioned on the left side, next to the company name
  */
 const Header = () => {
-  // Log when header is mounted
+  // Log component lifecycle events
   React.useEffect(() => {
     logger.debug('Header component mounted');
     
@@ -20,7 +26,9 @@ const Header = () => {
     };
   }, []);
 
-  // Log when logo is clicked
+  /**
+   * Handles logo click events and logs user interaction
+   */
   const handleLogoClick = () => {
     logger.info('User clicked on project logo');
   };
@@ -29,13 +37,13 @@ const Header = () => {
     <header className="header">
       <div className="header-content">
         <div className="logo-container">
-          {/* Project image now on the left */}
+          {/* Project image on the left */}
           <div className="project-image">
             <Image 
               src="/assets/project_image.png"
               alt="Project Logo" 
-              width={60}
-              height={60}
+              width={LOGO_DIMENSIONS.width}
+              height={LOGO_DIMENSIONS.height}
               priority
             />
           </div>
@@ -48,7 +56,7 @@ const Header = () => {
           </div>
         </div>
         
-        {/* Right side empty for now, could add navigation here later */}
+        {/* Right side reserved for future navigation elements */}
         <div className="nav-placeholder"></div>
       </div>
       
@@ -59,8 +67,8 @@ const Header = () => {
           top: 0;
           left: 0;
           right: 0;
-          height: 80px; 
-          background-color: #010203; /* Rich Black as requested */
+          height: ${HEADER_HEIGHT}px;
+          background-color: ${HEADER_BG_COLOR};
           box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
           z-index: 1000; /* Ensure header is above other content */
         }
@@ -70,7 +78,7 @@ const Header = () => {
           justify-content: space-between;
           align-items: center;
           padding: 0;
-          padding-right: 2rem; /* Only add padding to the right side */
+          padding-right: 2rem;
           height: 100%;
           width: 100%;
           max-width: 1400px;
@@ -81,7 +89,7 @@ const Header = () => {
           display: flex;
           align-items: center;
           gap: 1rem; /* Space between image and text */
-          padding-left: 1rem; /* Small padding for the logo container */
+          padding-left: 1rem;
         }
         
         .project-image {
@@ -91,8 +99,8 @@ const Header = () => {
         
         .logo-section h1 {
           margin: 0;
-          font-size: 2.1rem; /* Slightly larger font to match thicker header */
-          color: #ffffff; /* White text for better contrast with dark background */
+          font-size: 2.1rem;
+          color: ${HEADER_TEXT_COLOR};
           cursor: pointer;
         }
         

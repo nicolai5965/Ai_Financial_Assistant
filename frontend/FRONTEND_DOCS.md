@@ -131,7 +131,13 @@ frontend/
         - Displays project name with link to homepage
         - Shows project logo image at the extreme left edge, followed by company name
         - Includes comprehensive logging of user interactions
-      - **Styling**: Uses Styled JSX for component-scoped styles
+        - Uses constants for styling and configuration (HEADER_HEIGHT, HEADER_BG_COLOR, etc.)
+        - Implements clear JSDoc documentation for component functions
+      - **Code Organization**:
+        - Follows DRY principle with extracted constants for repeated values
+        - Well-structured component with clear separation of concerns
+        - Enhanced inline documentation for better code maintainability
+      - **Styling**: Uses Styled JSX for component-scoped styles with constants for consistent theming
     - `Layout.js`:
       - **Purpose**: Wraps all pages with a consistent layout structure
       - **Features**:

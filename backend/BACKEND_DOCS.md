@@ -279,6 +279,7 @@ if __name__ == "__main__":
 - **Location**: `backend/app/stock_analysis/stock_indicators.py`
 - **Key Functions**:
   - `determine_window_size(data, default_window)`: Dynamically calculates appropriate window size based on available data
+  - `_get_window_size(data, window, default_window)`: Helper function to standardize window size handling across all indicator functions
   - `calculate_SMA(data, ticker, window=None, default_window=20)`: Calculates Simple Moving Average with dynamic or custom window size
   - `calculate_EMA(data, ticker, window=None, default_window=20)`: Calculates Exponential Moving Average with dynamic or custom window size
   - `calculate_Bollinger_Bands(data, ticker, window=None, default_window=20, std_dev=2)`: Calculates Bollinger Bands with dynamic or custom window size
@@ -289,6 +290,8 @@ if __name__ == "__main__":
   - `calculate_OBV(data, ticker)`: Calculates On-Balance Volume
   - `calculate_stochastic_oscillator(data, ticker, k_window=None, d_window=None, default_k_window=14, default_d_window=3)`: Calculates Stochastic Oscillator
   - `calculate_ichimoku_cloud(data, ticker, conversion_period=None, base_period=None, lagging_span_b_period=None, default_conversion_period=9, default_base_period=26, default_lagging_span_b_period=52)`: Calculates Ichimoku Cloud components
+  - `_extract_indicator_params(indicator_config)`: Helper function to extract indicator name and parameters from different configuration formats
+  - `_add_trace_to_panel(fig, trace, panel_idx)`: Helper function to add a trace to the specified panel in the figure
   - `add_indicator_to_chart(fig, data, indicator_config, ticker, panel_idx=1)`: Adds indicator traces to an existing chart, optionally in a specific panel
 - **Key Features**:
   - Uses a dispatcher pattern to map indicator names to calculation functions
@@ -297,6 +300,10 @@ if __name__ == "__main__":
   - Supports dynamic window sizing based on available data points
   - Allows custom parameter configuration for all indicators
   - Supports placement of indicators in different panels of a multi-panel chart
+  - **Improved modularity with dedicated helper functions for window size calculation, parameter extraction, and trace placement**
+  - **Enhanced documentation with more detailed explanatory comments for complex calculations**
+  - **Consistent error handling and logging patterns across all functions**
+  - **DRY (Don't Repeat Yourself) design by centralizing common functionality in helper functions**
 
 ### 11. `app/stock_analysis/stock_data_charting.py`
 - **Purpose**: This file handles all chart building and visualization functionality.

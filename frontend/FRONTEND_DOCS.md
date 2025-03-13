@@ -261,14 +261,18 @@ frontend/
         }
         ```
       - **Optimization Features**:
-        - **Fixed Height Enforcement**: Uses constants for chart dimensions (600px height) to maintain consistent size
-        - **Chart Processing**: Pre-processes chart data to ensure proper layout configuration
+        - **Constants for Dimensions**: Defines `CHART_HEIGHT` and `CHART_WIDTH` as module-level constants to ensure consistent chart sizing
+        - **Extracted Helper Functions**: Centralized `processChartData` function to handle JSON parsing and layout normalization in one place
+        - **Extracted Event Handlers**: Separate named `handleRelayout` function improves code modularity and maintainability
+        - **Local Variable Optimization**: Uses `hasChartData`, `processedChartData`, and `fixedChartHeight` to minimize repetitive operations
+        - **Chart Processing**: Pre-processes chart data only once to ensure proper layout configuration and improve performance
         - **Direct DOM Manipulation**: Accesses the Plotly DOM element directly via ref for efficient resize operations
         - **Debounced Resize Handler**: Implements a 250ms debounce on window resize events to prevent excessive rendering
         - **Plotly.Plots.resize Method**: Uses the native Plotly resize method instead of the React wrapper's resizeHandler
         - **Mounted State Tracking**: Maintains a reference to mounted state to prevent operations on unmounted components
         - **Layout Preservation**: Preserves layout during manual user zoom operations to ensure consistent display
         - **Cleanup on Unmount**: Properly removes event listeners and clears timeouts when the component unmounts
+        - **Clear JSDoc Documentation**: Component and utility functions have clear JSDoc comments explaining their purpose
     - `ErrorMessage.js`:
       - **Purpose**: Reusable component for displaying error messages in a consistent style
       - **Location**: `frontend/src/components/stock/ErrorMessage.js`

@@ -27,22 +27,21 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
   // Ref to store the Plot's DOM element
   const plotDivRef = useRef(null);
 
-  // Toggle full-screen mode
+  // Toggle full-screen mode and log the event
   const toggleFullScreen = () => {
     const newState = !isFullScreen;
     setIsFullScreen(newState);
     logger.info(`Chart full-screen mode ${newState ? 'enabled' : 'disabled'}`);
   };
 
-  // Process chart data to ensure consistent layout settings
+  // Process chart data to ensure consistent layout settings.
+  // This helper is used for both current and previous chart data.
   const processChartData = (data) => {
     if (!data) return { data: [], layout: {} };
     try {
       const parsedData = JSON.parse(data);
-      if (!parsedData.layout) {
-        parsedData.layout = {};
-      }
-      // Enforce autosize and ensure the layout doesn't override our fixed height
+      // Ensure layout exists and enforce autosize
+      parsedData.layout = parsedData.layout || {};
       parsedData.layout.autosize = true;
       return parsedData;
     } catch (error) {
@@ -51,7 +50,22 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
     }
   };
 
-  // Handle resize events with debouncing
+  // Store fixed chart height as a number to avoid repeated parsing
+  const fixedChartHeight = parseInt(CHART_HEIGHT);
+
+  // Process chart data once and reuse it to avoid duplicate JSON parsing.
+  const hasChartData = Boolean(chartData);
+  const processedChartData = hasChartData ? processChartData(chartData) : { data: [], layout: {} };
+  const processedPrevChartData = prevChartData ? processChartData(prevChartData) : { data: [], layout: {} };
+
+  // Extract chart title from the already processed chart data.
+  // This removes the need to parse JSON again.
+  const getChartTitle = () => {
+    const layout = processedChartData.layout || {};
+    return layout.title?.text || layout.title || "Chart";
+  };
+
+  // Handle resize events with debouncing to optimize performance.
   const handleResize = () => {
     if (!plotDivRef.current) return;
     if (resizeTimeoutRef.current) {
@@ -66,7 +80,16 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
     }, 250);
   };
 
-  // Set up event listeners for window resize and Escape key
+  // Extracted handler for Plotly relayout events to enforce fixed chart height.
+  // This replaces the inline function previously used.
+  const handleRelayout = (layout) => {
+    if (layout.height && layout.height !== fixedChartHeight) {
+      Plotly.Plots.resize(plotDivRef.current);
+      logger.debug("Plotly resize triggered via relayout");
+    }
+  };
+
+  // Set up event listeners for window resize and Escape key to exit full-screen mode.
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape' && isFullScreen) {
@@ -87,23 +110,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
     };
   }, [isFullScreen]);
 
-  // Extract chart title from chartData
-  const getChartTitle = () => {
-    if (!chartData) return "Chart";
-    try {
-      const layout = JSON.parse(chartData).layout || {};
-      return layout.title?.text || layout.title || "Chart";
-    } catch (error) {
-      logger.error("Error extracting chart title:", error);
-      return "Chart";
-    }
-  };
-
-  // Process the chart data for both current and previous charts
-  const processedChartData = chartData ? processChartData(chartData) : { data: [], layout: {} };
-  const processedPrevChartData = prevChartData ? processChartData(prevChartData) : { data: [], layout: {} };
-
-  // Plotly configuration options
+  // Plotly configuration options, centralized for consistency
   const plotlyConfig = {
     responsive: true,
     displayModeBar: false,
@@ -115,7 +122,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
   return (
     <div className="chart-display">
       {/* Chart Banner for regular view (non-fullscreen) */}
-      {!isFullScreen && chartData && (
+      {!isFullScreen && hasChartData && (
         <div className="chart-banner">
           <h3 className="chart-title">{getChartTitle()}</h3>
           <button 
@@ -129,7 +136,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
       )}
 
       {/* Regular chart view (non-fullscreen) */}
-      {!isFullScreen && chartData && (
+      {!isFullScreen && hasChartData && (
         <div style={{ position: 'relative' }}>
           <div ref={plotDivRef} style={{ width: CHART_WIDTH, height: CHART_HEIGHT }}>
             <Plot 
@@ -138,12 +145,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
               style={{ width: "100%", height: "100%" }}
               useResizeHandler={true}
               config={plotlyConfig}
-              onRelayout={(layout) => {
-                // If height is altered by a user action, trigger a resize to enforce our fixed height
-                if (layout.height && layout.height !== parseInt(CHART_HEIGHT)) {
-                  Plotly.Plots.resize(plotDivRef.current);
-                }
-              }}
+              onRelayout={handleRelayout} // Using the extracted handler for clarity
             />
           </div>
           {/* Loading overlay if loading with previous chart data */}
@@ -159,7 +161,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
       {isLoading && !prevChartData && <p>Loading chart...</p>}
 
       {/* Full-screen modal view */}
-      {isFullScreen && chartData && (
+      {isFullScreen && hasChartData && (
         <div className="full-screen-modal">
           <div className="full-screen-content">
             <div className="chart-banner fullscreen">

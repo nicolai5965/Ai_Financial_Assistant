@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-const logger = require('../../utils/logger');
+import { logger } from '../../utils/logger';
 import { fetchStockChart } from '../../services/api/stock';
 
 // Import the new components
@@ -8,6 +8,8 @@ import IndicatorConfigurationPanel from './IndicatorConfigurationPanel';
 import ChartDisplay from './ChartDisplay';
 import ErrorMessage from './ErrorMessage';
 import StockSettingsSidebar from './StockSettingsSidebar';
+// Import the KPI container component
+import KpiContainer from './KpiContainer';
 
 // Constants for configuration
 // Default panel placement for each indicator
@@ -416,6 +418,21 @@ const StockChart = () => {
         prevChartData={prevChartRef.current}
       />
       
+      {/* KPI Container - Added below the chart display */}
+      <div className="kpi-container-wrapper">
+        <KpiContainer 
+          ticker={config.ticker} 
+          onTickerChange={(newTicker) => {
+            if (newTicker !== config.ticker) {
+              logger.info(`Ticker changed from KPI component: ${config.ticker} to ${newTicker}`);
+              const newConfig = { ...config, ticker: newTicker };
+              setConfig(newConfig);
+              loadChart(newConfig);
+            }
+          }}
+        />
+      </div>
+      
       {/* Stock Settings Sidebar */}
       <StockSettingsSidebar
         isOpen={isSettingsSidebarOpen}
@@ -444,6 +461,13 @@ const StockChart = () => {
         .ticker-input-container {
           margin-bottom: 20px;
           width: 100%;
+        }
+        
+        .kpi-container-wrapper {
+          margin-top: 20px;
+          width: 100%;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          padding-top: 20px;
         }
         
         .ticker-form {

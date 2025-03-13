@@ -18,7 +18,9 @@ const ENVIRONMENTS = {
 };
 
 // Determine environment and set default log level
-const ENVIRONMENT = process.env.NODE_ENV || ENVIRONMENTS.PRODUCTION;
+const ENVIRONMENT = typeof process !== 'undefined' && process.env ? 
+  (process.env.NODE_ENV || ENVIRONMENTS.PRODUCTION) : 
+  ENVIRONMENTS.PRODUCTION;
 const IS_DEVELOPMENT = ENVIRONMENT === ENVIRONMENTS.DEVELOPMENT;
 const DEFAULT_LOG_LEVEL = IS_DEVELOPMENT ? 'debug' : 'warn';
 
@@ -46,6 +48,19 @@ function shouldLog(level) {
 }
 
 /**
+ * Safely access console methods to avoid errors if console is not available
+ * @param {string} method - The console method to call (log, info, warn, error)
+ * @returns {Function} - A safe wrapper for the console method
+ */
+function safeConsole(method) {
+  return (...args) => {
+    if (typeof console !== 'undefined' && console[method]) {
+      console[method](...args);
+    }
+  };
+}
+
+/**
  * Creates a logging function for the specified level that:
  * 1. Checks if the message should be logged based on current level
  * 2. Logs to the console with the appropriate method
@@ -55,12 +70,19 @@ function shouldLog(level) {
  * @returns {Function} - The logging function for that level
  */
 function createLoggerForLevel(level) {
+  const consoleMethod = level === 'debug' ? 'log' : level;
+  const safeMethod = safeConsole(consoleMethod);
+  
   return (...args) => {
     if (shouldLog(level)) {
-      console[level](...args);
-      // Backend logging integration point:
-      // This is where logs could be sent to a backend service
-      // for persistence, monitoring, or analytics purposes.
+      try {
+        safeMethod(...args);
+        // Backend logging integration point:
+        // This is where logs could be sent to a backend service
+        // for persistence, monitoring, or analytics purposes.
+      } catch (e) {
+        // Silent catch to prevent logger failures from breaking the app
+      }
     }
   };
 }
@@ -84,5 +106,18 @@ const logger = {
   },
 };
 
-// Use module.exports for better compatibility with Next.js
-module.exports = logger; 
+// Fallback logger for when the main logger fails or isn't available
+const fallbackLogger = {
+  debug: (...args) => typeof console !== 'undefined' && console.log && console.log('[DEBUG]', ...args),
+  info: (...args) => typeof console !== 'undefined' && console.log && console.log('[INFO]', ...args),
+  warn: (...args) => typeof console !== 'undefined' && console.warn && console.warn('[WARN]', ...args),
+  error: (...args) => typeof console !== 'undefined' && console.error && console.error('[ERROR]', ...args),
+  setLevel: () => {}
+};
+
+// Create a safe instance that won't throw errors
+const safeLogger = logger || fallbackLogger;
+
+// Use only ES Module exports (no CommonJS module.exports)
+export { safeLogger as logger };
+export default safeLogger; 

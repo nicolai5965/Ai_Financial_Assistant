@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Header from './Header';
 import Sidebar from './Sidebar';
 // Import logger
-const logger = require('../../utils/logger');
+import { logger } from '../../utils/logger';
 
 // CSS constants for consistent styling
 const SHADOW_BLACK = '#1B1610';

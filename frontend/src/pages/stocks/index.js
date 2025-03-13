@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-const logger = require('../../utils/logger');
+import { logger } from '../../utils/logger';
 import { checkApiHealth } from '../../services/api/stock';
 
 // Color constants for styling

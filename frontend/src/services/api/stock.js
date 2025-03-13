@@ -2,7 +2,7 @@
  * Stock API service for interaction with the backend stock analysis API.
  * Handles stock data fetching and API health checking.
  */
-const logger = require('../../utils/logger');
+import { logger } from '../../utils/logger';
 
 // Default API URL - adjust this based on your environment
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';

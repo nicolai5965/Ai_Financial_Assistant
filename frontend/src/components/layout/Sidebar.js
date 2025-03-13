@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 // Import logger
-const logger = require('../../utils/logger');
+import { logger } from '../../utils/logger';
 
 // Constants for styling and configuration
 const SIDEBAR_WIDTH = '250px';

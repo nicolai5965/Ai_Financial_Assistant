@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 // Import logger from the utils directory
-const logger = require('../utils/logger');
+import { logger } from '../utils/logger';
 
 /**
  * Home component - Main landing page for the AI Financial Assistant

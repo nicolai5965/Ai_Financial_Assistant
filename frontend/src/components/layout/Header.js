@@ -2,7 +2,7 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 // Import logger
-const logger = require('../../utils/logger');
+import { logger } from '../../utils/logger';
 
 // Constants for styling and configuration
 const HEADER_HEIGHT = 80;
@@ -19,10 +19,18 @@ const LOGO_DIMENSIONS = { width: 60, height: 60 };
 const Header = () => {
   // Log component lifecycle events
   React.useEffect(() => {
-    logger.debug('Header component mounted');
+    try {
+      logger.debug('Header component mounted');
+    } catch (e) {
+      console.log('Header component mounted');
+    }
     
     return () => {
-      logger.debug('Header component unmounted');
+      try {
+        logger.debug('Header component unmounted');
+      } catch (e) {
+        console.log('Header component unmounted');
+      }
     };
   }, []);
 
@@ -30,7 +38,11 @@ const Header = () => {
    * Handles logo click events and logs user interaction
    */
   const handleLogoClick = () => {
-    logger.info('User clicked on project logo');
+    try {
+      logger.info('User clicked on project logo');
+    } catch (e) {
+      console.log('User clicked on project logo');
+    }
   };
 
   return (

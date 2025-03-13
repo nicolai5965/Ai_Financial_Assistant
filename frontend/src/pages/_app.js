@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '../components/layout/Layout';
 import '../styles/globals.css';
 // Import logger from the utils directory
-const logger = require('../utils/logger');
+import { logger } from '../utils/logger';
 
 // Router event name constants to prevent typos and ensure consistency
 const ROUTE_EVENTS = {

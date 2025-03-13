@@ -3,7 +3,7 @@ import dynamic from 'next/dynamic';
 import Plotly from 'plotly.js-dist-min'; // Import Plotly for the resize method
 
 // Import logger utility
-const logger = require('../../utils/logger');
+import { logger } from '../../utils/logger';
 
 // Dynamically import Plot with no SSR to avoid server-side rendering issues
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });

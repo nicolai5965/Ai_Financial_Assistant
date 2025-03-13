@@ -110,6 +110,14 @@ frontend/
       - Uses React hooks for API health checks and state management
       - Implements graceful degradation when the backend is unavailable
       - Features consistent styling with the application theme
+      - **Modular Structure**:
+        - Extracts UI components into separate rendering functions
+        - Uses centralized color and message constants for consistency
+        - Implements clean error handling with explicit status updates
+      - **Component Instance Tracking**:
+        - Uses unique instance IDs to trace component lifecycle events
+        - Captures detailed health check outcomes in logs
+        - Maintains consistent ID references in log messages
   - `_document.js` (optional):
     - Customizes the HTML document structure
     - Useful for adding custom fonts, meta tags, or scripts
@@ -149,6 +157,11 @@ frontend/
         - Adjusts main content area when sidebar is open
         - Includes global styling for text and links to ensure readability on dark background
       - **Integration**: Automatically used in `_app.js` to wrap all pages
+      - **Code Organization**:
+        - Follows DRY principle with extracted constants for styling (SHADOW_BLACK, LIGHT_TEXT_COLOR, etc.)
+        - Well-structured component with JSDoc documentation for props
+        - Uses React's useEffect for proper lifecycle logging
+        - Organized CSS with clear comments for each styling section
     - `Sidebar.js`:
       - **Purpose**: Provides a toggleable navigation sidebar
       - **Features**:
@@ -159,6 +172,11 @@ frontend/
         - Navigation menu with links to key application pages including Stock Analysis
         - Comprehensive logging of sidebar interactions
       - **Styling**: Uses Styled JSX for component-scoped styles with consistent dark theme
+      - **Code Organization**:
+        - Follows DRY principle with extracted constants for styling (SIDEBAR_WIDTH, HEADER_HEIGHT, SIDEBAR_BACKGROUND, etc.)
+        - Well-structured component with clear separation of concerns
+        - Improved maintainability through consistent variable naming and documentation
+        - Organized CSS with reusable transition properties
   - `stock/`: Contains components for stock market analysis
     - `StockChart.js`:
       - **Purpose**: Main container component that orchestrates the entire stock chart functionality

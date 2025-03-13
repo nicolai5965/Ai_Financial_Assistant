@@ -187,13 +187,16 @@ if __name__ == "__main__":
 - **Location**: `backend/tests/`
 
 ### 4. `start_api_server.py`
-- **Purpose**: Entry point script for starting the FastAPI stock analysis server.
+- **Purpose**: Entry point script for starting the FastAPI stock analysis API server.
 - **Location**: `backend/start_api_server.py`
 - **Key Features**:
-  - Configures the uvicorn server to serve the stock analysis API
-  - Handles environment setup and loading of environment variables
-  - Sets port configuration and server options
-  - Includes hot-reloading for development
+  - **Centralized Environment Setup**: Loads environment variables from a .env file and adds the project's root to the Python path
+  - **Centralized Logging**: Uses pre-configured logger from app/core/logging_config.py for consistent log formatting and levels
+  - **Environment-Aware Configuration**: Adjusts server settings based on development/production environment:
+    - Development mode: Enables live-reloading and debug-level logging
+    - Production mode: Disables live-reloading and uses info-level logging
+  - **Robust Error Handling**: Wraps startup code in try/except with full stack trace logging
+  - **Flexible Port Configuration**: Uses environment variable API_PORT with fallback to default port 8000
 
 |--------------------------------|
 |        File Explanation        |
@@ -445,16 +448,49 @@ Nothing to see here yet.
 - **Location**: `backend/run.py`
 
 ### 24. `start_api_server.py`
-- **Purpose**: This file is the entry point for starting the stock analysis API server.
+- **Purpose**: Entry point script for starting the FastAPI stock analysis API server.
 - **Location**: `backend/start_api_server.py`
 - **Key Features**:
-  - Uses uvicorn to run the FastAPI application
-  - Sets up environment variables and Python path
-  - Configures server options and port settings
+
+Location:
+- **backend/start_api_server.py**
+
+Key Features (Updated):
+- Centralized Environment Setup:
+  - Loads environment variables from a .env file and adds the project's root to the Python path.
+  - (See the sys.path.insert(...) and load_dotenv() calls.)
+- Centralized Logging:
+  - Imports and uses the centralized logging configuration from app/core/logging_config.py via get_logger().
+  - Logs startup events using environment-aware log levels.
+  - Uses the pre-configured logger to capture detailed startup logs and errors.
+- Environment-Aware Server Configuration:
+  - Adjusts settings based on the environment:
+    - Development Mode (IS_DEVELOPMENT=True):
+      - Enables live-reloading (reload=True).
+      - Sets the Uvicorn log level to debug.
+    - Production Mode (IS_DEVELOPMENT=False):
+      - Disables live-reloading (reload=False).
+      - Sets the Uvicorn log level to info.
+- Robust Error Handling:
+  - The main server startup code is wrapped in a try/except block.
+  - On any exception, it logs the full stack trace using logger.exception() and cleanly exits with a non-zero status.
+- Flexible Port Configuration:
+  - Retrieves the API port from the environment variable (API_PORT), defaulting to 8000 if not provided.
 
 ### 25. `.env`
 - **Purpose**: This file contains the environment variables for the backend.
 - **Location**: `backend/.env`
+- **Key Variables**:
+  - **API_PORT**: Configures the port for the FastAPI server (defaults to 8000)
+  - **ENVIRONMENT**: Controls whether the application runs in development or production mode
+  - **IS_DEVELOPMENT**: Boolean flag that enables development-specific features when true
+  - **API Keys**:
+    - OPENAI_API_KEY: For OpenAI LLM integration
+    - ANTHROPIC_API_KEY: For Anthropic Claude integration
+    - TAVILY_API_KEY: For web search functionality
+  - **Logging Configuration**:
+    - LOG_LEVEL: Sets the application-wide logging level
+    - LANGCHAIN_TRACING_V2: Controls LangSmith tracing for debugging LLM calls
 
 |--------------------------------|
 |       Design Patterns          |
@@ -534,6 +570,13 @@ Nothing to see here yet.
 ### 1. Starting the Stock Analysis API
 - **Command**: `python start_api_server.py`
 - **Default Port**: 8000 (can be changed via environment variable API_PORT)
+- **Environment Configuration**:
+  - Development/Production mode is determined by environment variables in `.env` file
+  - Server behavior adapts automatically based on the detected environment
+  - Logging is configured via the centralized logging system
+- **Server Options**:
+  - **Development Mode**: Enables live code reloading and debug-level logging
+  - **Production Mode**: Disables reloading and uses info-level logging
 - **Available Endpoints**:
   - `/api/stocks/analyze` (POST): Analyze stock data and return visualization
   - `/api/health` (GET): Check if the API is running correctly

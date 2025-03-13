@@ -1,15 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Header from './Header';
 import Sidebar from './Sidebar';
 // Import logger
 const logger = require('../../utils/logger');
 
+// CSS constants for consistent styling
+const SHADOW_BLACK = '#1B1610';
+const LIGHT_TEXT_COLOR = '#f8f8f8';
+const LINK_COLOR = '#79b6f2';
+const HEADER_MARGIN = '80px';
+const SIDEBAR_WIDTH = '250px';
+
 /**
  * Layout component that wraps all pages
  * Provides consistent structure with header, sidebar and main content area
  * Uses Shadow Black (#1B1610) background for a sophisticated dark theme
  * Manages sidebar open/close state
+ * 
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.children - Child components to render inside the layout
+ * @returns {React.ReactElement} The rendered layout component
  */
 const Layout = ({ children }) => {
   // State to track if sidebar is open or closed
@@ -21,8 +32,8 @@ const Layout = ({ children }) => {
     setSidebarOpen(!sidebarOpen);
   };
   
-  // Log when layout is mounted
-  React.useEffect(() => {
+  // Component lifecycle logging
+  useEffect(() => {
     logger.debug('Layout component mounted');
     
     return () => {
@@ -39,9 +50,10 @@ const Layout = ({ children }) => {
       </Head>
       <Header />
       
-      {/* Add Sidebar component */}
+      {/* Sidebar component with toggle functionality */}
       <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
       
+      {/* Main content area - adjusts margin when sidebar is open */}
       <main className={`main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
         {children}
       </main>
@@ -51,34 +63,34 @@ const Layout = ({ children }) => {
           display: flex;
           flex-direction: column;
           min-height: 100vh;
-          background-color: #1B1610; /* Shadow Black as requested */
-          color: #f8f8f8; /* Light text color for better readability on dark background */
+          background-color: ${SHADOW_BLACK};
+          color: ${LIGHT_TEXT_COLOR};
         }
         
         .main-content {
           flex: 1;
-          margin-top: 80px; /* Updated to match the current header height of 80px */
+          margin-top: ${HEADER_MARGIN}; /* Matches the current header height */
           width: 100%;
-          transition: margin-left 0.3s ease; /* Smooth transition when sidebar opens/closes */
+          transition: margin-left 0.3s ease; /* Smooth transition for sidebar */
         }
         
-        /* Add margin to main content when sidebar is open */
+        /* Adjust main content when sidebar is open */
         .main-content.sidebar-open {
-          margin-left: 250px; /* Match the sidebar width */
+          margin-left: ${SIDEBAR_WIDTH}; /* Match the sidebar width */
         }
       `}</style>
       
       {/* Global styles for color theme consistency */}
       <style jsx global>{`
         body {
-          background-color: #1B1610; /* Shadow Black */
-          color: #f8f8f8;
+          background-color: ${SHADOW_BLACK};
+          color: ${LIGHT_TEXT_COLOR};
           margin: 0;
           padding: 0;
         }
         
         a {
-          color: #79b6f2; /* Light blue for links, better visible on dark background */
+          color: ${LINK_COLOR}; /* Light blue for links, better visible on dark background */
         }
       `}</style>
     </div>

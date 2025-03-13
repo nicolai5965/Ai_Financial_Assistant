@@ -3,6 +3,14 @@ import Image from 'next/image';
 // Import logger
 const logger = require('../../utils/logger');
 
+// Constants for styling and configuration
+const SIDEBAR_WIDTH = '250px';
+const HEADER_HEIGHT = '80px';
+const SIDEBAR_BACKGROUND = '#0d1b2a';  // Dark blue
+const SIDEBAR_TEXT_COLOR = '#f8f8f8';  // Light gray
+const BUTTON_TRANSITION = 'opacity 0.2s';
+const SIDEBAR_TRANSITION = 'transform 0.3s ease';
+
 /**
  * Sidebar component that provides navigation options
  * Can be toggled open/closed with animation
@@ -10,7 +18,7 @@ const logger = require('../../utils/logger');
  * Positioned on the left side of the screen
  */
 const Sidebar = ({ isOpen, toggleSidebar }) => {
-  // Log when sidebar is mounted
+  // Component lifecycle logging
   useEffect(() => {
     logger.debug('Sidebar component mounted');
     
@@ -73,13 +81,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       <style jsx>{`
         .sidebar {
           position: fixed;
-          top: 80px; /* Position below the header */
+          top: ${HEADER_HEIGHT}; /* Position below the header */
           left: 0;
-          height: calc(100vh - 80px); /* Full height minus header */
-          background-color: #0d1b2a; /* Dark blue as requested */
+          height: calc(100vh - ${HEADER_HEIGHT}); /* Full height minus header */
+          background-color: ${SIDEBAR_BACKGROUND};
           box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
-          transition: transform 0.3s ease;
-          width: 250px;
+          transition: ${SIDEBAR_TRANSITION};
+          width: ${SIDEBAR_WIDTH};
           z-index: 900; /* Lower than header but higher than content */
         }
         
@@ -102,7 +110,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           align-self: flex-end;
           cursor: pointer;
           padding: 0.5rem;
-          transition: opacity 0.2s;
+          transition: ${BUTTON_TRANSITION};
         }
         
         .close-button:hover {
@@ -117,7 +125,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           z-index: 800;
           padding: 0.5rem;
           border-radius: 50%;
-          transition: opacity 0.2s;
+          transition: ${BUTTON_TRANSITION};
           background-color: rgba(13, 27, 42, 0.7); /* Semi-transparent dark blue */
           display: flex;
           justify-content: center;
@@ -143,7 +151,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         }
         
         .sidebar-nav a {
-          color: #f8f8f8;
+          color: ${SIDEBAR_TEXT_COLOR};
           text-decoration: none;
           display: block;
           padding: 0.5rem;

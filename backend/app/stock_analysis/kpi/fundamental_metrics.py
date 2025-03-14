@@ -175,7 +175,7 @@ def get_dividend_yield(ticker: str) -> Dict[str, Any]:
     info = fetch_ticker_info(ticker)
     
     # Get dividend yield
-    dividend_yield = info.get('dividendYield')
+    dividend_yield = info.get('dividendYield') / 100
     
     # Get dividend rate
     dividend_rate = info.get('dividendRate')
@@ -211,6 +211,8 @@ def get_debt_to_equity(ticker: str) -> Dict[str, Any]:
     """
     Get the debt-to-equity ratio KPI for a ticker.
     
+    Calculates as Total Debt / Shareholders' Equity.
+    
     Args:
         ticker: The ticker symbol
         
@@ -223,24 +225,28 @@ def get_debt_to_equity(ticker: str) -> Dict[str, Any]:
     # Fetch the ticker info
     info = fetch_ticker_info(ticker)
     
-    # Get debt-to-equity ratio
-    debt_to_equity = info.get('debtToEquity')
+    # Initialize debt-to-equity ratio
+    debt_to_equity = None
     
-    # If not available directly, try to calculate it
-    if debt_to_equity is None:
-        total_debt = info.get('totalDebt')
-        total_equity = info.get('totalShareholderEquity')
-        
-        if total_debt is not None and total_equity is not None and total_equity != 0:
-            debt_to_equity = total_debt / total_equity
-            logger.debug(f"Calculated debt-to-equity for {ticker}: {debt_to_equity:.2f}")
-        else:
-            logger.warning(f"Could not calculate debt-to-equity for {ticker}")
+    # First, try to calculate it ourselves using total debt and total equity
+    # This is the most accurate method: Total Debt / Shareholders' Equity
+    total_debt = info.get('totalDebt')
+    total_equity = info.get('totalShareholderEquity')
+    
+    if total_debt is not None and total_equity is not None and total_equity != 0:
+        debt_to_equity = total_debt / total_equity
+        logger.debug(f"Calculated debt-to-equity for {ticker} from fundamentals: {debt_to_equity:.2f}")
     else:
-        # Convert from basis points if needed (some APIs return this as 56.78 instead of 0.5678)
-        if debt_to_equity > 100:
-            debt_to_equity /= 100
-        logger.debug(f"Debt-to-equity for {ticker}: {debt_to_equity:.2f}")
+        # If we can't calculate it ourselves, try to get the pre-calculated value
+        debt_to_equity = info.get('debtToEquity')
+        
+        if debt_to_equity is not None:
+            # Yahoo Finance provides debtToEquity as a percentage like 12.95 (for 12.95%)
+            # Convert to a decimal ratio to match our description (0.1295)
+            debt_to_equity = debt_to_equity / 100
+            logger.debug(f"Using provided debt-to-equity for {ticker}: {debt_to_equity:.4f}")
+        else:
+            logger.warning(f"Could not calculate debt-to-equity for {ticker}, no data available")
     
     # Return the formatted KPI
     return {
@@ -250,7 +256,7 @@ def get_debt_to_equity(ticker: str) -> Dict[str, Any]:
             "number", 
             {"decimal_places": 2, "show_color": True, "reverse_color": True}
         ),
-        "description": f"Debt-to-equity ratio for {ticker}. Lower values indicate less financial leverage.",
+        "description": f"Debt-to-equity ratio (Total Debt / Shareholders' Equity) for {ticker}. Lower values indicate less financial leverage.",
         "group": "fundamental"
     }
 
@@ -362,7 +368,7 @@ def get_price_to_sales(ticker: str) -> Dict[str, Any]:
         "value": format_kpi_value(
             ps_ratio, 
             "number", 
-            {"decimal_places": 2}
+            {"decimal_places": 0}
         ),
         "description": f"Price-to-Sales ratio for {ticker}. Lower values may indicate undervaluation.",
         "group": "fundamental"

@@ -98,6 +98,7 @@ def get_historical_volatility(ticker: str, timeframe: str = "1y", window_days: i
     Calculate historical volatility KPI for a ticker.
     
     Volatility is measured as the annualized standard deviation of daily returns.
+    Follows methodology similar to Barchart's HV calculation.
     
     Args:
         ticker: The ticker symbol
@@ -116,19 +117,23 @@ def get_historical_volatility(ticker: str, timeframe: str = "1y", window_days: i
     volatility = None
     
     if not history.empty:
-        # Calculate daily returns
-        history['Returns'] = history['Close'].pct_change()
+        # Calculate natural log of daily returns (ln(today's close / yesterday's close))
+        # This is the methodology used by most financial websites including Barchart
+        history['LogReturns'] = np.log(history['Close'] / history['Close'].shift(1))
         
         # Calculate annualized volatility (standard deviation * sqrt(252))
         # 252 is the approximate number of trading days in a year
         if len(history) > window_days:
             # Get the most recent rolling volatility
-            volatility = history['Returns'].rolling(window=window_days).std().iloc[-1] * np.sqrt(252)
+            std_dev = history['LogReturns'].rolling(window=window_days).std().iloc[-1]
+            # Annualize the volatility - multiply by sqrt(252) to get annual volatility
+            volatility = std_dev * np.sqrt(252)
             
             logger.debug(f"Historical volatility ({window_days}-day) for {ticker}: {volatility:.4f}")
         else:
             # If we don't have enough data for rolling, calculate over all available data
-            volatility = history['Returns'].std() * np.sqrt(252)
+            std_dev = history['LogReturns'].std()
+            volatility = std_dev * np.sqrt(252)
             
             logger.debug(f"Historical volatility (full period) for {ticker}: {volatility:.4f}")
     else:
@@ -142,7 +147,7 @@ def get_historical_volatility(ticker: str, timeframe: str = "1y", window_days: i
             "percentage", 
             {"decimal_places": 2}
         ),
-        "description": f"Annualized standard deviation of daily returns over a {window_days}-day period for {ticker}",
+        "description": f"Annualized standard deviation of daily log returns over a {window_days}-day period for {ticker}",
         "group": "volatility"
     }
 
@@ -226,6 +231,7 @@ def get_average_true_range(ticker: str, timeframe: str = "1mo", window_days: int
     Calculate the Average True Range (ATR) KPI for a ticker.
     
     ATR is a volatility indicator that shows how much a stock price moves, on average, over a given time period.
+    Using Wilder's smoothing method for improved accuracy, matching the methodology of financial sites like Barchart.
     
     Args:
         ticker: The ticker symbol
@@ -251,8 +257,19 @@ def get_average_true_range(ticker: str, timeframe: str = "1mo", window_days: int
         
         history['TR'] = history[['High-Low', 'High-PrevClose', 'Low-PrevClose']].max(axis=1)
         
-        # Calculate ATR
-        history['ATR'] = history['TR'].rolling(window=window_days).mean()
+        # Use Wilder's smoothing method for ATR calculation
+        # First ATR is simple average of first n periods
+        first_tr = history['TR'].iloc[:window_days].mean()
+        
+        # Rest use the Wilder's smoothing formula
+        atr_values = [np.nan] * (window_days - 1) + [first_tr]
+        
+        for i in range(window_days, len(history)):
+            atr_values.append(
+                (atr_values[-1] * (window_days - 1) + history['TR'].iloc[i]) / window_days
+            )
+        
+        history['ATR'] = atr_values
         
         # Get the latest ATR value
         atr = history['ATR'].iloc[-1]
@@ -275,7 +292,7 @@ def get_average_true_range(ticker: str, timeframe: str = "1mo", window_days: int
             "price", 
             {"decimal_places": 2, "currency": "$"}
         ),
-        "description": f"Average True Range over {window_days} days for {ticker}. Higher values indicate greater volatility.",
+        "description": f"Average True Range over {window_days} days for {ticker} using Wilder's smoothing. Higher values indicate greater volatility.",
         "group": "volatility"
     }
 
@@ -354,10 +371,10 @@ def get_all_volatility_metrics(ticker: str, timeframe: str = "1y") -> Dict[str, 
     
     # Get individual KPIs
     week_52_high_low = get_52_week_high_low(ticker)
-    historical_volatility = get_historical_volatility(ticker, timeframe)
+    # Historical Volatility removed as requested
     beta = get_beta(ticker, timeframe)
-    atr = get_average_true_range(ticker, timeframe)
-    bb_width = get_bollinger_band_width(ticker, timeframe)
+    # ATR removed as requested
+    # Bollinger Band Width removed as requested - not a good KPI for this use case
     
     # Combine into a group result
     metrics = []
@@ -365,17 +382,14 @@ def get_all_volatility_metrics(ticker: str, timeframe: str = "1y") -> Dict[str, 
     if week_52_high_low:
         metrics.extend(week_52_high_low)
     
-    if historical_volatility:
-        metrics.append(historical_volatility)
+    # Historical Volatility removed
     
     if beta:
         metrics.append(beta)
     
-    if atr:
-        metrics.append(atr)
+    # ATR removed
     
-    if bb_width:
-        metrics.append(bb_width)
+    # Bollinger Band Width KPI removed
     
     # Return organized result
     return {

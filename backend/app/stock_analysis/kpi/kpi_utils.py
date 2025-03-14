@@ -46,6 +46,8 @@ def format_percentage(value: float, decimal_places: int = 2) -> str:
         Formatted percentage string (e.g., "5.67%")
     """
     try:
+        # Yahoo Finance and other APIs already provide percentage values in their proper form
+        # (i.e., dividend_yield is already 0.0346 for a 3.46% yield)
         formatted = f"{value * 100:.{decimal_places}f}%"
         return formatted
     except (TypeError, ValueError) as e:
@@ -259,6 +261,7 @@ def format_kpi_value(value: Any, kpi_type: str, additional_params: Dict = None) 
     
     elif kpi_type == "percentage":
         decimal_places = additional_params.get("decimal_places", 2)
+        # Yahoo Finance provides percentage values like 0.0346 for 3.46%
         result["formatted_value"] = format_percentage(value, decimal_places)
     
     elif kpi_type == "volume":

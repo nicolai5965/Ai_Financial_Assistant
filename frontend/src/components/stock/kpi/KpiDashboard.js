@@ -47,6 +47,9 @@ const KpiDashboard = ({
   onKpiClick = null,
   viewPreferences = {}
 }) => {
+  // Add state to track the currently active tooltip
+  const [activeKpi, setActiveKpi] = useState(null);
+  
   // Generate a unique instance ID for logging
   const instanceId = React.useRef(`kpi-dashboard-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`);
   
@@ -54,6 +57,9 @@ const KpiDashboard = ({
   React.useEffect(() => {
     try {
       log.debug(`KpiDashboard mounted (${instanceId.current})`);
+      if (kpiData?.data) {
+        console.log("KPI Dashboard data:", kpiData.data);
+      }
     } catch (e) {
       console.log(`KpiDashboard mounted (${instanceId.current})`);
     }
@@ -65,10 +71,13 @@ const KpiDashboard = ({
         console.log(`KpiDashboard unmounting (${instanceId.current})`);
       }
     };
-  }, []);
+  }, [kpiData]);
   
-  // Handle refresh button click
+  // Handle refresh - close any open tooltips
   const handleRefreshClick = () => {
+    // Clear active tooltip
+    setActiveKpi(null);
+    
     if (onRefresh) {
       try {
         log.debug(`Refresh requested (${instanceId.current})`);
@@ -108,6 +117,23 @@ const KpiDashboard = ({
     }
     
     return groups;
+  };
+  
+  // Custom KPI click handler
+  const handleKpiClick = (kpi) => {
+    console.log(`KPI clicked in dashboard: ${kpi?.name}`, kpi);
+    
+    // Toggle the active KPI
+    if (activeKpi === kpi.name) {
+      setActiveKpi(null);
+    } else {
+      setActiveKpi(kpi.name);
+    }
+    
+    // Call parent handler if provided
+    if (onKpiClick) {
+      onKpiClick(kpi);
+    }
   };
   
   // Render KPI groups or appropriate placeholder
@@ -156,6 +182,8 @@ const KpiDashboard = ({
       );
     }
     
+    console.log(`Rendering ${visibleGroups.length} KPI groups`);
+    
     // Render KPI groups
     return visibleGroups.map((group, index) => {
       if (!group) return null;
@@ -164,7 +192,8 @@ const KpiDashboard = ({
         <KpiGroup
           key={group.group || `group-${index}`}
           group={group}
-          onKpiClick={onKpiClick}
+          onKpiClick={handleKpiClick}
+          activeKpi={activeKpi}
           initiallyExpanded={viewPreferences?.expandedGroups ? 
             viewPreferences.expandedGroups.includes(group.group) : true}
         />

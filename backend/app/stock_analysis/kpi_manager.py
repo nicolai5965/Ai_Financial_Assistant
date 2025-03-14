@@ -15,7 +15,10 @@ import time
 from app.core.logging_config import get_logger
 from app.stock_analysis.kpi.kpi_utils import sanitize_ticker
 from app.stock_analysis.kpi import (
-    get_all_price_metrics
+    get_all_price_metrics,
+    get_all_volume_metrics,
+    get_all_volatility_metrics,
+    get_all_fundamental_metrics
 )
 
 # Initialize the logger
@@ -39,7 +42,10 @@ AVAILABLE_KPI_GROUPS = [
 
 # Define which KPI groups are currently implemented
 IMPLEMENTED_KPI_GROUPS = [
-    KPI_GROUP_PRICE
+    KPI_GROUP_PRICE,
+    KPI_GROUP_VOLUME,
+    KPI_GROUP_VOLATILITY,
+    KPI_GROUP_FUNDAMENTAL
 ]
 
 # Cache timeout in seconds (5 minutes)
@@ -128,8 +134,12 @@ class KpiManager:
         # Fetch KPIs based on group
         if group == KPI_GROUP_PRICE:
             return get_all_price_metrics(ticker)
-        
-        # Future implementations for other groups will be added here
+        elif group == KPI_GROUP_VOLUME:
+            return get_all_volume_metrics(ticker, timeframe)
+        elif group == KPI_GROUP_VOLATILITY:
+            return get_all_volatility_metrics(ticker, timeframe)
+        elif group == KPI_GROUP_FUNDAMENTAL:
+            return get_all_fundamental_metrics(ticker)
         
         # Should not reach here if IMPLEMENTED_KPI_GROUPS is kept in sync
         logger.error(f"KPI group '{group}' is marked as implemented but has no handler")
@@ -247,8 +257,6 @@ def get_kpis(
 ) -> Dict[str, Any]:
     """
     Get KPIs for a ticker based on specified groups.
-    
-    This is a convenience function that uses the singleton KpiManager instance.
     
     Args:
         ticker: The ticker symbol

@@ -34,8 +34,8 @@ const STORAGE_KEY = 'kpi_dashboard_preferences';
 
 // Default preferences
 const DEFAULT_PREFERENCES = {
-  visibleGroups: ['price'],
-  expandedGroups: ['price'],
+  visibleGroups: ['price', 'volume', 'volatility', 'fundamental'],
+  expandedGroups: ['price', 'volume', 'volatility', 'fundamental'],
   activeView: 'technical'
 };
 

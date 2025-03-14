@@ -35,6 +35,7 @@ const BORDER_RADIUS = '6px';
  * @param {Object} props.group - The KPI group data object
  * @param {boolean} props.isLoading - Whether the group is currently loading
  * @param {Function} props.onKpiClick - Optional click handler for KPI cards
+ * @param {string} props.activeKpi - Name of the KPI with an active tooltip
  * @param {boolean} props.initiallyExpanded - Whether the group is initially expanded
  * @returns {JSX.Element} The rendered component
  */
@@ -42,6 +43,7 @@ const KpiGroup = ({
   group, 
   isLoading = false, 
   onKpiClick = null,
+  activeKpi = null,
   initiallyExpanded = true
 }) => {
   const [isExpanded, setIsExpanded] = useState(initiallyExpanded);
@@ -53,6 +55,9 @@ const KpiGroup = ({
   React.useEffect(() => {
     try {
       log.debug(`KpiGroup mounted: ${group?.title || 'unknown'} (${instanceId.current})`);
+      if (group) {
+        console.log(`KpiGroup data:`, group);
+      }
     } catch (e) {
       console.log(`KpiGroup mounted: ${group?.title || 'unknown'} (${instanceId.current})`);
     }
@@ -64,7 +69,7 @@ const KpiGroup = ({
         console.log(`KpiGroup unmounting: ${group?.title || 'unknown'} (${instanceId.current})`);
       }
     };
-  }, [group?.title]);
+  }, [group?.title, group]);
   
   // Handle null or undefined group
   if (!group && !isLoading) {
@@ -90,7 +95,11 @@ const KpiGroup = ({
       ));
     }
     
-    if (!group || !group.kpis || group.kpis.length === 0) {
+    // Handle both 'kpis' and 'metrics' field names for backward compatibility
+    const kpiItems = group?.metrics || group?.kpis || [];
+    
+    if (!group || kpiItems.length === 0) {
+      console.log(`No KPIs available in group:`, group);
       return (
         <div className="empty-state">
           No KPIs available in this group
@@ -98,13 +107,26 @@ const KpiGroup = ({
       );
     }
     
-    return group.kpis.map((kpi, index) => (
-      <KpiCard
-        key={`${kpi.name}-${index}`}
-        kpi={kpi}
-        onClick={onKpiClick}
-      />
-    ));
+    console.log(`Rendering ${kpiItems.length} KPI cards for group ${group.title || group.group}`);
+    
+    return kpiItems.map((kpi, index) => {
+      // Make sure group is added to the KPI object for the tooltip to use
+      if (!kpi.group && group.group) {
+        kpi.group = group.group;
+      }
+      
+      // Check if this KPI should show its tooltip
+      const isActive = activeKpi === kpi.name;
+      
+      return (
+        <KpiCard
+          key={`${kpi.name}-${index}`}
+          kpi={kpi}
+          onClick={onKpiClick}
+          initialTooltipVisible={isActive}
+        />
+      );
+    });
   };
   
   return (

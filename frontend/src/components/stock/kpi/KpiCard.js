@@ -2,11 +2,13 @@
  * KpiCard component for displaying an individual KPI.
  * 
  * This component renders a card with a KPI's name, value, and optional description.
- * It also handles color-coding for positive/negative values.
+ * It also handles color-coding for positive/negative values and displays enhanced
+ * tooltips when clicked.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { logger } from '../../../utils/logger';
+import KpiTooltip from './KpiTooltip';
 
 // Fallback logger for development or if the main logger fails
 const safeLogger = {
@@ -40,13 +42,25 @@ const CARD_PADDING = '12px';
  * @param {Object} props.kpi - The KPI data object
  * @param {boolean} props.isLoading - Whether the KPI is currently loading
  * @param {Function} props.onClick - Optional click handler for the card
+ * @param {boolean} props.initialTooltipVisible - Whether the tooltip should be initially visible
  * @returns {JSX.Element} The rendered component
  */
-const KpiCard = ({ kpi, isLoading = false, onClick = null }) => {
-  const [tooltipVisible, setTooltipVisible] = useState(false);
+const KpiCard = ({ 
+  kpi, 
+  isLoading = false, 
+  onClick = null, 
+  initialTooltipVisible = false 
+}) => {
+  const [tooltipVisible, setTooltipVisible] = useState(initialTooltipVisible);
+  const cardRef = useRef(null);
   
   // Generate a unique instance ID for logging
   const instanceId = React.useRef(`kpi-card-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`);
+  
+  // Update tooltip visibility when initialTooltipVisible changes
+  useEffect(() => {
+    setTooltipVisible(initialTooltipVisible);
+  }, [initialTooltipVisible]);
   
   // Log component mount and unmount
   React.useEffect(() => {
@@ -86,26 +100,57 @@ const KpiCard = ({ kpi, isLoading = false, onClick = null }) => {
     return NEUTRAL_COLOR;
   };
   
-  // Show tooltip with description
-  const handleMouseEnter = () => {
-    if (kpi?.description) {
-      setTooltipVisible(true);
+  // Format value for display, handling complex object values
+  const formatValue = (value) => {
+    if (value === null || value === undefined) {
+      return 'N/A';
+    }
+    
+    // If it's an object with formatted_value, use that
+    if (typeof value === 'object' && value.formatted_value) {
+      return value.formatted_value;
+    }
+    
+    // If it's another type of object, convert to string
+    if (typeof value === 'object') {
+      try {
+        console.log("Complex value in KpiCard:", value);
+        return JSON.stringify(value);
+      } catch (err) {
+        console.error("Error stringifying value:", err);
+        return 'Complex Value';
+      }
+    }
+    
+    // Otherwise just return the value
+    return value;
+  };
+  
+  // Handle card click - toggle tooltip visibility
+  const handleClick = () => {
+    if (isLoading) return;
+    
+    // Don't toggle the tooltip here - leave it to the parent component
+    // to control via initialTooltipVisible
+    const newState = !tooltipVisible;
+    
+    try {
+      log.debug(`KpiCard clicked: ${kpi?.name || 'unknown'} (${instanceId.current}), tooltip: ${newState}`);
+    } catch (e) {
+      console.log(`KpiCard clicked: ${kpi?.name || 'unknown'} (${instanceId.current}), tooltip: ${newState}`);
+    }
+    
+    // Call the parent onClick handler if provided
+    if (onClick && kpi) {
+      onClick(kpi);
     }
   };
   
-  // Hide tooltip
-  const handleMouseLeave = () => {
+  // Close the tooltip
+  const handleCloseTooltip = () => {
     setTooltipVisible(false);
-  };
-  
-  // Handle card click
-  const handleClick = () => {
+    // Notify parent that tooltip was closed
     if (onClick && kpi) {
-      try {
-        log.debug(`KpiCard clicked: ${kpi?.name || 'unknown'} (${instanceId.current})`);
-      } catch (e) {
-        console.log(`KpiCard clicked: ${kpi?.name || 'unknown'} (${instanceId.current})`);
-      }
       onClick(kpi);
     }
   };
@@ -113,8 +158,7 @@ const KpiCard = ({ kpi, isLoading = false, onClick = null }) => {
   return (
     <div 
       className="kpi-card"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      ref={cardRef}
       onClick={handleClick}
     >
       {isLoading ? (
@@ -128,11 +172,19 @@ const KpiCard = ({ kpi, isLoading = false, onClick = null }) => {
         <>
           <div className="kpi-name">{kpi?.name || 'N/A'}</div>
           <div className="kpi-value" style={{ color: getValueColor() }}>
-            {kpi?.value?.formatted_value || 'N/A'}
+            {formatValue(kpi?.value)}
           </div>
-          {tooltipVisible && kpi?.description && (
-            <div className="kpi-tooltip">
-              {kpi.description}
+          
+          {/* Enhanced tooltip using KpiTooltip component */}
+          {tooltipVisible && kpi && (
+            <div className="tooltip-wrapper">
+              <KpiTooltip
+                kpi={kpi}
+                anchorEl={cardRef.current}
+                open={tooltipVisible}
+                onClose={handleCloseTooltip}
+                position="above"
+              />
             </div>
           )}
         </>
@@ -153,13 +205,13 @@ const KpiCard = ({ kpi, isLoading = false, onClick = null }) => {
           justify-content: space-between;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
           transition: background-color 0.2s ease, transform 0.2s ease;
-          cursor: ${onClick ? 'pointer' : 'default'};
-          overflow: hidden;
+          cursor: pointer;
+          overflow: visible; /* Changed from hidden to allow tooltip to overflow */
         }
         
         .kpi-card:hover {
           background-color: ${CARD_HOVER_BG_COLOR};
-          transform: ${onClick ? 'translateY(-2px)' : 'none'};
+          transform: translateY(-2px);
         }
         
         .kpi-name {
@@ -181,19 +233,9 @@ const KpiCard = ({ kpi, isLoading = false, onClick = null }) => {
           text-overflow: ellipsis;
         }
         
-        .kpi-tooltip {
+        .tooltip-wrapper {
           position: absolute;
-          top: 100%;
-          left: 0;
-          width: 200px;
-          background-color: rgba(0, 0, 0, 0.9);
-          color: white;
-          padding: 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          z-index: 100;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-          transition: opacity 0.2s ease;
+          z-index: 1000;
         }
         
         /* Loading state styles */

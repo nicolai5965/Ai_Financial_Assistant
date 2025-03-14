@@ -9,12 +9,14 @@ import KpiCard from './KpiCard';
 import KpiGroup from './KpiGroup';
 import KpiDashboard from './KpiDashboard';
 import KpiSettings from './KpiSettings';
+import KpiTooltip from './KpiTooltip';
 
 export {
   KpiCard,
   KpiGroup,
   KpiDashboard,
   KpiSettings,
+  KpiTooltip,
 };
 
 // Default export for convenience
@@ -23,4 +25,5 @@ export default {
   KpiGroup,
   KpiDashboard,
   KpiSettings,
+  KpiTooltip,
 }; 

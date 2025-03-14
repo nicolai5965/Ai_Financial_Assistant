@@ -7,12 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import logging
 
 from ..stock_analysis.stock_data_fetcher import fetch_stock_data, get_company_name
 from ..stock_analysis.stock_data_charting import analyze_ticker
 from ..core.logging_config import get_logger
+from ..stock_analysis.kpi_manager import get_kpis, AVAILABLE_KPI_GROUPS
 
 # Get the logger
 logger = get_logger()
@@ -90,6 +91,28 @@ class StockAnalysisRequest(BaseModel):
     )
     chart_type: str = Field("candlestick", description="Chart type: 'candlestick' or 'line'")
 
+# Add this Pydantic model to the other models
+class StockKpiRequest(BaseModel):
+    """
+    Request model for stock KPI data.
+    """
+    ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
+    kpi_groups: Optional[List[str]] = Field(None, description="Optional list of KPI groups to include (price, volume, volatility, fundamental, sentiment)")
+    timeframe: str = Field("1d", description="Timeframe for KPI data (e.g., '1d', '5d', '1mo', '3mo', '6mo', '1y', '5y')")
+    use_cache: bool = Field(True, description="Whether to use cached data if available")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "ticker": "AAPL",
+                    "kpi_groups": ["price", "volume"],
+                    "timeframe": "1d",
+                    "use_cache": True
+                }
+            ]
+        }
+    }
 
 def process_indicators(indicators: List[Union[str, IndicatorConfig]]) -> List[Dict]:
     """
@@ -263,3 +286,54 @@ async def general_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": f"Internal server error: {str(exc)}"}
     )
+
+# Add this new endpoint to the FastAPI app
+@app.post("/api/stocks/kpi")
+async def get_stock_kpis_endpoint(request: StockKpiRequest):
+    """
+    Get KPIs for a specific stock ticker.
+    
+    Args:
+        request: StockKpiRequest containing ticker and optional KPI group filters
+        
+    Returns:
+        JSON response with KPI data
+    """
+    try:
+        # Extract and validate parameters
+        ticker = request.ticker.strip().upper()
+        if not ticker:
+            raise HTTPException(status_code=400, detail="Ticker symbol is required")
+        
+        kpi_groups = request.kpi_groups
+        timeframe = request.timeframe
+        use_cache = request.use_cache
+        
+        # Validate KPI groups if provided
+        if kpi_groups:
+            invalid_groups = [g for g in kpi_groups if g not in AVAILABLE_KPI_GROUPS]
+            if invalid_groups:
+                logger.warning(f"Invalid KPI groups requested: {invalid_groups}")
+        
+        # Log the request
+        logger.info(f"KPI request received for ticker: {ticker}, groups: {kpi_groups}, timeframe: {timeframe}")
+        
+        # Fetch the KPI data
+        kpi_data = get_kpis(ticker, kpi_groups, timeframe, use_cache)
+        
+        # Return the KPI data
+        return {
+            "ticker": ticker,
+            "timestamp": datetime.now().isoformat(),
+            "data": kpi_data
+        }
+    except ValueError as e:
+        # Handle validation errors
+        error_msg = str(e)
+        logger.error(f"Validation error in KPI request: {error_msg}")
+        raise HTTPException(status_code=400, detail=error_msg)
+    except Exception as e:
+        # Handle unexpected errors
+        error_msg = f"Error processing KPI request: {str(e)}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)

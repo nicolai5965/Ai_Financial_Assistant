@@ -20,6 +20,7 @@ backend/
 │   ├── models/           # Data models and schemas
 │   │   ├── __init__.py   # Package initialization
 │   │   ├── report_models.py # Report-related data models
+│   │   ├── stock_models.py # Stock-related data models and schemas
 │   │   └── structured_report_nodes.py # Node definitions for report generation
 │   ├── stock_analysis/   # Stock market analysis functionality
 │   │   ├── __init__.py   # Package initialization with API exports
@@ -27,6 +28,7 @@ backend/
 │   │   ├── stock_indicators.py # Technical indicators calculation
 │   │   ├── stock_data_charting.py # Chart creation and visualization
 │   │   ├── indicator_panels.py # Multi-panel chart organization system
+│   │   ├── kpi_calculator.py # Financial KPI metrics calculation
 │   │   └── stock_analysis.py # Legacy file (deprecated)
 │   ├── db/               # Database related code
 │   ├── services/         # Business logic and external service integrations
@@ -42,6 +44,10 @@ backend/
 │   │   │   ├── __init__.py # Package initialization
 │   │   │   ├── tavily_search.py # Tavily search API integration
 │   │   │   └── search_results_formatter.py # Formats search results
+│   │   ├── financial/    # Financial data services
+│   │   │   ├── __init__.py # Package initialization
+│   │   │   ├── financial_data_fetcher.py # Fetches financial data from various sources
+│   │   │   └── financial_metrics.py # Calculates financial metrics and KPIs
 │   │   ├── reports/      # Report generation services
 │   │   │   ├── __init__.py # Package initialization
 │   │   │   └── report_graph_builders.py # Graph-based report generation pipelines with lazy initialization
@@ -92,6 +98,7 @@ backend/
   - `stock_indicators.py`: Implements technical indicator calculations and visualization
   - `stock_data_charting.py`: Manages chart creation and customization
   - `indicator_panels.py`: Provides a system for organizing technical indicators into logical panel groups
+  - `kpi_calculator.py`: Calculates key performance indicators (KPIs) for financial analysis
   - `__init__.py`: Provides a clean public API for the package
 
 ### 1.5 `app/db/`
@@ -114,44 +121,6 @@ backend/
     - Caches initialized models to prevent repeated expensive operations
   - `fetch_project_prompts.py`: Manages prompt retrieval from LangSmith with lazy loading pattern for one prompt at a time using the `get_formatted_prompt` function.
 
-  - Example of using the 'get_formatted_prompt' function:
-  [```
-import asyncio
-from app.services.llm.fetch_project_prompts import get_formatted_prompt
-
-async def get_formatted_prompt_async(prompt_name: str, report_size: str) -> str:
-    """
-    Asynchronously fetches and formats a prompt by offloading the synchronous
-    get_formatted_prompt function to a separate thread.
-    """
-    return await asyncio.to_thread(get_formatted_prompt, prompt_name, report_size)
-
-async def fetch_multiple_prompts(prompt_names: list, report_size: str = "Standard") -> dict:
-    """
-    Concurrently fetches multiple prompts from LangSmith.
-    
-    :param prompt_names: List of prompt names to fetch.
-    :param report_size: The report size to format the prompts for.
-    :return: Dictionary mapping prompt names to their formatted content.
-    """
-    tasks = [
-        get_formatted_prompt_async(prompt_name, report_size)
-        for prompt_name in prompt_names
-    ]
-    results = await asyncio.gather(*tasks)
-    return dict(zip(prompt_names, results))
-
-if __name__ == "__main__":
-    # Example usage: fetch multiple prompts concurrently.
-    prompt_list = [
-        "report_structure",
-        "query_writer_instructions",
-        "section_writer_instructions",
-    ] # ... add more prompts if needed, these are just examples
-    
-    prompts = asyncio.run(fetch_multiple_prompts(prompt_list, report_size="Standard"))
-  ```]
-
 
 #### 1.6.2 `app/services/web/`
 - **Purpose**: Contains services for web content extraction and analysis. This includes scraping web pages, extracting relevant content, and analyzing the topics and sentiment of web content.
@@ -165,7 +134,14 @@ if __name__ == "__main__":
 - **Purpose**: Contains services for performing web searches and processing search results. This includes integrating with search APIs like Tavily and formatting the search results for consumption by other parts of the application.
 - **Location**: `backend/app/services/search/`
 
-#### 1.6.4 `app/services/reports/`
+#### 1.6.4 `app/services/financial/`
+- **Purpose**: Contains services for fetching financial data and calculating financial metrics. This includes retrieving fundamental financial data, calculating KPIs, and processing financial reports.
+- **Location**: `backend/app/services/financial/`
+- **Key Components**:
+  - `financial_data_fetcher.py`: Retrieves financial data from various sources (Yahoo Finance, Alpha Vantage, etc.)
+  - `financial_metrics.py`: Calculates financial metrics and KPIs based on the retrieved data
+
+#### 1.6.5 `app/services/reports/`
 - **Purpose**: Contains services for generating structured reports. This includes building report pipelines, orchestrating the report generation process, and formatting the final output.
 - **Location**: `backend/app/services/reports/`
 - **Key Components**:
@@ -370,6 +346,24 @@ if __name__ == "__main__":
   - Issues deprecation warnings to guide users to the new modules
   - Will be removed in a future version
 
+### 14. `app/stock_analysis/kpi_calculator.py`
+- **Purpose**: This file contains functions for calculating key performance indicators (KPIs) for financial analysis.
+- **Location**: `backend/app/stock_analysis/kpi_calculator.py`
+- **Key Functions**:
+  - `calculate_basic_metrics(data, ticker)`: Calculates basic price-related metrics such as percentage change, moving averages, RSI
+  - `calculate_volatility_metrics(data, ticker)`: Calculates volatility-related metrics such as standard deviation, Bollinger Bands, ATR
+  - `calculate_volume_metrics(data, ticker)`: Calculates volume-related metrics such as volume change, OBV, VWAP
+  - `calculate_financial_metrics(ticker)`: Retrieves and calculates fundamental financial metrics such as PE ratio, EPS, market cap
+  - `calculate_all_kpis(ticker, data=None)`: Orchestrates calculation of all relevant KPIs for a given ticker
+  - `format_kpi_response(kpis, ticker)`: Formats KPIs for frontend display with proper grouping and trend indicators
+- **Key Features**:
+  - Comprehensive calculation of technical and fundamental KPIs
+  - Organization of KPIs into logical groups for frontend display
+  - Caching mechanism for frequently accessed financial data
+  - Proper error handling with fallback values when calculations fail
+  - Detailed logging for debugging KPI calculation issues
+  - Support for both real-time and historical KPI calculation
+
 |---------------------|
 |     db folder       |
 |---------------------|
@@ -380,15 +374,33 @@ Nothing to see here yet.
 |     models folder   |
 |---------------------|
 
-### 14. `app/models/__init__.py`
+### 15. `app/models/__init__.py`
 - **Purpose**: This file is used to initialize the models package.
 - **Location**: `backend/app/models/__init__.py`
 
-### 15. `app/models/report_models.py`
+### 16. `app/models/report_models.py`
 - **Purpose**: This file contains data models related to reports.
 - **Location**: `backend/app/models/report_models.py`
 
-### 16. `app/models/structured_report_nodes.py`
+### 17. `app/models/stock_models.py`
+- **Purpose**: This file contains data models specific to stock analysis and financial metrics.
+- **Location**: `backend/app/models/stock_models.py`
+- **Key Classes**:
+  - `KpiGroup`: Model representing a group of related KPIs with a title and metrics
+  - `KpiMetric`: Model representing an individual KPI with label, value, and trend
+  - `KpiResponse`: Model representing the complete KPI response with ticker and grouped metrics
+  - `FinancialData`: Model representing fundamental financial data for a company
+  - `AnalystRecommendation`: Model representing an analyst's recommendation
+  - `InsiderTrade`: Model representing an insider trading activity
+  - `EarningsData`: Model representing earnings report data
+- **Key Features**:
+  - Pydantic models with validation
+  - Type hints for all fields
+  - Default values for optional fields
+  - Methods for data conversion and formatting
+  - JSON serialization for API responses
+
+### 18. `app/models/structured_report_nodes.py`
 - **Purpose**: This file contains node definitions for report generation.
 - **Location**: `backend/app/models/structured_report_nodes.py`
 - **Key Features**:
@@ -400,22 +412,65 @@ Nothing to see here yet.
 |    services folder  |
 |---------------------|
 
-### 17. `app/services/__init__.py`
+### 19. `app/services/__init__.py`
 - **Purpose**: This file is used to initialize the services package and provides access to core services.
 - **Location**: `backend/app/services/__init__.py`
 - **Key Features**:
   - Imports and re-exports key service functions like `fetch_prompts()` without triggering immediate execution
   - Uses carefully structured imports to minimize side effects during module loading
 
+### 20. `app/services/financial/__init__.py`
+- **Purpose**: This file initializes the financial services package and provides access to key financial data functions.
+- **Location**: `backend/app/services/financial/__init__.py`
+- **Key Features**:
+  - Imports and re-exports key financial service functions
+  - Uses carefully structured imports to minimize side effects during module loading
+
+### 21. `app/services/financial/financial_data_fetcher.py`
+- **Purpose**: This file provides functions for retrieving financial data from various sources.
+- **Location**: `backend/app/services/financial/financial_data_fetcher.py`
+- **Key Functions**:
+  - `fetch_financial_statements(ticker)`: Retrieves income statement, balance sheet, and cash flow data
+  - `fetch_company_profile(ticker)`: Retrieves company information and profile data
+  - `fetch_analyst_recommendations(ticker)`: Retrieves analyst ratings and recommendations
+  - `fetch_institutional_holdings(ticker)`: Retrieves institutional ownership information
+  - `fetch_insider_trades(ticker)`: Retrieves recent insider trading activity
+  - `fetch_earnings_data(ticker)`: Retrieves earnings history and upcoming earnings dates
+  - `fetch_financial_ratios(ticker)`: Retrieves key financial ratios calculated from statements
+- **Key Features**:
+  - Integration with multiple data providers for comprehensive coverage
+  - Caching to minimize redundant API requests
+  - Error handling with appropriate fallbacks
+  - Rate limiting to prevent API quota exhaustion
+  - Data normalization for consistent format across providers
+
+### 22. `app/services/financial/financial_metrics.py`
+- **Purpose**: This file contains functions for calculating financial metrics and key performance indicators.
+- **Location**: `backend/app/services/financial/financial_metrics.py`
+- **Key Functions**:
+  - `calculate_valuation_metrics(ticker_data)`: Calculates PE ratio, PB ratio, PS ratio, etc.
+  - `calculate_profitability_metrics(ticker_data)`: Calculates profit margin, ROE, ROA, etc.
+  - `calculate_growth_metrics(ticker_data)`: Calculates YOY growth rates for revenue, earnings, etc.
+  - `calculate_efficiency_metrics(ticker_data)`: Calculates inventory turnover, asset turnover, etc.
+  - `calculate_liquidity_metrics(ticker_data)`: Calculates current ratio, quick ratio, etc.
+  - `calculate_debt_metrics(ticker_data)`: Calculates debt-to-equity, interest coverage, etc.
+  - `calculate_cash_flow_metrics(ticker_data)`: Calculates free cash flow, cash flow yield, etc.
+- **Key Features**:
+  - Industry-standard financial metric calculations
+  - Comparison with sector and market averages
+  - Trend analysis for historical context
+  - Clear documentation of calculation methodologies
+  - Comprehensive error handling for missing data
+
 |---------------------|
 |     utils folder    |
 |---------------------|
 
-### 18. `app/utils/__init__.py`
+### 23. `app/utils/__init__.py`
 - **Purpose**: This file is used to initialize the utils package.
 - **Location**: `backend/app/utils/__init__.py`
 
-### 19. `app/utils/system_checks.py`
+### 24. `app/utils/system_checks.py`
 - **Purpose**: This file contains utilities for checking system requirements.
 - **Location**: `backend/app/utils/system_checks.py`
 
@@ -423,7 +478,7 @@ Nothing to see here yet.
 |    logs folder      |
 |---------------------|
 
-### 20. `logs/app.log`
+### 25. `logs/app.log`
 - **Purpose**: This file contains application logs generated by the logging system. The logs include timestamps, log levels, and structured information about application events and errors.
 - **Location**: `backend/logs/app.log`
 
@@ -431,11 +486,11 @@ Nothing to see here yet.
 |    root folder      |
 |---------------------|
 
-### 21. `BACKEND_DOCS.md`
+### 26. `BACKEND_DOCS.md`
 - **Purpose**: This file contains the documentation for the backend.
 - **Location**: `backend/BACKEND_DOCS.md`
 
-### 22. `requirements.txt`
+### 27. `requirements.txt`
 - **Purpose**: This file contains the dependencies for the backend.
 - **Location**: `backend/requirements.txt`
 - **Key Features**:
@@ -443,11 +498,11 @@ Nothing to see here yet.
   - Contains yfinance for stock data retrieval
   - Includes plotting libraries like matplotlib and plotly
 
-### 23. `run.py`
+### 28. `run.py`
 - **Purpose**: This file is the entry point for the report generation functionality.
 - **Location**: `backend/run.py`
 
-### 24. `start_api_server.py`
+### 29. `start_api_server.py`
 - **Purpose**: Entry point script for starting the FastAPI stock analysis API server.
 - **Location**: `backend/start_api_server.py`
 - **Key Features**:
@@ -477,7 +532,7 @@ Key Features (Updated):
 - Flexible Port Configuration:
   - Retrieves the API port from the environment variable (API_PORT), defaulting to 8000 if not provided.
 
-### 25. `.env`
+### 30. `.env`
 - **Purpose**: This file contains the environment variables for the backend.
 - **Location**: `backend/.env`
 - **Key Variables**:
@@ -660,3 +715,44 @@ The stock analysis endpoint accepts the following parameters:
   - **Panel Configuration Safety Checks**: Ensures at least one panel exists, even if no indicators are provided
   - **Detailed Logging**: Adds comprehensive logging to track chart creation process and identify issues
   - **Error Recovery**: Returns empty figures with appropriate logging rather than crashing when errors occur
+
+|--------------------------------|
+|      API Endpoints Update      |
+|--------------------------------|
+
+### 1. New KPI-related Endpoints
+The stock analysis API now includes endpoints for retrieving KPI data:
+
+- **`/api/stocks/kpi/{ticker}`** (GET): Retrieves key performance indicators for a specific ticker
+  - **Parameters**:
+    - `ticker` (path): Stock ticker symbol
+    - `groups` (query, optional): Comma-separated list of KPI groups to include
+    - `timeframe` (query, optional): Timeframe for metrics calculation (default: "1y")
+  - **Response**:
+    ```json
+    {
+      "ticker": "AAPL",
+      "kpi_groups": [
+        {
+          "title": "Price Metrics",
+          "metrics": [
+            {
+              "label": "Current Price",
+              "value": "182.63",
+              "trend": 0.015,
+              "trend_label": "+1.5% today"
+            },
+            // More metrics...
+          ]
+        },
+        // More groups...
+      ]
+    }
+    ```
+
+- **`/api/stocks/financials/{ticker}`** (GET): Retrieves fundamental financial data for a specific ticker
+  - **Parameters**:
+    - `ticker` (path): Stock ticker symbol
+    - `type` (query): Type of financial data (income, balance, cash_flow, ratios, all)
+    - `period` (query, optional): Period (annual, quarterly, default: annual)
+  - **Response**: Financial data in a structured JSON format

@@ -21,8 +21,15 @@ frontend/
 │   │   │   ├── ChartDisplay.js         # Component for rendering Plotly charts
 │   │   │   ├── ErrorMessage.js         # Component for displaying error messages
 │   │   │   ├── IndicatorConfigurationPanel.js # Panel for indicator parameter configuration
-│   │   │   └── LoadingOverlay.js       # Component for displaying loading states
-│   │   │   └── StockSettingsSidebar.js   # Component for stock settings sidebar
+│   │   │   ├── LoadingOverlay.js       # Component for displaying loading states
+│   │   │   ├── StockSettingsSidebar.js   # Component for stock settings sidebar
+│   │   │   └── kpi/                    # KPI (Key Performance Indicators) components
+│   │   │       ├── index.js            # Exports all KPI components for easy importing
+│   │   │       ├── KpiCard.js          # Individual KPI card component
+│   │   │       ├── KpiContainer.js     # Container component for KPI cards
+│   │   │       ├── KpiDashboard.js     # Dashboard for multiple KPI groups
+│   │   │       ├── KpiGroup.js         # Grouping component for related KPIs
+│   │   │       └── KpiSettings.js      # Settings component for KPI customization
 │   │   └── reports/      # Report-specific components
 │   ├── pages/            # Next.js pages (each file becomes a route)
 │   │   ├── api/          # API routes for backend communication
@@ -204,6 +211,7 @@ frontend/
         - IndicatorConfigurationPanel
         - ChartDisplay
         - ErrorMessage
+        - KpiContainer (New)
     - `ChartConfigurationForm.js`:
       - **Purpose**: Form component for stock chart configuration
       - **Location**: `frontend/src/components/stock/ChartConfigurationForm.js`
@@ -364,6 +372,88 @@ frontend/
           - Well-organized structure with logical grouping of related functions
           - Follows DRY principles throughout the component
           - Uses consistent naming conventions and formatting
+    - `kpi/`: Contains components for Key Performance Indicators (KPIs)
+      - `index.js`:
+        - **Purpose**: Exports all KPI components for easier imports
+        - **Location**: `frontend/src/components/stock/kpi/index.js`
+        - **Features**:
+          - Named exports for individual components
+          - Default export for importing all components at once
+          - Clear documentation for import usage patterns
+      - `KpiCard.js`:
+        - **Purpose**: Displays a single KPI metric with label, value, and trend
+        - **Location**: `frontend/src/components/stock/kpi/KpiCard.js`
+        - **Key Features**:
+          - Clear visual representation of a metric with its current value
+          - Color-coded trend indicators (up/down arrows)
+          - Customizable styling and sizing
+        - **Props**:
+          ```typescript
+          interface KpiCardProps {
+            label: string;           // The name/label of the KPI
+            value: string | number;  // The current value to display
+            trend?: number;          // Optional trend value (positive = up, negative = down)
+            trendLabel?: string;     // Optional label for the trend
+            className?: string;      // Optional CSS class for styling
+          }
+          ```
+      - `KpiContainer.js`:
+        - **Purpose**: Container for KPI cards and dashboard integrated below the stock chart
+        - **Location**: `frontend/src/components/stock/kpi/KpiContainer.js`
+        - **Key Features**:
+          - Displays KPI metrics related to the current stock
+          - Handles stock ticker selection and propagates changes
+          - Provides a consistent UI for viewing key metrics
+        - **Props**:
+          ```typescript
+          interface KpiContainerProps {
+            ticker: string;                      // Current stock ticker
+            onTickerChange: (ticker: string) => void; // Callback for ticker changes
+          }
+          ```
+      - `KpiGroup.js`:
+        - **Purpose**: Groups related KPI cards together with a heading
+        - **Location**: `frontend/src/components/stock/kpi/KpiGroup.js`
+        - **Key Features**:
+          - Organizes related KPI cards under a common title
+          - Provides consistent spacing and styling
+          - Allows for collapsible/expandable groups
+        - **Props**:
+          ```typescript
+          interface KpiGroupProps {
+            title: string;              // Group title/heading
+            children: React.ReactNode;  // KPI cards to display in this group
+            className?: string;         // Optional CSS class for styling
+          }
+          ```
+      - `KpiDashboard.js`:
+        - **Purpose**: Top-level dashboard component that organizes KPI groups
+        - **Location**: `frontend/src/components/stock/kpi/KpiDashboard.js`
+        - **Key Features**:
+          - Arranges multiple KPI groups in a structured layout
+          - Fetches and manages KPI data for the current ticker
+          - Supports responsive layouts for different screen sizes
+        - **Props**:
+          ```typescript
+          interface KpiDashboardProps {
+            ticker: string;              // Current stock ticker
+            onTickerChange?: (ticker: string) => void; // Optional callback for ticker changes
+          }
+          ```
+      - `KpiSettings.js`:
+        - **Purpose**: Provides configuration options for KPI display
+        - **Location**: `frontend/src/components/stock/kpi/KpiSettings.js`
+        - **Key Features**:
+          - Toggle visibility of different KPI metrics and groups
+          - Customize refresh frequency and data sources
+          - Save user preferences for KPI display
+        - **Props**:
+          ```typescript
+          interface KpiSettingsProps {
+            settings: KpiSettings;       // Current settings configuration
+            onSettingsChange: (settings: KpiSettings) => void; // Callback for settings changes
+          }
+          ```
   - `common/`: Shared components used across multiple features
   - `reports/`: Components specific to the financial reporting functionality
 
@@ -414,17 +504,73 @@ frontend/
       - Consistent formatting across the application
       - DRY implementation with utility functions to create loggers for different levels
       - Constants for environment names and log level configuration
-    - **Usage**: Imported in components to log events, errors, and user interactions
+      - Modern ES Modules export syntax for better compatibility with Next.js
+    - **Usage**: Imported in components using ES Module syntax: `import { logger } from '../utils/logger'`
     - **Benefits**:
       - Simplified debugging process
       - Reduced console noise in production
       - Foundation for future logging enhancements
       - Better code maintainability through modular design
+      - Consistent import pattern across the application
     - **Recent Improvements**:
       - **Prevention of duplicate log entries in event handlers**
       - **More descriptive log messages for state changes**
       - **Proper batching of operations that generate logs**
       - **Enhanced documentation with JSDoc comments**
+
+## Logger Implementation Changes
+
+### From CommonJS to ES Modules
+
+One of the critical issues that was fixed in the application was the inconsistency in how the logger was exported and imported, which caused Next.js to fail during rendering.
+
+#### The Problem
+
+- **Mixed Module Systems**: The logger was previously using CommonJS exports (`module.exports = logger`) while the application was using ES Modules imports (`import { logger } from '../../utils/logger'`).
+- **Next.js Requirements**: Next.js treats files with ES Module imports as ES Modules exclusively, which can't also contain CommonJS exports.
+- **Runtime Errors**: This conflict resulted in errors where components couldn't access logger methods because the imports were mismatched with the exports.
+
+#### The Solution
+
+1. **Standardized on ES Modules**: 
+   - Removed CommonJS exports (`module.exports = logger`) from `logger.js`
+   - Used only ES Modules exports: `export const logger` and `export default`
+   - Updated all imports to use the ES Modules syntax: `import { logger } from '../../utils/logger'`
+
+2. **File Updates**:
+   - Modified all components and utilities that were importing the logger
+   - Ensured consistent import patterns throughout the codebase
+   - Added additional safety checks around logger calls
+
+3. **Benefits of the Change**:
+   - **Compatibility**: Better alignment with Next.js expectations for module systems
+   - **Consistency**: Single pattern for imports across the entire application
+   - **Future-Proofing**: ES Modules are the modern JavaScript standard
+   - **Error Reduction**: Eliminated runtime errors caused by module system mismatches
+
+#### Example Changes
+
+Before:
+```javascript
+// In logger.js
+const logger = { /* logger implementation */ };
+module.exports = logger;
+
+// In a component
+const logger = require('../../utils/logger');
+```
+
+After:
+```javascript
+// In logger.js
+export const logger = { /* logger implementation */ };
+export default logger;
+
+// In a component
+import { logger } from '../../utils/logger';
+```
+
+This change highlights the importance of maintaining consistency in module systems, especially in modern JavaScript frameworks like Next.js that have specific expectations about how modules interact.
 
 ## Chart Rendering System Optimizations
 
@@ -671,11 +817,13 @@ The Stock Analysis feature provides interactive stock charts with customizable t
   - Parameter changes from IndicatorConfigurationPanel update indicator configurations
   - Updated configuration triggers API calls to fetch new chart data
   - Chart data is passed to ChartDisplay for rendering
+  - KPI metrics are updated based on the selected ticker
 - **Event Handling**:
   - User input changes are captured and processed in the appropriate component
   - Events are propagated up to the StockChart component via callback props
   - State updates trigger re-renders of affected components
   - Loading states and errors are managed at the StockChart level and propagated down
+  - KPI ticker changes are synchronized with the chart ticker
 
 ### 6. API Communication
 - **Service Layer**: The `stock.js` service handles communication with the backend API
@@ -704,6 +852,12 @@ The Stock Analysis feature provides interactive stock charts with customizable t
   - Escape key support for exiting full-screen mode
   - Modal overlay that preserves all chart interactions
   - On-screen hint for keyboard shortcuts
+- **KPI Dashboard**:
+  - Interactive metrics dashboard below the chart
+  - Key financial indicators for the current stock
+  - Synchronized ticker selection with the main chart
+  - Visual trend indicators for each metric
+  - Grouping of related metrics for better organization
 
 ### 8. Development Mode Behavior
 - **React StrictMode Effects**:
@@ -854,4 +1008,4 @@ The Stock Analysis feature provides interactive stock charts with customizable t
    - Use the services layer for all API communication
    - Implement proper error handling for all API calls
    - Check API health before attempting data operations
-   - Provide graceful degradation when backend services are unavailable 
+   - Provide graceful degradation when backend services are unavailable

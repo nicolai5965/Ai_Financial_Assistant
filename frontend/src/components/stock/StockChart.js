@@ -3,8 +3,7 @@ import { logger } from '../../utils/logger';
 import { fetchStockChart } from '../../services/api/stock';
 
 // Import the new components
-import ChartConfigurationForm from './ChartConfigurationForm';
-import IndicatorConfigurationPanel from './IndicatorConfigurationPanel';
+// import IndicatorConfigurationPanel from './IndicatorConfigurationPanel';
 import ChartDisplay from './ChartDisplay';
 import ErrorMessage from './ErrorMessage';
 import StockSettingsSidebar from './StockSettingsSidebar';
@@ -87,6 +86,9 @@ const StockChart = () => {
   
   // Ref to keep track of the previous chart while loading new one
   const prevChartRef = useRef(null);
+  
+  // New state to track chart updates (used to signal KPI container to update)
+  const [chartUpdateTimestamp, setChartUpdateTimestamp] = useState(Date.now());
   
   // Load initial chart on component mount
   useEffect(() => {
@@ -357,6 +359,10 @@ const StockChart = () => {
       
       const data = await fetchStockChart(configToSend);
       setChartData(data);
+      
+      // Update timestamp to trigger KPI refresh
+      setChartUpdateTimestamp(Date.now());
+      
       logger.info(`Chart data loaded successfully (instance: ${instanceId.current})`);
     } catch (err) {
       const errorMessage = processApiError(err);
@@ -393,44 +399,35 @@ const StockChart = () => {
     <div className="stock-chart-container">
       <h2>Stock Chart Analysis</h2>
       
-      {/* Ticker Symbol Input - Extracted from the form */}
-      <div className="ticker-input-container">
-        <form className="ticker-form" onSubmit={(e) => e.preventDefault()}>
-          <label htmlFor="ticker">Ticker Symbol:</label>
-          <input
-            type="text"
-            id="ticker"
-            name="ticker"
-            value={config.ticker}
-            onChange={handleInputChange}
-            required
-          />
-        </form>
-      </div>
-      
       {/* Error Message */}
       <ErrorMessage message={error} />
       
-      {/* Chart Display */}
-      <ChartDisplay
-        chartData={chartData?.chart}
-        isLoading={isLoading}
-        prevChartData={prevChartRef.current}
-      />
-      
-      {/* KPI Container - Added below the chart display */}
-      <div className="kpi-container-wrapper">
-        <KpiContainer 
-          ticker={config.ticker} 
-          onTickerChange={(newTicker) => {
-            if (newTicker !== config.ticker) {
-              logger.info(`Ticker changed from KPI component: ${config.ticker} to ${newTicker}`);
-              const newConfig = { ...config, ticker: newTicker };
-              setConfig(newConfig);
-              loadChart(newConfig);
-            }
-          }}
-        />
+      {/* Main chart area with error handling */}
+      <div className="chart-area">
+        {error ? (
+          <ErrorMessage message={error} />
+        ) : (
+          <>
+            <ChartDisplay 
+              chartData={chartData?.chart} 
+              isLoading={isLoading}
+              prevChartData={prevChartRef.current}
+              onUpdate={handleSubmit}
+            />
+            
+            {/* KPI Container */}
+            {chartData && (
+              <KpiContainer 
+                ticker={config.ticker} 
+                onTickerChange={(newTicker) => {
+                  setConfig(prev => ({ ...prev, ticker: newTicker }));
+                  loadChart({ ...config, ticker: newTicker });
+                }}
+                forceUpdate={chartUpdateTimestamp}
+              />
+            )}
+          </>
+        )}
       </div>
       
       {/* Stock Settings Sidebar */}
@@ -458,40 +455,12 @@ const StockChart = () => {
           position: relative; /* For proper positioning of sidebar toggle button */
         }
         
-        .ticker-input-container {
+        .chart-area {
+          width: 100%;
+        }
+        
+        h2 {
           margin-bottom: 20px;
-          width: 100%;
-        }
-        
-        .kpi-container-wrapper {
-          margin-top: 20px;
-          width: 100%;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
-          padding-top: 20px;
-        }
-        
-        .ticker-form {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          max-width: 400px;
-        }
-        
-        .ticker-input-container label {
-          font-weight: bold;
-          margin-right: 5px;
-          white-space: nowrap;
-        }
-        
-        .ticker-input-container input {
-          padding: 8px;
-          border: 1px solid #444;
-          border-radius: 4px;
-          background-color: #0d1b2a;
-          color: #fff;
-          flex: 1;
-          min-width: 100px;
-          max-width: 200px;
         }
       `}</style>
     </div>

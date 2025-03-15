@@ -45,9 +45,10 @@ const DEFAULT_PREFERENCES = {
  * @param {Object} props - Component properties
  * @param {string} props.ticker - The stock ticker symbol
  * @param {Function} props.onTickerChange - Function to call when ticker changes
+ * @param {number} props.forceUpdate - Timestamp to force a refresh of KPI data
  * @returns {JSX.Element} The rendered component
  */
-const KpiContainer = ({ ticker, onTickerChange }) => {
+const KpiContainer = ({ ticker, onTickerChange, forceUpdate }) => {
   // State for KPI data
   const [kpiData, setKpiData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -159,12 +160,12 @@ const KpiContainer = ({ ticker, onTickerChange }) => {
     checkApiAvailability();
   }, []);
   
-  // Fetch data when ticker or preferences change
+  // Fetch data when ticker, preferences, or forceUpdate changes
   useEffect(() => {
     if (ticker) {
       fetchData();
     }
-  }, [ticker, fetchData]);
+  }, [ticker, fetchData, forceUpdate]);
   
   // Save preferences to localStorage when they change
   useEffect(() => {

@@ -17,7 +17,7 @@ const CHART_WIDTH = '100%';
  * Handles displaying the chart, loading spinner, and previous chart during loading.
  * Includes full-screen toggle functionality via a modal overlay.
  */
-const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
+const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
   // State to track full-screen mode
   const [isFullScreen, setIsFullScreen] = useState(false);
   // Ref to store debounce timeout for resize handling
@@ -32,6 +32,14 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
     const newState = !isFullScreen;
     setIsFullScreen(newState);
     logger.info(`Chart full-screen mode ${newState ? 'enabled' : 'disabled'}`);
+  };
+
+  // Handler for update button click
+  const handleUpdate = () => {
+    if (onUpdate) {
+      logger.info('Manual chart update requested');
+      onUpdate();
+    }
   };
 
   // Process chart data to ensure consistent layout settings.
@@ -125,13 +133,23 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
       {!isFullScreen && hasChartData && (
         <div className="chart-banner">
           <h3 className="chart-title">{getChartTitle()}</h3>
-          <button 
-            onClick={toggleFullScreen} 
-            className="full-screen-toggle"
-            title="Toggle full-screen mode"
-          >
-            Full Screen
-          </button>
+          <div className="banner-buttons">
+            <button 
+              onClick={handleUpdate} 
+              className="update-button"
+              title="Update chart and KPIs"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Updating...' : 'Update'}
+            </button>
+            <button 
+              onClick={toggleFullScreen} 
+              className="full-screen-toggle"
+              title="Toggle full-screen mode"
+            >
+              Full Screen
+            </button>
+          </div>
         </div>
       )}
 
@@ -166,13 +184,23 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
           <div className="full-screen-content">
             <div className="chart-banner fullscreen">
               <h3 className="chart-title">{getChartTitle()}</h3>
-              <button 
-                onClick={toggleFullScreen} 
-                className="full-screen-toggle"
-                title="Exit full-screen mode"
-              >
-                Exit Full Screen
-              </button>
+              <div className="banner-buttons">
+                <button 
+                  onClick={handleUpdate} 
+                  className="update-button"
+                  title="Update chart and KPIs"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Updating...' : 'Update'}
+                </button>
+                <button 
+                  onClick={toggleFullScreen} 
+                  className="full-screen-toggle"
+                  title="Exit full-screen mode"
+                >
+                  Exit Full Screen
+                </button>
+              </div>
             </div>
             <div ref={plotDivRef} style={{ width: "100%", height: "calc(100% - 50px)" }}>
               <Plot 
@@ -297,6 +325,31 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData }) => {
           border-radius: 4px;
           font-size: 12px;
           opacity: 0.7;
+        }
+        
+        .banner-buttons {
+          display: flex;
+          align-items: center;
+        }
+        
+        .update-button {
+          background-color: #4CAF50;
+          color: white;
+          margin-right: 10px;
+          padding: 5px 10px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        
+        .update-button:hover {
+          background-color: #45a049;
+        }
+        
+        .update-button:disabled {
+          background-color: #cccccc;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

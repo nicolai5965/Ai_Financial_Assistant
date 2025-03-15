@@ -17,12 +17,10 @@ frontend/
 │   │   │   └── Layout.js # Layout wrapper for consistent UI structure
 │   │   ├── stock/        # Stock analysis-specific components
 │   │   │   ├── StockChart.js           # Main container for stock chart functionality
-│   │   │   ├── ChartConfigurationForm.js # Form for ticker, timeframe, and indicator selection
 │   │   │   ├── ChartDisplay.js         # Component for rendering Plotly charts
 │   │   │   ├── ErrorMessage.js         # Component for displaying error messages
-│   │   │   ├── IndicatorConfigurationPanel.js # Panel for indicator parameter configuration
 │   │   │   ├── LoadingOverlay.js       # Component for displaying loading states
-│   │   │   ├── StockSettingsSidebar.js   # Component for stock settings sidebar
+│   │   │   ├── StockSettingsSidebar.js # Component for stock settings sidebar with all chart controls and indicator configuration
 │   │   │   └── kpi/                    # KPI (Key Performance Indicators) components
 │   │   │       ├── index.js            # Exports all KPI components for easy importing
 │   │   │       ├── KpiCard.js          # Individual KPI card component
@@ -207,49 +205,85 @@ frontend/
         - Maintains reference to previous chart data for smooth transitions
       - **Props**: None (top-level component)
       - **Child Components**:
-        - ChartConfigurationForm
-        - IndicatorConfigurationPanel
+        - StockSettingsSidebar
         - ChartDisplay
         - ErrorMessage
-        - KpiContainer (New)
-    - `ChartConfigurationForm.js`:
-      - **Purpose**: Form component for stock chart configuration
-      - **Location**: `frontend/src/components/stock/ChartConfigurationForm.js`
+        - KpiContainer
+    - `StockSettingsSidebar.js`:
+      - **Purpose**: Provides a toggleable sidebar for configuring all chart settings and technical indicators
+      - **Location**: `frontend/src/components/stock/StockSettingsSidebar.js`
       - **Key Features**:
-        - Input for ticker symbol
-        - Input for number of days of history
-        - Dropdown for interval selection
-        - Dropdown for chart type
-        - Checkbox list for technical indicator selection
-        - Submit button for updating ticker/time period
+        - Toggleable sidebar for adjusting chart settings without leaving the main view
+        - Input for ticker symbol entry
+        - Form inputs for days of history, interval, and chart type
+        - Categorized technical indicator selection organized by panel type
+        - Parameter configuration for selected indicators
+        - Panel assignment controls to determine where each indicator appears
+        - Responsive design that works well on various screen sizes
+        - Consistent input handling through reusable rendering functions
+        - **Custom SVG-Based Checkbox System**:
+          - Sophisticated SVG rendering with dynamic fill, stroke, and path modifications
+          - Interactive state changes with visual feedback for selection states
+          - Complete control over checkbox appearance using styling constants
+          - Proper alignment between checkboxes and labels using table-based layout
+        - **Advanced Panel-Based Organization System**:
+          - Indicators organized into logical panel groups (main, oscillator, macd, volume, volatility)
+          - Automatic filtering and categorization of indicators by panel type
+          - Consistent styling and interaction patterns across all panel groups
+          - Visual differentiation between selected and unselected indicators
+        - **Constants-Based Styling Architecture**:
+          - Comprehensive styling system with organized constant categories
+          - Constants for layout, colors, sidebar, sections, inputs, effects, and checkboxes
+          - Centralized styling values for easy theme adjustment and maintenance
+          - Reusable styling patterns across the entire component
       - **Props**:
         ```typescript
-        interface ChartConfigurationFormProps {
-          config: ChartConfig;         // Current chart configuration
-          onInputChange: (e) => void;  // Handler for input field changes
+        interface StockSettingsSidebarProps {
+          isOpen: boolean;             // Whether the sidebar is open
+          toggleSidebar: () => void;   // Function to toggle sidebar state
+          config: object;              // Current chart configuration
+          onInputChange: (e) => void;  // Handler for input changes
           onIndicatorChange: (e) => void; // Handler for indicator selection
           onSubmit: (e) => void;       // Handler for form submission
-          isLoading: boolean;          // Loading state for submit button
+          isLoading: boolean;          // Whether a chart update is in progress
+          indicatorConfigs: object;    // Configuration for each indicator
+          panelAssignments: object;    // Panel assignments for indicators
+          onParamChange: (name, param, value) => void; // Handler for parameter changes
+          onPanelChange: (name, panel) => void; // Handler for panel assignment changes
         }
         ```
-    - `IndicatorConfigurationPanel.js`:
-      - **Purpose**: Component for configuring technical indicator parameters
-      - **Location**: `frontend/src/components/stock/IndicatorConfigurationPanel.js`
-      - **Key Features**:
-        - Dynamically renders configuration inputs for each selected indicator
-        - Input fields for each configurable parameter (window sizes, standard deviations, etc.)
-        - Panel selection dropdown for each indicator
-        - Only displays for indicators that have configurable parameters
-      - **Props**:
-        ```typescript
-        interface IndicatorConfigurationPanelProps {
-          selectedIndicators: (string | { name: string })[];  // Selected indicators
-          indicatorConfigs: Record<string, any>;  // Current indicator configurations
-          panelAssignments: Record<string, string>;  // Current panel assignments
-          onParamChange: (indicatorName, paramName, value) => void;  // Handler for parameter changes
-          onPanelChange: (indicatorName, panelName) => void;  // Handler for panel assignment changes
-        }
-        ```
+      - **Implementation Details**:
+        - **Modular Design**: 
+          - Breaks down UI rendering into helper functions for better maintainability
+          - Implements `renderFormGroup`, `renderIndicatorGroup`, and `renderParameterConfig` helper functions
+          - Consistently applies the same rendering approach for all form inputs including ticker symbol
+          - Extracts utility functions like `isIndicatorConfigured` and `getIndicatorName` to improve readability
+        - **Advanced Rendering Function Pattern**:
+          - Systematic pattern of reusable rendering functions for different UI sections
+          - Consistent event handling and state management across all rendered elements
+          - Proper logging of user interactions throughout the component
+          - Clean separation between rendering logic and event handling
+        - **Table-Based Layout System**:
+          - Uses HTML table structure to ensure proper alignment of elements
+          - Handles complex vertical alignment challenges for checkboxes and labels
+          - Maintains consistent spacing and positioning regardless of content length
+          - Provides reliable rendering across different browsers and screen sizes
+        - **Styling Constants**:
+          - Defines a comprehensive set of styling constants at the top of the file
+          - Uses constants for consistent styling across the component
+          - Implements variables for sizes, colors, and spacing for easy theming
+        - **Comprehensive JSDoc Documentation**:
+          - Detailed component description with proper JSDoc format
+          - Full documentation of all parameters, props, and helper functions
+          - Clear explanations of function purposes and return values
+        - **Event Handling**:
+          - Proper event handlers with appropriate debugging logs
+          - Consistent naming conventions for all handler functions
+          - Clear separation of event handlers and rendering logic
+        - **Clean, Maintainable Code**:
+          - Well-organized structure with logical grouping of related functions
+          - Follows DRY principles throughout the component
+          - Uses consistent naming conventions and formatting
     - `ChartDisplay.js`:
       - **Purpose**: Component for rendering the Plotly chart
       - **Location**: `frontend/src/components/stock/ChartDisplay.js`
@@ -260,12 +294,14 @@ frontend/
         - Responsive design that adjusts to container size
         - Implements full-screen viewing mode
         - Ensures consistent fixed chart height of 600px
+        - Provides an update button for refreshing chart data
       - **Props**:
         ```typescript
         interface ChartDisplayProps {
           chartData: string;           // JSON string of Plotly chart data
           isLoading: boolean;          // Loading state
           prevChartData: string;       // Previous chart data for smooth transitions
+          onUpdate: () => void;        // Function to call for chart updates
         }
         ```
       - **Optimization Features**:
@@ -325,53 +361,6 @@ frontend/
         - Leverages styled-jsx for component-scoped styling
         - Follows DRY principles with extracted styling constants
         - Maintains clean, organized code with proper documentation
-    - `StockSettingsSidebar.js`:
-      - **Purpose**: Provides a toggleable sidebar for configuring chart settings and technical indicators
-      - **Location**: `frontend/src/components/stock/StockSettingsSidebar.js`
-      - **Key Features**:
-        - Toggleable sidebar for adjusting chart settings without leaving the main view
-        - Form inputs for days of history, interval, and chart type
-        - Categorized technical indicator selection organized by panel type
-        - Parameter configuration for selected indicators
-        - Panel assignment controls to determine where each indicator appears
-        - Responsive design that works well on various screen sizes
-      - **Props**:
-        ```typescript
-        interface StockSettingsSidebarProps {
-          isOpen: boolean;             // Whether the sidebar is open
-          toggleSidebar: () => void;   // Function to toggle sidebar state
-          config: object;              // Current chart configuration
-          onInputChange: (e) => void;  // Handler for input changes
-          onIndicatorChange: (e) => void; // Handler for indicator selection
-          onSubmit: (e) => void;       // Handler for form submission
-          isLoading: boolean;          // Whether a chart update is in progress
-          indicatorConfigs: object;    // Configuration for each indicator
-          panelAssignments: object;    // Panel assignments for indicators
-          onParamChange: (name, param, value) => void; // Handler for parameter changes
-          onPanelChange: (name, panel) => void; // Handler for panel assignment changes
-        }
-        ```
-      - **Implementation Details**:
-        - **Modular Design**: 
-          - Breaks down UI rendering into helper functions for better maintainability
-          - Implements `renderFormGroup`, `renderIndicatorGroup`, and `renderParameterConfig` helper functions
-          - Extracts utility functions like `isIndicatorConfigured` and `getIndicatorName` to improve readability
-        - **Styling Constants**:
-          - Defines a comprehensive set of styling constants at the top of the file
-          - Uses constants for consistent styling across the component
-          - Implements variables for sizes, colors, and spacing for easy theming
-        - **Comprehensive JSDoc Documentation**:
-          - Detailed component description with proper JSDoc format
-          - Full documentation of all parameters, props, and helper functions
-          - Clear explanations of function purposes and return values
-        - **Event Handling**:
-          - Proper event handlers with appropriate debugging logs
-          - Consistent naming conventions for all handler functions
-          - Clear separation of event handlers and rendering logic
-        - **Clean, Maintainable Code**:
-          - Well-organized structure with logical grouping of related functions
-          - Follows DRY principles throughout the component
-          - Uses consistent naming conventions and formatting
     - `kpi/`: Contains components for Key Performance Indicators (KPIs)
       - `index.js`:
         - **Purpose**: Exports all KPI components for easier imports
@@ -749,8 +738,7 @@ The Stock Analysis feature provides interactive stock charts with customizable t
 
 ### 2. Components
 - **StockChart.js**: Main container component that orchestrates the entire stock chart functionality
-- **ChartConfigurationForm.js**: Handles user inputs for ticker, days, interval, chart type, and indicator selection
-- **IndicatorConfigurationPanel.js**: Manages parameter inputs for each selected indicator and panel assignments
+- **StockSettingsSidebar.js**: Handles all user inputs including ticker symbol, days, interval, chart type, and indicator selection and configuration in a clean sidebar interface
 - **ChartDisplay.js**: Renders the Plotly chart and manages loading states
 - **ErrorMessage.js**: Displays error messages in a consistent style
 - **LoadingOverlay.js**: Provides a reusable loading overlay component
@@ -813,8 +801,8 @@ The Stock Analysis feature provides interactive stock charts with customizable t
 ### 5. Component Interaction
 - **Data Flow**:
   - StockChart maintains the central state
-  - User inputs from ChartConfigurationForm update the configuration state
-  - Parameter changes from IndicatorConfigurationPanel update indicator configurations
+  - User inputs from StockSettingsSidebar update the configuration state
+  - Parameter changes from StockSettingsSidebar update indicator configurations
   - Updated configuration triggers API calls to fetch new chart data
   - Chart data is passed to ChartDisplay for rendering
   - KPI metrics are updated based on the selected ticker

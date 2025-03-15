@@ -2,16 +2,53 @@ import React from 'react';
 import Image from 'next/image';
 import { logger } from '../../utils/logger';
 
-// Constants for styling
-const SIDEBAR_WIDTH = '300px';
-const SIDEBAR_BG_COLOR = 'rgba(13, 27, 42, 0.7)'; // Semi-transparent dark blue
+// Constants for styling - Organized by purpose
+// ---------------------------------------------
+
+// LAYOUT - Dimensions and positioning
+const SIDEBAR_WIDTH = '350px';
 const SIDEBAR_Z_INDEX = 900;
 const HEADER_HEIGHT = '80px';
-const ACCENT_COLOR = '#79B6F2';
-const ACCENT_HOVER_COLOR = '#5a9cd9';
-const SECTION_BG_COLOR = 'rgba(0, 0, 0, 0.2)';
-const SECTION_PADDING = '10px';
+
+// COLORS - Primary palette
+const PRIMARY_DARK = 'rgba(13, 27, 42, 1)';      // Dark blue
+const PRIMARY_LIGHT = 'rgba(26, 42, 58, 1)';     // Light blue
+const ACCENT_PRIMARY = 'rgba(92, 230, 207, 1)';  // Cyan
+const ACCENT_HOVER = 'rgba(59, 205, 186, 1)';    // Darker cyan
+const TEXT_PRIMARY = 'rgba(248, 248, 248, 1)';   // White text
+const TEXT_SECONDARY = 'rgba(204, 204, 204, 1)'; // Light gray text
+const SHADOW_COLOR = 'rgba(0, 0, 0, 0.5)';       // Black shadow
+
+// SIDEBAR - General sidebar styling
+const SIDEBAR_BG_COLOR = `linear-gradient(to bottom, ${PRIMARY_DARK}, ${PRIMARY_LIGHT})`;
+const SIDEBAR_BORDER = `1px solid rgba(92, 230, 207, 0.1)`;
+const SIDEBAR_SHADOW = `-4px 0 15px ${SHADOW_COLOR}`;
+
+// SECTION - Section container styling
+const SECTION_BG_COLOR = 'rgba(10, 20, 30, 0.6)';
+const SECTION_PADDING = '15px';
 const SECTION_BORDER_RADIUS = '4px';
+const SECTION_BORDER = `1px solid rgba(92, 230, 207, 0.2)`;
+const SECTION_SHADOW = `0 2px 10px rgba(0, 0, 0, 0.2)`;
+
+// INPUT - Form inputs and elements
+const INPUT_BG_COLOR = 'rgba(2, 7, 15, 0.95)';
+const INPUT_BORDER = `1px solid rgba(92, 230, 207, 0.3)`;
+const INPUT_FOCUS_SHADOW = `0 0 8px rgba(92, 230, 207, 0.6)`;
+const INPUT_HEIGHT = '42px';
+const BUTTON_HEIGHT = '45px';
+
+// EFFECTS - Glows and animations
+const ACCENT_GLOW = `0 0 10px rgba(92, 230, 207, 0.7)`;
+const TEXT_GLOW = `0 0 10px rgba(100, 104, 40, 1)`;
+
+// CHECKBOX - Checkbox specific styling
+const CHECKBOX_SIZE = '20px'; // Larger checkbox size for better visibility
+const CHECKBOX_BG = 'rgba(10, 20, 30, 0.7)';      // Dark blue background (unchecked)
+const CHECKBOX_BORDER = 'rgba(92, 230, 207, 0.7)'; // Cyan border
+const CHECKBOX_CHECKED_BG = 'rgba(34, 197, 42, 0.8)'; // Semi-transparent green when checked
+const CHECKBOX_MARGIN_RIGHT = '1px'; // Space between checkbox and label
+const CHECKBOX_ROW_SPACING = '10px'; // Vertical spacing between checkbox rows
 
 // Constants for indicators and their panel assignments
 const AVAILABLE_INDICATORS = [
@@ -124,20 +161,23 @@ const StockSettingsSidebar = ({
   const renderFormGroup = (id, label, name, type, value, onChange, options = {}) => {
     return (
       <div className="form-group">
-        <label htmlFor={id}>{label}:</label>
+        <label htmlFor={id}>{label}</label>
         {type === 'select' ? (
-          <select 
-            id={id} 
-            name={name} 
-            value={value} 
-            onChange={onChange}
-          >
-            {options.items && options.items.map(item => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+          <div className="futuristic-select-wrapper">
+            <select 
+              id={id} 
+              name={name} 
+              value={value} 
+              onChange={onChange}
+              className="futuristic-select"
+            >
+              {options.items && options.items.map(item => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
         ) : (
           <input
             type={type}
@@ -147,8 +187,59 @@ const StockSettingsSidebar = ({
             max={options.max}
             value={value}
             onChange={onChange}
+            required={options.required}
+            className="futuristic-input"
           />
         )}
+      </div>
+    );
+  };
+
+  /**
+   * Renders a custom checkbox with SVG
+   * 
+   * @param {boolean} checked - Whether the checkbox is checked
+   * @param {string} value - Checkbox value
+   * @param {Function} onChange - Change handler
+   * @returns {JSX.Element} Custom checkbox element
+   */
+  const CustomCheckbox = ({ checked, value, onChange }) => {
+    const handleClick = () => {
+      onChange({ target: { value, checked: !checked } });
+    };
+
+    return (
+      <div 
+        className={`custom-checkbox-svg ${checked ? 'checked' : ''}`} 
+        onClick={handleClick}
+      >
+        <svg 
+          width={CHECKBOX_SIZE} 
+          height={CHECKBOX_SIZE} 
+          viewBox="0 0 20 20" 
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {/* Background */}
+          <rect 
+            width="20" 
+            height="20" 
+            rx="3" 
+            fill={checked ? CHECKBOX_CHECKED_BG : CHECKBOX_BG} 
+            stroke={CHECKBOX_BORDER} 
+            strokeWidth="1.5" 
+          />
+          
+          {/* Checkmark */}
+          {checked && (
+            <path 
+              d="M5 9L8 12L14 6" 
+              stroke="rgba(10, 20, 30, 0.9)" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+            />
+          )}
+        </svg>
       </div>
     );
   };
@@ -162,24 +253,59 @@ const StockSettingsSidebar = ({
   const renderIndicatorGroup = (panelType) => {
     return (
       <div key={panelType} className="indicator-group">
-        <h4>{PANEL_NAMES[panelType]}</h4>
-        <div className="indicators-checkboxes">
-          {PANEL_GROUPS[panelType].map(indicator => (
-            <div key={indicator.value} className="indicator-checkbox">
-              <input
-                type="checkbox"
-                id={`sidebar-indicator-${indicator.value}`}
-                value={indicator.value}
-                checked={config.indicators.some(ind => 
-                  typeof ind === 'string' ? ind === indicator.value : ind.name === indicator.value
-                )}
-                onChange={onIndicatorChange}
-              />
-              <label htmlFor={`sidebar-indicator-${indicator.value}`}>
-                {indicator.label}
-              </label>
-            </div>
-          ))}
+        <h4 className="indicator-group-title">{PANEL_NAMES[panelType]}</h4>
+        <div className="indicators-grid" style={{ gap: CHECKBOX_ROW_SPACING }}>
+          {PANEL_GROUPS[panelType].map(indicator => {
+            const isSelected = config.indicators.some(ind => 
+              typeof ind === 'string' ? ind === indicator.value : ind.name === indicator.value
+            );
+            return (
+              <div 
+                key={indicator.value} 
+                className={`indicator-checkbox ${isSelected ? 'selected' : ''}`}
+                onClick={() => onIndicatorChange({ target: { value: indicator.value, checked: !isSelected }})}
+                style={{ marginBottom: CHECKBOX_ROW_SPACING }}
+              >
+                <table className="indicator-table" cellSpacing="0" cellPadding="0" style={{ width: '100%' }}>
+                  <tbody>
+                    <tr>
+                      <td className="checkbox-cell" style={{ width: '30px', verticalAlign: 'top', paddingTop: '2px' }}>
+                        <div className={`table-checkbox ${isSelected ? 'checked' : ''}`}>
+                          <svg 
+                            width={CHECKBOX_SIZE} 
+                            height={CHECKBOX_SIZE} 
+                            viewBox="0 0 20 20" 
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <rect 
+                              width="20" 
+                              height="20" 
+                              rx="3" 
+                              fill={isSelected ? CHECKBOX_CHECKED_BG : CHECKBOX_BG}
+                              stroke={CHECKBOX_BORDER}
+                              strokeWidth="1.5"
+                            />
+                            {isSelected && (
+                              <path 
+                                d="M5 10L8 13L15 7" 
+                                stroke="white" 
+                                strokeWidth="2" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                              />
+                            )}
+                          </svg>
+                        </div>
+                      </td>
+                      <td className="label-cell" style={{ paddingLeft: CHECKBOX_MARGIN_RIGHT, verticalAlign: 'top', paddingTop: '0px' }}>
+                        <span className="checkbox-text" style={{ display: 'inline-block', lineHeight: '20px' }}>{indicator.label}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -195,13 +321,13 @@ const StockSettingsSidebar = ({
   const renderParameterConfig = (indicatorName, params) => {
     return (
       <div className="parameter-config" key={`params-${indicatorName}`}>
-        <h4>{indicatorName} Parameters</h4>
+        <h4 className="parameter-title">{indicatorName} Parameters</h4>
         <div className="parameter-config-container">
           <div className="parameter-inputs">
             {Object.entries(params).map(([paramName, paramValue]) => (
               <div className="param-input" key={`${indicatorName}-${paramName}`}>
                 <label htmlFor={`sidebar-param-${indicatorName}-${paramName}`}>
-                  {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}:
+                  {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}
                 </label>
                 <input
                   id={`sidebar-param-${indicatorName}-${paramName}`}
@@ -215,19 +341,22 @@ const StockSettingsSidebar = ({
           
           <div className="panel-selection">
             <label htmlFor={`sidebar-panel-${indicatorName}`}>
-              Display in:
+              Display in
             </label>
-            <select
-              id={`sidebar-panel-${indicatorName}`}
-              value={panelAssignments[indicatorName] || 'main'}
-              onChange={(e) => onPanelChange(indicatorName, e.target.value)}
-            >
-              <option value="main">Main Price Chart</option>
-              <option value="oscillator">Oscillator Panel</option>
-              <option value="macd">MACD Panel</option>
-              <option value="volume">Volume Panel</option>
-              <option value="volatility">Volatility Panel</option>
-            </select>
+            <div className="futuristic-select-wrapper">
+              <select
+                id={`sidebar-panel-${indicatorName}`}
+                value={panelAssignments[indicatorName] || 'main'}
+                onChange={(e) => onPanelChange(indicatorName, e.target.value)}
+                className="futuristic-select"
+              >
+                <option value="main">Main Price Chart</option>
+                <option value="oscillator">Oscillator Panel</option>
+                <option value="macd">MACD Panel</option>
+                <option value="volume">Volume Panel</option>
+                <option value="volatility">Volatility Panel</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -258,47 +387,60 @@ const StockSettingsSidebar = ({
             />
           </div>
           
-          <h3>Chart Settings</h3>
+          <div className="section-container chart-settings-section">
+            <h3 className="section-title">Chart Settings</h3>
+            
+            {/* Chart settings form */}
+            <form onSubmit={handleFormSubmit} className="settings-form">
+              {/* Use renderFormGroup for consistency with other form inputs */}
+              {renderFormGroup(
+                'ticker', 
+                'Ticker Symbol', 
+                'ticker', 
+                'text', 
+                config.ticker, 
+                onInputChange, 
+                { required: true }
+              )}
+              
+              {renderFormGroup(
+                'days', 
+                'Days of History', 
+                'days', 
+                'number', 
+                config.days, 
+                onInputChange, 
+                { min: '1', max: '365' }
+              )}
+              
+              {renderFormGroup(
+                'interval', 
+                'Interval', 
+                'interval', 
+                'select', 
+                config.interval, 
+                onInputChange, 
+                { items: INTERVALS }
+              )}
+              
+              {renderFormGroup(
+                'chartType', 
+                'Chart Type', 
+                'chartType', 
+                'select', 
+                config.chartType, 
+                onInputChange, 
+                { items: CHART_TYPES }
+              )}
+              
+              <button type="submit" className="update-button" disabled={isLoading}>
+                {isLoading ? 'Loading...' : 'Update Chart'}
+              </button>
+            </form>
+          </div>
           
-          {/* Chart settings form */}
-          <form onSubmit={handleFormSubmit} className="settings-form">
-            {renderFormGroup(
-              'days', 
-              'Days of History', 
-              'days', 
-              'number', 
-              config.days, 
-              onInputChange, 
-              { min: '1', max: '365' }
-            )}
-            
-            {renderFormGroup(
-              'interval', 
-              'Interval', 
-              'interval', 
-              'select', 
-              config.interval, 
-              onInputChange, 
-              { items: INTERVALS }
-            )}
-            
-            {renderFormGroup(
-              'chartType', 
-              'Chart Type', 
-              'chartType', 
-              'select', 
-              config.chartType, 
-              onInputChange, 
-              { items: CHART_TYPES }
-            )}
-            
-            <button type="submit" disabled={isLoading}>
-              {isLoading ? 'Loading...' : 'Update Chart'}
-            </button>
-          </form>
-          
-          <div className="indicators-section">
-            <h3>Technical Indicators</h3>
+          <div className="section-container indicators-section">
+            <h3 className="section-title">Technical Indicators</h3>
             
             {/* Indicators grouped by panel type */}
             {Object.keys(PANEL_GROUPS).map(panelType => 
@@ -308,8 +450,8 @@ const StockSettingsSidebar = ({
           
           {/* Indicator Configuration Panel embedded in sidebar */}
           {config.indicators.length > 0 && (
-            <div className="indicator-configuration-section">
-              <h3>Indicator Settings</h3>
+            <div className="section-container indicator-configuration-section">
+              <h3 className="section-title">Indicator Settings</h3>
               {config.indicators
                 .filter(isIndicatorConfigured)
                 .map(ind => {
@@ -338,23 +480,41 @@ const StockSettingsSidebar = ({
       <style jsx>{`
         .stock-settings-sidebar {
           position: fixed;
-          top: ${HEADER_HEIGHT}; /* Position below the header */
-          right: 0; /* Position on the right side of the screen */
-          height: calc(100vh - ${HEADER_HEIGHT}); /* Full height minus header */
-          background-color: ${SIDEBAR_BG_COLOR}; /* Semi-transparent dark blue */
-          box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
-          transition: transform 0.3s ease;
+          top: ${HEADER_HEIGHT};
+          right: 0;
+          height: calc(100vh - ${HEADER_HEIGHT});
+          background: ${SIDEBAR_BG_COLOR};
+          box-shadow: ${SIDEBAR_SHADOW};
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
           width: ${SIDEBAR_WIDTH};
-          z-index: ${SIDEBAR_Z_INDEX}; /* Lower than header but higher than content */
-          overflow-y: auto; /* Enable scrolling for overflow content */
+          z-index: ${SIDEBAR_Z_INDEX};
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: ${ACCENT_PRIMARY} rgba(0, 0, 0, 0.2);
+          border-left: ${SIDEBAR_BORDER};
+        }
+        
+        /* Scrollbar styling for WebKit browsers */
+        .stock-settings-sidebar::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        .stock-settings-sidebar::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .stock-settings-sidebar::-webkit-scrollbar-thumb {
+          background-color: ${ACCENT_PRIMARY};
+          border-radius: 4px;
         }
         
         .stock-settings-sidebar.closed {
-          transform: translateX(100%); /* Move off-screen when closed */
+          transform: translateX(100%);
+          box-shadow: none;
         }
         
         .stock-settings-sidebar.open {
-          transform: translateX(0); /* Visible when open */
+          transform: translateX(0);
         }
         
         .sidebar-content {
@@ -362,142 +522,319 @@ const StockSettingsSidebar = ({
           height: 100%;
           display: flex;
           flex-direction: column;
+          gap: 20px;
         }
         
         .close-button {
           align-self: flex-end;
           cursor: pointer;
           padding: 0.5rem;
-          transition: opacity 0.2s;
+          transition: opacity 0.2s, transform 0.2s;
+          background: rgba(92, 230, 207, 0.3);
+          border-radius: 50%;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          width: 36px;
+          height: 36px;
+          margin-bottom: 5px;
         }
         
         .close-button:hover {
           opacity: 0.8;
+          transform: rotate(90deg);
         }
         
         .settings-open-button {
           position: fixed;
-          top: 90px; /* Just below the header */
+          top: 90px;
           right: 10px;
           cursor: pointer;
           z-index: 800;
           padding: 0.5rem;
           border-radius: 50%;
-          transition: opacity 0.2s;
-          background-color: ${SIDEBAR_BG_COLOR};
+          transition: transform 0.2s, box-shadow 0.2s;
+          background: ${SIDEBAR_BG_COLOR};
           display: flex;
           justify-content: center;
           align-items: center;
+          box-shadow: 0 0 10px ${SHADOW_COLOR};
         }
         
         .settings-open-button:hover {
-          opacity: 0.8;
+          transform: scale(1.1);
+          box-shadow: 0 0 15px rgba(0, 0, 0, 0.6), 0 0 5px ${ACCENT_PRIMARY};
         }
         
-        h3 {
-          margin-top: 1rem;
-          margin-bottom: 1rem;
-          color: #f8f8f8;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-          padding-bottom: 0.5rem;
+        .section-container {
+          background: ${SECTION_BG_COLOR};
+          border-radius: ${SECTION_BORDER_RADIUS};
+          padding: ${SECTION_PADDING};
+          border: ${SECTION_BORDER};
+          box-shadow: ${SECTION_SHADOW};
+          transition: box-shadow 0.3s ease;
         }
         
-        h4 {
-          margin-top: 0.5rem;
-          margin-bottom: 0.5rem;
-          color: #f8f8f8;
-          font-size: 1rem;
+        .section-container:hover {
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), 0 0 1px ${ACCENT_PRIMARY};
+        }
+        
+        .section-title {
+          margin-top: 0;
+          margin-bottom: 15px;
+          color: ${TEXT_PRIMARY};
+          border-bottom: 1px solid rgba(92, 230, 207, 0.3);
+          padding-bottom: 10px;
+          font-size: 18px;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          text-shadow: ${TEXT_GLOW};
         }
         
         .settings-form {
           display: flex;
           flex-direction: column;
           gap: 15px;
-          margin-bottom: 20px;
         }
         
         .form-group {
-          margin-bottom: 10px;
+          margin-bottom: 12px;
+          position: relative;
         }
         
-        label {
+        .form-group label {
           display: block;
-          margin-bottom: 5px;
-          font-weight: bold;
-          color: #f8f8f8;
+          margin-bottom: 6px;
+          font-weight: 500;
+          color: ${TEXT_PRIMARY};
+          font-size: 14px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
         
-        input, select {
+        /* Futuristic input styling */
+        .futuristic-input {
           width: 100%;
-          padding: 8px;
-          border: 1px solid #444;
+          height: ${INPUT_HEIGHT};
+          padding: 10px 12px;
+          border: ${INPUT_BORDER};
           border-radius: 4px;
-          background-color: #0d1b2a;
-          color: #fff;
+          background-color: ${INPUT_BG_COLOR};
+          color: ${TEXT_PRIMARY};
+          font-size: 14px;
+          transition: border-color 0.2s, box-shadow 0.2s;
+          box-sizing: border-box;
         }
         
-        button {
-          padding: 10px;
-          background-color: ${ACCENT_COLOR};
-          color: #0d1b2a;
+        .futuristic-input:focus {
+          outline: none;
+          border-color: ${ACCENT_PRIMARY};
+          box-shadow: ${INPUT_FOCUS_SHADOW};
+        }
+        
+        /* Futuristic select styling */
+        .futuristic-select-wrapper {
+          position: relative;
+          width: 100%;
+          height: ${INPUT_HEIGHT};
+          overflow: hidden;
+          border: ${INPUT_BORDER};
+          border-radius: 4px;
+          background: ${INPUT_BG_COLOR} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='5' viewBox='0 0 10 5'%3E%3Cpath d='M0 0l5 5 5-5z' fill='%235CE6CF'/%3E%3C/svg%3E") no-repeat right 12px center;
+          box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .futuristic-select-wrapper:hover {
+          border-color: ${ACCENT_PRIMARY};
+          box-shadow: ${INPUT_FOCUS_SHADOW};
+        }
+        
+        .futuristic-select {
+          width: 100%;
+          height: ${INPUT_HEIGHT};
+          padding: 10px 12px;
+          padding-right: 30px;
+          background: transparent;
+          color: ${TEXT_PRIMARY};
+          font-size: 14px;
+          border: none;
+          -webkit-appearance: none !important;
+          -moz-appearance: none !important;
+          appearance: none !important;
+          cursor: pointer;
+          position: relative;
+          z-index: 1;
+        }
+        
+        .futuristic-select:focus {
+          outline: none;
+        }
+        
+        /* Hide browser-specific dropdown arrows */
+        .futuristic-select::-ms-expand {
+          display: none;
+        }
+        
+        /* For webkit browsers */
+        .futuristic-select-wrapper::after {
+          content: none;
+        }
+        
+        .update-button {
+          padding: 12px;
+          background-color: ${ACCENT_PRIMARY};
+          color: rgba(0, 0, 0, 1);
           border: none;
           border-radius: 4px;
           cursor: pointer;
           font-weight: bold;
-          margin-top: 10px;
+          margin-top: 5px;
+          transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+          height: ${BUTTON_HEIGHT};
         }
         
-        button:hover {
-          background-color: ${ACCENT_HOVER_COLOR};
+        .update-button:hover {
+          background-color: ${ACCENT_HOVER};
+          transform: translateY(-2px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), ${ACCENT_GLOW};
         }
         
-        button:disabled {
-          background-color: #555;
+        .update-button:active {
+          transform: translateY(0);
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .update-button:disabled {
+          background-color: rgba(85, 85, 85, 0.7);
           cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
         }
         
         .indicators-section {
-          margin-bottom: 15px;
+          margin-bottom: 5px;
         }
         
         .indicator-group {
           margin-bottom: 15px;
-          background-color: ${SECTION_BG_COLOR};
-          padding: ${SECTION_PADDING};
-          border-radius: ${SECTION_BORDER_RADIUS};
+          padding: 12px;
+          border-radius: 4px;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(92, 230, 207, 0.15);
+          transition: box-shadow 0.3s;
         }
         
-        .indicators-checkboxes {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
+        .indicator-group:hover {
+          box-shadow: 0 0 8px rgba(92, 230, 207, 0.2);
+        }
+        
+        .indicator-group-title {
+          margin-top: 0;
+          margin-bottom: 10px;
+          color: ${ACCENT_PRIMARY};
+          font-size: 15px;
+          padding-bottom: 5px;
+          border-bottom: 1px dotted rgba(92, 230, 207, 0.3);
+        }
+        
+        .indicators-grid {
+          display: grid;
+          grid-template-columns: 1fr;
         }
         
         .indicator-checkbox {
-          display: flex;
-          align-items: center;
+          padding: 8px 12px;
+          border-radius: 3px;
+          transition: all 0.2s;
+          cursor: pointer;
+          border: 1px solid transparent;
+          min-height: 38px;
+          border: 2px dashed red !important;
         }
         
-        .indicator-checkbox input {
-          margin-right: 5px;
-          width: auto;
+        .indicator-checkbox:hover {
+          background: rgba(92, 230, 207, 0.05);
+        }
+        
+        .indicator-checkbox.selected {
+          background: rgba(14, 154, 179, 0.2);
+          border: 1px solid rgba(92, 230, 207, 0.4);
+        }
+        
+        /* Table layout for guaranteed side-by-side arrangement */
+        .indicator-table {
+          border: none;
+          border-collapse: collapse;
+          border: 2px solid blue !important;
+        }
+        
+        .checkbox-cell {
+          padding: 0;
+          /* Top alignment now applied inline */
+        }
+        
+        .label-cell {
+          text-align: left;
+          border: 2px dotted green !important;
+          /* Top alignment now applied inline */
+        }
+        
+        .table-checkbox {
+          display: inline-block;
+          cursor: pointer;
+          transition: transform 0.2s;
+        }
+        
+        .table-checkbox:hover {
+          transform: scale(1.1);
+        }
+        
+        .checkbox-text {
+          font-size: 14px;
+          color: rgba(232, 232, 232, 1);
+          transition: color 0.2s;
+          /* Changed to inline-block and applied vertical alignment inline */
+          line-height: 1.2;
+        }
+        
+        .indicator-checkbox:hover .checkbox-text {
+          color: rgba(255, 255, 255, 1);
         }
         
         .indicator-configuration-section {
-          margin-top: 20px;
+          margin-top: 5px;
         }
         
         .parameter-config {
           margin-bottom: 15px;
-          background-color: ${SECTION_BG_COLOR};
-          padding: ${SECTION_PADDING};
-          border-radius: ${SECTION_BORDER_RADIUS};
+          padding: 12px;
+          border-radius: 4px;
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid rgba(92, 230, 207, 0.15);
+          transition: box-shadow 0.3s;
+        }
+        
+        .parameter-config:hover {
+          box-shadow: 0 0 8px rgba(92, 230, 207, 0.2);
+        }
+        
+        .parameter-title {
+          margin-top: 0;
+          margin-bottom: 10px;
+          color: ${ACCENT_PRIMARY};
+          font-size: 15px;
+          padding-bottom: 5px;
+          border-bottom: 1px dotted rgba(92, 230, 207, 0.3);
         }
         
         .parameter-config-container {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 15px;
         }
         
         .parameter-inputs {
@@ -509,10 +846,52 @@ const StockSettingsSidebar = ({
         .param-input {
           display: flex;
           flex-direction: column;
+          gap: 5px;
+        }
+        
+        .param-input label {
+          font-size: 12px;
+          text-transform: capitalize;
+          color: ${TEXT_SECONDARY};
+        }
+        
+        .param-input input {
+          width: 100%;
+          padding: 6px 8px;
+          font-size: 13px;
+          border: ${INPUT_BORDER};
+          border-radius: 3px;
+          background-color: ${INPUT_BG_COLOR};
+          color: ${TEXT_PRIMARY};
+          transition: border-color 0.2s, box-shadow 0.2s;
+          height: 32px;
+        }
+        
+        .param-input input:focus {
+          outline: none;
+          border-color: ${ACCENT_PRIMARY};
+          box-shadow: ${INPUT_FOCUS_SHADOW};
         }
         
         .panel-selection {
-          margin-top: 10px;
+          margin-top: 5px;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+        
+        .panel-selection label {
+          font-size: 12px;
+          text-transform: uppercase;
+          color: ${TEXT_SECONDARY};
+        }
+        
+        .panel-selection .futuristic-select-wrapper {
+          height: 36px;
+        }
+        
+        .panel-selection .futuristic-select {
+          height: 36px;
         }
       `}</style>
     </>

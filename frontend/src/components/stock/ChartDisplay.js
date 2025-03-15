@@ -45,16 +45,37 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
   // Process chart data to ensure consistent layout settings.
   // This helper is used for both current and previous chart data.
   const processChartData = (data) => {
-    if (!data) return { data: [], layout: {} };
+    if (!data) return { data: [], layout: {}, originalTitle: "" };
     try {
       const parsedData = JSON.parse(data);
+      
       // Ensure layout exists and enforce autosize
       parsedData.layout = parsedData.layout || {};
       parsedData.layout.autosize = true;
-      return parsedData;
+      
+      // Extract the original title before removing it
+      let originalTitle = "";
+      if (parsedData.layout.title) {
+        if (typeof parsedData.layout.title === 'string') {
+          originalTitle = parsedData.layout.title;
+          // Remove the title from the chart
+          parsedData.layout.title = "";
+        } else if (parsedData.layout.title.text) {
+          originalTitle = parsedData.layout.title.text;
+          // Remove the title but keep the title object structure
+          parsedData.layout.title.text = "";
+        }
+      }
+      
+      // Keep the original parsed data structure but store the title separately
+      return {
+        data: parsedData.data || [],
+        layout: parsedData.layout,
+        originalTitle
+      };
     } catch (error) {
       logger.error("Error processing chart data:", error);
-      return { data: [], layout: {} };
+      return { data: [], layout: {}, originalTitle: "" };
     }
   };
 
@@ -63,14 +84,20 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
 
   // Process chart data once and reuse it to avoid duplicate JSON parsing.
   const hasChartData = Boolean(chartData);
-  const processedChartData = hasChartData ? processChartData(chartData) : { data: [], layout: {} };
-  const processedPrevChartData = prevChartData ? processChartData(prevChartData) : { data: [], layout: {} };
+  const processedChartData = hasChartData ? processChartData(chartData) : { data: [], layout: {}, originalTitle: "" };
+  const processedPrevChartData = prevChartData ? processChartData(prevChartData) : { data: [], layout: {}, originalTitle: "" };
 
-  // Extract chart title from the already processed chart data.
-  // This removes the need to parse JSON again.
+  // Extract ticker and chart type from the original chart title
   const getChartTitle = () => {
-    const layout = processedChartData.layout || {};
-    return layout.title?.text || layout.title || "Chart";
+    const originalTitle = processedChartData.originalTitle || "";
+    
+    // If we have an original title, use it
+    if (originalTitle) {
+      return originalTitle;
+    }
+    
+    // Fallback if no title could be extracted
+    return "Chart";
   };
 
   // Handle resize events with debouncing to optimize performance.

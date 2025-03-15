@@ -32,21 +32,29 @@ const SECTION_BORDER = `1px solid rgba(92, 230, 207, 0.2)`;
 const SECTION_SHADOW = `0 2px 10px rgba(0, 0, 0, 0.2)`;
 
 // INPUT - Form inputs and elements
-const INPUT_BG_COLOR = 'rgba(2, 7, 15, 0.95)';
+const INPUT_BG_COLOR = 'rgba(17, 34, 51, 0.95)';
 const INPUT_BORDER = `1px solid rgba(92, 230, 207, 0.3)`;
 const INPUT_FOCUS_SHADOW = `0 0 8px rgba(92, 230, 207, 0.6)`;
-const INPUT_HEIGHT = '42px';
-const BUTTON_HEIGHT = '45px';
+const INPUT_WIDTH = '50%'; // New constant for customizable input width
+const INPUT_HEIGHT = '27px';
+const BUTTON_HEIGHT = '40px';
+
+// SELECT - Dropdown styling elements (now consistent with inputs)
+const SELECT_BG_COLOR = 'rgba(17, 34, 51, 0.95)'; // Matches INPUT_BG_COLOR
+const SELECT_BORDER = `1px solid rgba(92, 230, 207, 0.3)`; // Matches INPUT_BORDER
+const SELECT_FOCUS_SHADOW = `0 0 2px rgba(92, 230, 207, 0.6)`; // Matches INPUT_FOCUS_SHADOW
+const SELECT_OPTION_BG = 'rgba(10, 20, 30, 0.98)'; // Dark blue for dropdown options
+const SELECT_OPTION_HOVER_BG = 'rgba(26, 42, 58, 0.9)'; // Similar to PRIMARY_LIGHT for hover
 
 // EFFECTS - Glows and animations
 const ACCENT_GLOW = `0 0 10px rgba(92, 230, 207, 0.7)`;
-const TEXT_GLOW = `0 0 10px rgba(100, 104, 40, 1)`;
+const TEXT_GLOW = `0 0 10px rgba(92, 230, 207, 0.4)`; // Changed to match accent color
 
 // CHECKBOX - Checkbox specific styling
 const CHECKBOX_SIZE = '20px'; // Larger checkbox size for better visibility
 const CHECKBOX_BG = 'rgba(10, 20, 30, 0.7)';      // Dark blue background (unchecked)
 const CHECKBOX_BORDER = 'rgba(92, 230, 207, 0.7)'; // Cyan border
-const CHECKBOX_CHECKED_BG = 'rgba(34, 197, 42, 0.8)'; // Semi-transparent green when checked
+const CHECKBOX_CHECKED_BG = 'rgba(59, 205, 186, 0.8)'; // Changed to match ACCENT_HOVER
 const CHECKBOX_MARGIN_RIGHT = '1px'; // Space between checkbox and label
 const CHECKBOX_ROW_SPACING = '10px'; // Vertical spacing between checkbox rows
 
@@ -170,9 +178,46 @@ const StockSettingsSidebar = ({
               value={value} 
               onChange={onChange}
               className="futuristic-select"
+              style={{ 
+                height: INPUT_HEIGHT, 
+                width: INPUT_WIDTH, 
+                color: TEXT_PRIMARY,
+                backgroundColor: SELECT_BG_COLOR,
+                border: SELECT_BORDER,
+                WebkitTextFillColor: TEXT_PRIMARY,
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none',
+                boxShadow: SELECT_FOCUS_SHADOW
+              }}
             >
               {options.items && options.items.map(item => (
-                <option key={item.value} value={item.value}>
+                <option 
+                  key={item.value} 
+                  value={item.value}
+                  style={{
+                    backgroundColor: SELECT_OPTION_BG,
+                    color: TEXT_PRIMARY
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
+                    e.target.style.background = SELECT_OPTION_HOVER_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'bold';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
+                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_BG;
+                    e.target.style.background = SELECT_OPTION_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'normal';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = 'none';
+                    e.target.style.outline = 'none';
+                  }}
+                >
                   {item.label}
                 </option>
               ))}
@@ -189,6 +234,7 @@ const StockSettingsSidebar = ({
             onChange={onChange}
             required={options.required}
             className="futuristic-input"
+            style={{ backgroundColor: INPUT_BG_COLOR, border: INPUT_BORDER, height: INPUT_HEIGHT, width: INPUT_WIDTH }}
           />
         )}
       </div>
@@ -232,8 +278,8 @@ const StockSettingsSidebar = ({
           {/* Checkmark */}
           {checked && (
             <path 
-              d="M5 9L8 12L14 6" 
-              stroke="rgba(10, 20, 30, 0.9)" 
+              d="M5 10L8 13L15 7" 
+              stroke={PRIMARY_DARK}
               strokeWidth="2" 
               strokeLinecap="round" 
               strokeLinejoin="round" 
@@ -288,7 +334,7 @@ const StockSettingsSidebar = ({
                             {isSelected && (
                               <path 
                                 d="M5 10L8 13L15 7" 
-                                stroke="white" 
+                                stroke={PRIMARY_DARK}
                                 strokeWidth="2" 
                                 strokeLinecap="round" 
                                 strokeLinejoin="round" 
@@ -334,6 +380,13 @@ const StockSettingsSidebar = ({
                   type="number"
                   value={paramValue}
                   onChange={(e) => onParamChange(indicatorName, paramName, e.target.value)}
+                  style={{ 
+                    backgroundColor: INPUT_BG_COLOR, 
+                    border: INPUT_BORDER, 
+                    color: TEXT_PRIMARY,
+                    height: '32px',
+                    width: '100%'
+                  }}
                 />
               </div>
             ))}
@@ -349,12 +402,124 @@ const StockSettingsSidebar = ({
                 value={panelAssignments[indicatorName] || 'main'}
                 onChange={(e) => onPanelChange(indicatorName, e.target.value)}
                 className="futuristic-select"
+                style={{ 
+                  height: INPUT_HEIGHT, 
+                  width: INPUT_WIDTH, 
+                  color: TEXT_PRIMARY,
+                  backgroundColor: SELECT_BG_COLOR,
+                  border: SELECT_BORDER,
+                  WebkitTextFillColor: TEXT_PRIMARY,
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  appearance: 'none',
+                  boxShadow: SELECT_FOCUS_SHADOW
+                }}
               >
-                <option value="main">Main Price Chart</option>
-                <option value="oscillator">Oscillator Panel</option>
-                <option value="macd">MACD Panel</option>
-                <option value="volume">Volume Panel</option>
-                <option value="volatility">Volatility Panel</option>
+                <option value="main" 
+                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
+                    e.target.style.background = SELECT_OPTION_HOVER_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'bold';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
+                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_BG;
+                    e.target.style.background = SELECT_OPTION_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'normal';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = 'none';
+                    e.target.style.outline = 'none';
+                  }}
+                >Main Price Chart</option>
+                <option value="oscillator" 
+                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
+                    e.target.style.background = SELECT_OPTION_HOVER_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'bold';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
+                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_BG;
+                    e.target.style.background = SELECT_OPTION_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'normal';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = 'none';
+                    e.target.style.outline = 'none';
+                  }}
+                >Oscillator Panel</option>
+                <option value="macd" 
+                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
+                    e.target.style.background = SELECT_OPTION_HOVER_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'bold';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
+                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_BG;
+                    e.target.style.background = SELECT_OPTION_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'normal';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = 'none';
+                    e.target.style.outline = 'none';
+                  }}
+                >MACD Panel</option>
+                <option value="volume" 
+                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
+                    e.target.style.background = SELECT_OPTION_HOVER_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'bold';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
+                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_BG;
+                    e.target.style.background = SELECT_OPTION_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'normal';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = 'none';
+                    e.target.style.outline = 'none';
+                  }}
+                >Volume Panel</option>
+                <option value="volatility" 
+                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
+                    e.target.style.background = SELECT_OPTION_HOVER_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'bold';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
+                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = SELECT_OPTION_BG;
+                    e.target.style.background = SELECT_OPTION_BG;
+                    e.target.style.color = TEXT_PRIMARY;
+                    e.target.style.fontWeight = 'normal';
+                    e.target.style.textDecoration = 'none';
+                    e.target.style.boxShadow = 'none';
+                    e.target.style.outline = 'none';
+                  }}
+                >Volatility Panel</option>
               </select>
             </div>
           </div>
@@ -614,16 +779,19 @@ const StockSettingsSidebar = ({
         
         /* Futuristic input styling */
         .futuristic-input {
-          width: 100%;
-          height: ${INPUT_HEIGHT};
-          padding: 10px 12px;
-          border: ${INPUT_BORDER};
-          border-radius: 4px;
-          background-color: ${INPUT_BG_COLOR};
-          color: ${TEXT_PRIMARY};
-          font-size: 14px;
+          width: ${INPUT_WIDTH} !important;
+          height: ${INPUT_HEIGHT} !important;
+          padding: 10px 12px !important;
+          border: ${INPUT_BORDER} !important;
+          border-radius: 4px !important;
+          background-color: ${INPUT_BG_COLOR} !important;
+          color: ${TEXT_PRIMARY} !important;
+          font-size: 14px !important;
           transition: border-color 0.2s, box-shadow 0.2s;
           box-sizing: border-box;
+          -webkit-appearance: none !important;
+          -moz-appearance: none !important;
+          appearance: none !important;
         }
         
         .futuristic-input:focus {
@@ -635,19 +803,20 @@ const StockSettingsSidebar = ({
         /* Futuristic select styling */
         .futuristic-select-wrapper {
           position: relative;
-          width: 100%;
-          height: ${INPUT_HEIGHT};
-          overflow: hidden;
-          border: ${INPUT_BORDER};
-          border-radius: 4px;
-          background: ${INPUT_BG_COLOR} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='5' viewBox='0 0 10 5'%3E%3Cpath d='M0 0l5 5 5-5z' fill='%235CE6CF'/%3E%3C/svg%3E") no-repeat right 12px center;
-          box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
-          transition: border-color 0.2s, box-shadow 0.2s;
+          width: ${INPUT_WIDTH} !important;
+          height: ${INPUT_HEIGHT} !important;
+          overflow: visible !important;
+          border: ${SELECT_BORDER} !important;
+          border-radius: 4px !important;
+          background: ${SELECT_BG_COLOR} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='5' viewBox='0 0 10 5'%3E%3Cpath d='M0 0l5 5 5-5z' fill='%235CE6CF'/%3E%3C/svg%3E") no-repeat right 12px center !important;
+          box-shadow: ${SELECT_FOCUS_SHADOW} !important;
+          transition: none !important;
+          z-index: 10 !important;
         }
         
         .futuristic-select-wrapper:hover {
           border-color: ${ACCENT_PRIMARY};
-          box-shadow: ${INPUT_FOCUS_SHADOW};
+          box-shadow: ${SELECT_FOCUS_SHADOW} !important;
         }
         
         .futuristic-select {
@@ -753,7 +922,6 @@ const StockSettingsSidebar = ({
           cursor: pointer;
           border: 1px solid transparent;
           min-height: 38px;
-          border: 2px dashed red !important;
         }
         
         .indicator-checkbox:hover {
@@ -761,7 +929,7 @@ const StockSettingsSidebar = ({
         }
         
         .indicator-checkbox.selected {
-          background: rgba(14, 154, 179, 0.2);
+          background: rgba(92, 230, 207, 0.1);
           border: 1px solid rgba(92, 230, 207, 0.4);
         }
         
@@ -769,18 +937,16 @@ const StockSettingsSidebar = ({
         .indicator-table {
           border: none;
           border-collapse: collapse;
-          border: 2px solid blue !important;
         }
         
         .checkbox-cell {
           padding: 0;
-          /* Top alignment now applied inline */
+          /* Top alignment applied inline */
         }
         
         .label-cell {
           text-align: left;
-          border: 2px dotted green !important;
-          /* Top alignment now applied inline */
+          /* Top alignment applied inline */
         }
         
         .table-checkbox {
@@ -795,14 +961,13 @@ const StockSettingsSidebar = ({
         
         .checkbox-text {
           font-size: 14px;
-          color: rgba(232, 232, 232, 1);
+          color: ${TEXT_PRIMARY};
           transition: color 0.2s;
-          /* Changed to inline-block and applied vertical alignment inline */
-          line-height: 1.2;
+          /* Changed to inline-block with line-height applied inline */
         }
         
         .indicator-checkbox:hover .checkbox-text {
-          color: rgba(255, 255, 255, 1);
+          color: ${TEXT_PRIMARY};
         }
         
         .indicator-configuration-section {
@@ -856,15 +1021,18 @@ const StockSettingsSidebar = ({
         }
         
         .param-input input {
-          width: 100%;
-          padding: 6px 8px;
-          font-size: 13px;
-          border: ${INPUT_BORDER};
-          border-radius: 3px;
-          background-color: ${INPUT_BG_COLOR};
-          color: ${TEXT_PRIMARY};
+          width: 100% !important;
+          padding: 6px 8px !important;
+          font-size: 13px !important;
+          border: ${INPUT_BORDER} !important;
+          border-radius: 3px !important;
+          background-color: ${INPUT_BG_COLOR} !important;
+          color: ${TEXT_PRIMARY} !important;
           transition: border-color 0.2s, box-shadow 0.2s;
-          height: 32px;
+          height: 32px !important;
+          -webkit-appearance: none !important;
+          -moz-appearance: none !important;
+          appearance: none !important;
         }
         
         .param-input input:focus {
@@ -892,6 +1060,32 @@ const StockSettingsSidebar = ({
         
         .panel-selection .futuristic-select {
           height: 36px;
+        }
+        
+        /* Styling for dropdown options - using more aggressive browser styling */
+        select.futuristic-select option {
+          background: ${SELECT_OPTION_BG} !important;
+          background-color: ${SELECT_OPTION_BG} !important;
+          color: ${TEXT_PRIMARY} !important;
+          padding: 8px !important;
+          text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4) !important;
+        }
+        
+        /* Add this to ensure background color is enforced */
+        select.futuristic-select option:not(:checked) {
+          background: linear-gradient(${SELECT_OPTION_BG}, ${SELECT_OPTION_BG}) !important;
+        }
+        
+        /* Highlight effect on hover - more visible to user */
+        select.futuristic-select option:hover,
+        select.futuristic-select option:focus {
+          color: ${TEXT_PRIMARY} !important;
+          background: ${SELECT_OPTION_HOVER_BG} !important;
+          background-color: ${SELECT_OPTION_HOVER_BG} !important;
+          background-image: linear-gradient(${SELECT_OPTION_HOVER_BG}, ${SELECT_OPTION_HOVER_BG}) !important;
+          box-shadow: 0 0 5px rgba(92, 230, 207, 0.3) inset !important;
+          outline: 1px solid ${ACCENT_PRIMARY} !important;
+          text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4) !important;
         }
       `}</style>
     </>

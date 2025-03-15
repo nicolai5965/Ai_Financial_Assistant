@@ -258,7 +258,7 @@ def analyze_ticker_single_panel(ticker, data, indicators, interval, chart_type="
     # Do all layout updates in a single call to avoid multiple re-renders
     fig.update_layout(
         xaxis_rangeslider_visible=False, 
-        title=f"{chart_type.capitalize()} Chart for {ticker}",
+        title=f"{chart_type.capitalize()} Chart for test1 {ticker}",
         
     )
     
@@ -370,7 +370,7 @@ def analyze_ticker_multi_panel(ticker, data, indicators, interval, chart_type="c
     # Set final layout properties in a single update to prevent multiple re-renders
     # ADDED: Set a consistent UI (avoids layout calculation conflicts with frontend)
     fig.update_layout(
-        title=f"{chart_type.capitalize()} Chart for {ticker}",
+        title=f"{chart_type.capitalize()} Chart for test {ticker}",
         uirevision=f"{ticker}-{len(indicators)}"  # Maintain consistent state across updates
     )
         

@@ -241,6 +241,7 @@ def analyze_ticker_single_panel(ticker, data, indicators, interval, chart_type="
     Returns:
         go.Figure: A Plotly figure object containing the chart and overlays.
     """
+    logger.warning("analyze_ticker_single_panel is deprecated. Use analyze_ticker_multi_panel instead.")
     # Build the base chart based on the selected chart type
     chart_type_lower = chart_type.lower()  # Store lowercased value to avoid repeated calls
     if chart_type_lower == "line":

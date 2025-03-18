@@ -176,6 +176,73 @@ def get_data_interval(timeframe: str) -> str:
     logger.debug(f"Selected interval '{interval}' for timeframe '{timeframe}'")
     return interval
 
+def get_timeframe_display(timeframe: str) -> str:
+    """
+    Convert timeframe code to human-readable display format.
+    
+    Args:
+        timeframe: Timeframe string (e.g., "1d", "5d", "1mo", etc.)
+        
+    Returns:
+        Human-readable timeframe string
+    """
+    # Map timeframes to readable descriptions
+    timeframe_mapping = {
+        "1d": "1 day",
+        "5d": "5 days",
+        "1wk": "1 week",
+        "1mo": "1 month",
+        "3mo": "3 months",
+        "6mo": "6 months",
+        "1y": "1 year",
+        "2y": "2 years",
+        "5y": "5 years",
+        "max": "maximum available period"
+    }
+    
+    # Return mapped value or the original if not found
+    return timeframe_mapping.get(timeframe, timeframe)
+
+def enforce_minimum_timeframe(timeframe: str, min_timeframe: str, kpi_name: str = "KPI") -> str:
+    """
+    Enforce a minimum timeframe for KPI calculations.
+    
+    Many KPIs require sufficient historical data to be statistically meaningful.
+    This function ensures that a minimum timeframe is enforced.
+    
+    Args:
+        timeframe: The requested timeframe
+        min_timeframe: The minimum timeframe to enforce
+        kpi_name: Name of the KPI for logging purposes
+        
+    Returns:
+        The timeframe to use (either the original or the minimum)
+    """
+    # Convert timeframes to a numeric scale for comparison (approximate days)
+    timeframe_weight = {
+        "1d": 1, 
+        "5d": 5, 
+        "1wk": 7, 
+        "1mo": 30, 
+        "3mo": 90, 
+        "6mo": 180, 
+        "1y": 365, 
+        "2y": 730,
+        "5y": 1825, 
+        "max": 9999
+    }
+    
+    # Get weights, defaulting to 0 if not found
+    requested_weight = timeframe_weight.get(timeframe, 0)
+    minimum_weight = timeframe_weight.get(min_timeframe, 0)
+    
+    # If the requested timeframe is shorter than our minimum, use the minimum instead
+    if requested_weight < minimum_weight:
+        logger.debug(f"Enforcing minimum timeframe of {min_timeframe} for {kpi_name} calculation (requested: {timeframe})")
+        return min_timeframe
+    
+    return timeframe
+
 @safe_calculation
 def fetch_ticker_info(ticker: str) -> Dict[str, Any]:
     """

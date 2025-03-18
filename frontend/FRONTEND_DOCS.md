@@ -20,14 +20,15 @@ frontend/
 │   │   │   ├── ChartDisplay.js         # Component for rendering Plotly charts
 │   │   │   ├── ErrorMessage.js         # Component for displaying error messages
 │   │   │   ├── LoadingOverlay.js       # Component for displaying loading states
+│   │   │   ├── KpiContainer.js         # Container for KPI dashboard 
 │   │   │   ├── StockSettingsSidebar.js # Component for stock settings sidebar with all chart controls and indicator configuration
 │   │   │   └── kpi/                    # KPI (Key Performance Indicators) components
 │   │   │       ├── index.js            # Exports all KPI components for easy importing
 │   │   │       ├── KpiCard.js          # Individual KPI card component
-│   │   │       ├── KpiContainer.js     # Container component for KPI cards
 │   │   │       ├── KpiDashboard.js     # Dashboard for multiple KPI groups
 │   │   │       ├── KpiGroup.js         # Grouping component for related KPIs
-│   │   │       └── KpiSettings.js      # Settings component for KPI customization
+│   │   │       ├── KpiSettings.js      # Settings component for KPI customization
+│   │   │       └── KpiTooltip.js       # Tooltip component for displaying detailed KPI information
 │   │   └── reports/      # Report-specific components
 │   ├── pages/            # Next.js pages (each file becomes a route)
 │   │   ├── api/          # API routes for backend communication
@@ -38,12 +39,14 @@ frontend/
 │   │   └── index.js      # Homepage
 │   ├── services/         # Service layer for external API communication
 │   │   └── api/          # API service functions
-│   │       └── stock.js  # Stock analysis API service
+│   │       ├── stock.js  # Stock analysis API service
+│   │       └── kpi.js    # KPI data retrieval API service
 │   ├── styles/           # CSS and styling files
 │   │   └── globals.css   # Global styles
-│   ├── types/            # TypeScript type definitions (currently empty)
+│   ├── types/            # TypeScript type definitions
 │   └── utils/            # Utility functions and helpers
 │       └── logger.js     # Centralized logging utility for the frontend
+├── logs/                 # Log files directory
 ├── FRONTEND_DOCS.md      # Frontend documentation
 ├── next.config.js        # Next.js configuration
 ├── package.json          # Project dependencies and scripts
@@ -370,79 +373,151 @@ frontend/
           - Default export for importing all components at once
           - Clear documentation for import usage patterns
       - `KpiCard.js`:
-        - **Purpose**: Displays a single KPI metric with label, value, and trend
+        - **Purpose**: Displays an individual KPI metric in card format
         - **Location**: `frontend/src/components/stock/kpi/KpiCard.js`
         - **Key Features**:
-          - Clear visual representation of a metric with its current value
-          - Color-coded trend indicators (up/down arrows)
-          - Customizable styling and sizing
+          - Renders a single KPI with label, value, and trend indicators
+          - Color-codes values based on positive/negative trends
+          - Manages tooltip visibility for detailed information
+          - Renders appropriate loading skeleton state
+          - Integrates with KpiTooltip for detailed explanations
+          - Implements optimized tooltip positioning
         - **Props**:
           ```typescript
           interface KpiCardProps {
-            label: string;           // The name/label of the KPI
-            value: string | number;  // The current value to display
-            trend?: number;          // Optional trend value (positive = up, negative = down)
-            trendLabel?: string;     // Optional label for the trend
-            className?: string;      // Optional CSS class for styling
+            kpi: object;                // KPI data with name, value, and trend
+            isLoading?: boolean;        // Whether the card is in loading state
+            onClick?: (kpi) => void;    // Optional click handler
+            initialTooltipVisible?: boolean; // Whether tooltip starts visible
           }
           ```
-      - `KpiContainer.js`:
-        - **Purpose**: Container for KPI cards and dashboard integrated below the stock chart
-        - **Location**: `frontend/src/components/stock/kpi/KpiContainer.js`
-        - **Key Features**:
-          - Displays KPI metrics related to the current stock
-          - Handles stock ticker selection and propagates changes
-          - Provides a consistent UI for viewing key metrics
-        - **Props**:
-          ```typescript
-          interface KpiContainerProps {
-            ticker: string;                      // Current stock ticker
-            onTickerChange: (ticker: string) => void; // Callback for ticker changes
-          }
-          ```
+        - **Styling Logic**:
+          - Uses value trend to determine appropriate color coding
+          - Applies hover effects for better interactivity
+          - Maintains consistent card dimensions for grid alignment
+          - Supports skeleton loading animations
       - `KpiGroup.js`:
-        - **Purpose**: Groups related KPI cards together with a heading
+        - **Purpose**: Collapsible container for displaying a group of related KPIs
         - **Location**: `frontend/src/components/stock/kpi/KpiGroup.js`
         - **Key Features**:
-          - Organizes related KPI cards under a common title
-          - Provides consistent spacing and styling
-          - Allows for collapsible/expandable groups
+          - Creates an expandable/collapsible section for a category of KPIs
+          - Renders a header with group title and toggle control
+          - Manages grid layout for multiple KPI cards
+          - Handles loading states with placeholder cards
+          - Supports default expanded/collapsed state
+          - Forwards KPI click events to parent components
         - **Props**:
           ```typescript
           interface KpiGroupProps {
-            title: string;              // Group title/heading
-            children: React.ReactNode;  // KPI cards to display in this group
-            className?: string;         // Optional CSS class for styling
+            group: object;              // KPI group data with title and metrics
+            isLoading?: boolean;        // Whether the group data is loading
+            onKpiClick?: (kpi) => void; // Optional handler for KPI clicks
+            activeKpi?: string;         // Currently active KPI (for tooltips)
+            initiallyExpanded?: boolean; // Whether group starts expanded
           }
           ```
+        - **Behavior**:
+          - Toggles visibility of contained KPI cards when header is clicked
+          - Renders loading skeleton cards during data fetch
+          - Gracefully handles empty groups
       - `KpiDashboard.js`:
-        - **Purpose**: Top-level dashboard component that organizes KPI groups
+        - **Purpose**: Main container component for organizing and displaying all KPI groups
         - **Location**: `frontend/src/components/stock/kpi/KpiDashboard.js`
         - **Key Features**:
-          - Arranges multiple KPI groups in a structured layout
-          - Fetches and manages KPI data for the current ticker
-          - Supports responsive layouts for different screen sizes
+          - Manages layout and organization of multiple KPI groups
+          - Handles empty states and error conditions with appropriate UI
+          - Supports filtering of visible KPI groups based on user preferences
+          - Provides refresh functionality with visual feedback
+          - Coordinates KPI interaction with parent components
+          - Maintains state of active/selected KPIs for tooltip display
         - **Props**:
           ```typescript
           interface KpiDashboardProps {
-            ticker: string;              // Current stock ticker
-            onTickerChange?: (ticker: string) => void; // Optional callback for ticker changes
+            kpiData: object;            // Complete KPI data object from API
+            isLoading?: boolean;        // Whether data is currently loading
+            onRefresh?: () => void;     // Function to call when refresh is requested
+            onKpiClick?: (kpi) => void; // Optional click handler for KPI cards
+            viewPreferences?: object;   // Object containing view preferences
           }
           ```
+        - **Display Logic**:
+          - Renders KPI groups based on visibility settings in viewPreferences
+          - Shows appropriate loading, error, or empty states
+          - Supports interactive selection of individual KPIs
+          - Maintains consistent styling across all KPI elements
       - `KpiSettings.js`:
-        - **Purpose**: Provides configuration options for KPI display
+        - **Purpose**: Modal component for managing KPI display preferences
         - **Location**: `frontend/src/components/stock/kpi/KpiSettings.js`
         - **Key Features**:
-          - Toggle visibility of different KPI metrics and groups
-          - Customize refresh frequency and data sources
-          - Save user preferences for KPI display
+          - Provides a modal interface for customizing KPI display options
+          - Offers predefined views (Technical, Fundamental, Sentiment, All)
+          - Allows individual toggling of KPI groups
+          - Maintains preferences with modal state persistence
+          - Implements save and cancel functionality for preference changes
+          - Supports direct selection of specific groups or predefined views
         - **Props**:
           ```typescript
           interface KpiSettingsProps {
-            settings: KpiSettings;       // Current settings configuration
-            onSettingsChange: (settings: KpiSettings) => void; // Callback for settings changes
+            isVisible: boolean;         // Whether the settings modal is visible
+            onClose: () => void;        // Function to call when modal is closed
+            availableGroups: string[];  // Available KPI groups from the API
+            preferences: object;        // Current preferences object
+            onPreferencesChange: (preferences: object) => void; // Called when preferences change
           }
           ```
+        - **Preference Structure**:
+          - visibleGroups: Array of group IDs that should be displayed
+          - expandedGroups: Array of group IDs that should be expanded
+          - activeView: Current view selection (technical, fundamental, sentiment, all)
+      - `KpiTooltip.js`:
+        - **Purpose**: Provides detailed explanations and contextual information for KPI metrics
+        - **Location**: `frontend/src/components/stock/kpi/KpiTooltip.js`
+        - **Key Features**:
+          - Creates rich, interactive tooltips with detailed KPI explanations
+          - Dynamically positions tooltips relative to their anchor elements
+          - Implements intelligent positioning to ensure tooltip stays in viewport
+          - Customizes content based on KPI category (price, volume, volatility, etc.)
+          - Handles keyboard navigation with Escape key support
+          - Implements click-outside detection for dismissing tooltips
+        - **Props**:
+          ```typescript
+          interface KpiTooltipProps {
+            kpi: object;                // KPI data object with detailed information
+            anchorEl: HTMLElement;      // Element to anchor the tooltip to
+            open: boolean;              // Whether the tooltip is currently visible
+            onClose: () => void;        // Callback for closing the tooltip
+            position?: string;          // Preferred position (above, below, left, right)
+            className?: string;         // Additional CSS class names
+          }
+          ```
+        - **Position Handling**:
+          - Calculates optimal position based on available screen space
+          - Supports four positioning options: above, below, left, right
+          - Adjusts positioning when the tooltip would overflow viewport
+          - Adds appropriate arrow indicators based on final position
+    - `KpiContainer.js`:
+      - **Purpose**: Container component that integrates the KPI dashboard into the stock analysis page
+      - **Location**: `frontend/src/components/stock/KpiContainer.js`
+      - **Key Features**:
+        - Serves as the main integration point for KPI functionality
+        - Manages fetching and caching of KPI data with error handling
+        - Maintains user preferences with localStorage persistence
+        - Provides controls for showing/hiding KPI dashboard
+        - Coordinates data sharing between stock chart and KPI components
+        - Implements API health checking with graceful degradation
+      - **Props**:
+        ```typescript
+        interface KpiContainerProps {
+          ticker: string;                      // Current stock ticker
+          onTickerChange: (ticker: string) => void; // Callback for ticker changes
+          forceUpdate?: boolean;               // Optional flag to force a data update
+        }
+        ```
+      - **State Management**:
+        - Tracks KPI data loading states with isLoading and error flags
+        - Manages user preferences for visible and expanded KPI groups
+        - Maintains API availability state with fallback UI
+        - Implements visibility toggling for both dashboard and settings
   - `common/`: Shared components used across multiple features
   - `reports/`: Components specific to the financial reporting functionality
 
@@ -464,6 +539,19 @@ frontend/
       - Configurable API URL for different environments
       - Consistent request tracking with unique ID generation
       - Modular design with extracted helper functions
+  - `api/kpi.js`:
+    - **Purpose**: Provides functions for retrieving and processing KPI data from the backend API
+    - **Key Functions**:
+      - `fetchStockKpis(ticker, kpiGroups, timeframe, useCache)`: Fetches KPI data for a specific ticker with optional group filtering and timeframe settings
+      - `checkKpiApiHealth()`: Verifies if the KPI API endpoint is available
+      - `processErrorResponse(response, ticker, requestId)`: Internal helper for standardized error handling
+    - **Features**:
+      - Implements retry logic for failed API requests with exponential backoff
+      - Supports request timeout handling with AbortController
+      - Detailed logging with unique request IDs for traceability
+      - User-friendly error messages based on HTTP status codes
+      - Request caching control with the useCache parameter
+      - Consistent API communication pattern matching other services
 
 ### 6. Styles Directory (`src/styles/`)
 - **Purpose**: Central location for managing the application's styling system

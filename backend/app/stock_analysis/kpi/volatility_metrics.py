@@ -17,7 +17,9 @@ from app.stock_analysis.kpi.kpi_utils import (
     fetch_ticker_info,
     fetch_ticker_history,
     format_kpi_value,
-    safe_calculation
+    safe_calculation,
+    get_timeframe_display,
+    enforce_minimum_timeframe
 )
 
 # Initialize the logger
@@ -59,6 +61,7 @@ def get_52_week_high_low(ticker: str) -> List[Dict[str, Any]]:
     if week_52_low is not None and current_price is not None:
         pct_from_low = (current_price - week_52_low) / week_52_low if week_52_low != 0 else 0
     
+    # Log the result
     if week_52_high is not None and week_52_low is not None:
         logger.debug(f"52-week high/low for {ticker}: High={week_52_high}, Low={week_52_low}")
     else:
@@ -73,9 +76,17 @@ def get_52_week_high_low(ticker: str) -> List[Dict[str, Any]]:
                 "price", 
                 {"decimal_places": 2, "currency": "$"}
             ),
-            "trend": pct_from_high,
-            "trend_label": f"{pct_from_high*100:.1f}% from high" if pct_from_high is not None else None,
-            "description": f"Highest price reached in the last 52 weeks for {ticker}",
+            "description": f"Highest price reached by {ticker} during the past 52 weeks (approximately 1 year). Represents the stock's peak over this period.",
+            "group": "volatility"
+        },
+        {
+            "name": "Distance from 52-Week High",
+            "value": format_kpi_value(
+                pct_from_high, 
+                "percentage", 
+                {"decimal_places": 2, "show_sign": True, "reverse_color": True}
+            ),
+            "description": f"Percentage distance between the current price and the 52-week high for {ticker}. Negative values indicate the stock is below its yearly peak.",
             "group": "volatility"
         },
         {
@@ -85,9 +96,17 @@ def get_52_week_high_low(ticker: str) -> List[Dict[str, Any]]:
                 "price", 
                 {"decimal_places": 2, "currency": "$"}
             ),
-            "trend": pct_from_low,
-            "trend_label": f"{pct_from_low*100:.1f}% from low" if pct_from_low is not None else None,
-            "description": f"Lowest price reached in the last 52 weeks for {ticker}",
+            "description": f"Lowest price reached by {ticker} during the past 52 weeks (approximately 1 year). Represents the stock's floor over this period.",
+            "group": "volatility"
+        },
+        {
+            "name": "Distance from 52-Week Low",
+            "value": format_kpi_value(
+                pct_from_low, 
+                "percentage", 
+                {"decimal_places": 2, "show_sign": True}
+            ),
+            "description": f"Percentage distance between the current price and the 52-week low for {ticker}. Positive values indicate the stock is above its yearly bottom.",
             "group": "volatility"
         }
     ]
@@ -102,7 +121,7 @@ def get_historical_volatility(ticker: str, timeframe: str = "1y", window_days: i
     
     Args:
         ticker: The ticker symbol
-        timeframe: Timeframe to analyze (default: "1y")
+        timeframe: Timeframe to analyze (default: "1y") - will be enforced to minimum "1mo"
         window_days: Rolling window size in days (default: 20)
         
     Returns:
@@ -111,8 +130,12 @@ def get_historical_volatility(ticker: str, timeframe: str = "1y", window_days: i
     # Sanitize the ticker
     ticker = sanitize_ticker(ticker)
     
+    # Enforce a minimum timeframe for volatility calculation
+    min_timeframe = "1mo"
+    volatility_timeframe = enforce_minimum_timeframe(timeframe, min_timeframe, "Historical Volatility")
+    
     # Fetch historical data
-    history = fetch_ticker_history(ticker, timeframe=timeframe)
+    history = fetch_ticker_history(ticker, timeframe=volatility_timeframe)
     
     volatility = None
     
@@ -139,6 +162,9 @@ def get_historical_volatility(ticker: str, timeframe: str = "1y", window_days: i
     else:
         logger.warning(f"No historical data available for volatility calculation for {ticker}")
     
+    # Get human-readable timeframe display for the actual timeframe used
+    timeframe_display = get_timeframe_display(volatility_timeframe)
+    
     # Return the formatted KPI
     return {
         "name": f"{window_days}-Day Historical Volatility",
@@ -147,7 +173,7 @@ def get_historical_volatility(ticker: str, timeframe: str = "1y", window_days: i
             "percentage", 
             {"decimal_places": 2}
         ),
-        "description": f"Annualized standard deviation of daily log returns over a {window_days}-day period for {ticker}",
+        "description": f"Annualized standard deviation of daily log returns using a {window_days}-day rolling window over data from the past {timeframe_display} for {ticker}",
         "group": "volatility"
     }
 
@@ -157,10 +183,12 @@ def get_beta(ticker: str, timeframe: str = "1y") -> Dict[str, Any]:
     Calculate the beta KPI for a ticker.
     
     Beta measures the volatility of a stock relative to the overall market.
+    Beta calculations require substantial historical data to be statistically valid.
+    Yahoo Finance typically calculates beta over a 5-year period using monthly data.
     
     Args:
         ticker: The ticker symbol
-        timeframe: Timeframe to analyze (default: "1y")
+        timeframe: Timeframe to analyze (default: "1y") - will be enforced to minimum "5y" if calculated manually
         
     Returns:
         Dictionary with beta KPI data
@@ -168,15 +196,24 @@ def get_beta(ticker: str, timeframe: str = "1y") -> Dict[str, Any]:
     # Sanitize the ticker
     ticker = sanitize_ticker(ticker)
     
-    # First check if beta is available in ticker info
+    # Beta requires substantial historical data to be meaningful
+    # Use 5 years for consistency with Yahoo Finance when calculating manually
+    beta_timeframe = "5y"  # Use 5 years for beta calculation
+    
+    # First check if beta is available from Yahoo Finance
     info = fetch_ticker_info(ticker)
     beta = info.get('beta')
     
-    # If not available, calculate it from historical data
+    # Variable to track data source for the description
+    beta_source = "Yahoo Finance"  # Default source when available from Yahoo Finance
+    
+    # If not available from Yahoo Finance, calculate it from historical data
     if beta is None:
-        # Fetch historical data for the ticker and market index
-        ticker_history = fetch_ticker_history(ticker, timeframe=timeframe)
-        market_history = fetch_ticker_history(MARKET_INDEX, timeframe=timeframe)
+        beta_source = "calculated"  # Update source to indicate manual calculation
+        
+        # Fetch historical data for the ticker and market index using 5-year timeframe
+        ticker_history = fetch_ticker_history(ticker, timeframe=beta_timeframe)
+        market_history = fetch_ticker_history(MARKET_INDEX, timeframe=beta_timeframe)
         
         if not ticker_history.empty and not market_history.empty:
             # Align the dates
@@ -211,9 +248,18 @@ def get_beta(ticker: str, timeframe: str = "1y") -> Dict[str, Any]:
         else:
             logger.warning(f"Could not fetch history for {ticker} or market index")
     else:
-        logger.debug(f"Using beta from ticker info for {ticker}: {beta}")
+        logger.debug(f"Using beta from Yahoo Finance for {ticker}: {beta}")
     
-    # Return the formatted KPI
+    # Always use the enforced timeframe for the description
+    timeframe_display = get_timeframe_display(beta_timeframe)
+    
+    # Create description based on data source
+    if beta_source == "Yahoo Finance":
+        description = f"Measure of {ticker}'s volatility relative to the market, provided by Yahoo Finance (typically calculated over 5 years). Beta > 1 indicates more volatility than the market, Beta < 1 indicates less volatility."
+    else:
+        description = f"Measure of {ticker}'s volatility relative to the market over the past {timeframe_display} of trading data. Beta > 1 indicates more volatility than the market, Beta < 1 indicates less volatility."
+    
+    # Return the formatted KPI with timeframe in the description
     return {
         "name": "Beta",
         "value": format_kpi_value(
@@ -221,7 +267,7 @@ def get_beta(ticker: str, timeframe: str = "1y") -> Dict[str, Any]:
             "number", 
             {"decimal_places": 2, "show_color": True, "reverse_color": False}
         ),
-        "description": f"Measure of {ticker}'s volatility relative to the market. Beta > 1 indicates more volatility than the market, Beta < 1 indicates less volatility.",
+        "description": description,
         "group": "volatility"
     }
 
@@ -235,7 +281,7 @@ def get_average_true_range(ticker: str, timeframe: str = "1mo", window_days: int
     
     Args:
         ticker: The ticker symbol
-        timeframe: Timeframe to analyze (default: "1mo")
+        timeframe: Timeframe to analyze (default: "1mo") - will be enforced to minimum "1mo"
         window_days: ATR window size in days (default: 14)
         
     Returns:
@@ -244,8 +290,12 @@ def get_average_true_range(ticker: str, timeframe: str = "1mo", window_days: int
     # Sanitize the ticker
     ticker = sanitize_ticker(ticker)
     
+    # Enforce a minimum timeframe for ATR calculation
+    min_timeframe = "1mo"
+    atr_timeframe = enforce_minimum_timeframe(timeframe, min_timeframe, "ATR")
+    
     # Fetch historical data
-    history = fetch_ticker_history(ticker, timeframe=timeframe)
+    history = fetch_ticker_history(ticker, timeframe=atr_timeframe)
     
     atr = None
     
@@ -284,7 +334,10 @@ def get_average_true_range(ticker: str, timeframe: str = "1mo", window_days: int
     else:
         logger.warning(f"Not enough historical data for ATR calculation for {ticker}")
     
-    # Return the formatted KPI
+    # Get human-readable timeframe display for the actual timeframe used
+    timeframe_display = get_timeframe_display(atr_timeframe)
+    
+    # Return the formatted KPI with timeframe in the description
     return {
         "name": f"{window_days}-Day ATR",
         "value": format_kpi_value(
@@ -292,7 +345,7 @@ def get_average_true_range(ticker: str, timeframe: str = "1mo", window_days: int
             "price", 
             {"decimal_places": 2, "currency": "$"}
         ),
-        "description": f"Average True Range over {window_days} days for {ticker} using Wilder's smoothing. Higher values indicate greater volatility.",
+        "description": f"Average True Range over {window_days} days using data from the past {timeframe_display} for {ticker}. Calculated with Wilder's smoothing method. Higher values indicate greater volatility.",
         "group": "volatility"
     }
 
@@ -306,7 +359,7 @@ def get_bollinger_band_width(ticker: str, timeframe: str = "1mo", window_days: i
     
     Args:
         ticker: The ticker symbol
-        timeframe: Timeframe to analyze (default: "1mo")
+        timeframe: Timeframe to analyze (default: "1mo") - will be enforced to minimum "1mo"
         window_days: Bollinger Band window size in days (default: 20)
         
     Returns:
@@ -315,8 +368,12 @@ def get_bollinger_band_width(ticker: str, timeframe: str = "1mo", window_days: i
     # Sanitize the ticker
     ticker = sanitize_ticker(ticker)
     
+    # Enforce a minimum timeframe for Bollinger Band calculation
+    min_timeframe = "1mo"
+    bb_timeframe = enforce_minimum_timeframe(timeframe, min_timeframe, "Bollinger Bands")
+    
     # Fetch historical data
-    history = fetch_ticker_history(ticker, timeframe=timeframe)
+    history = fetch_ticker_history(ticker, timeframe=bb_timeframe)
     
     bb_width = None
     
@@ -341,6 +398,9 @@ def get_bollinger_band_width(ticker: str, timeframe: str = "1mo", window_days: i
     else:
         logger.warning(f"Not enough historical data for Bollinger Band Width calculation for {ticker}")
     
+    # Get human-readable timeframe display for the actual timeframe used
+    timeframe_display = get_timeframe_display(bb_timeframe)
+    
     # Return the formatted KPI
     return {
         "name": "Bollinger Band Width",
@@ -349,7 +409,7 @@ def get_bollinger_band_width(ticker: str, timeframe: str = "1mo", window_days: i
             "percentage", 
             {"decimal_places": 2}
         ),
-        "description": f"Bollinger Band Width for {ticker}. Higher values indicate greater volatility.",
+        "description": f"Bollinger Band Width using a {window_days}-day window over data from the past {timeframe_display} for {ticker}. Higher values indicate greater volatility.",
         "group": "volatility"
     }
 
@@ -372,7 +432,10 @@ def get_all_volatility_metrics(ticker: str, timeframe: str = "1y") -> Dict[str, 
     # Get individual KPIs
     week_52_high_low = get_52_week_high_low(ticker)
     # Historical Volatility removed as requested
-    beta = get_beta(ticker, timeframe)
+    
+    # Beta calculation - always uses its own enforced timeframe internally
+    beta = get_beta(ticker)
+    
     # ATR removed as requested
     # Bollinger Band Width removed as requested - not a good KPI for this use case
     

@@ -28,8 +28,15 @@ backend/
 │   │   ├── stock_indicators.py # Technical indicators calculation
 │   │   ├── stock_data_charting.py # Chart creation and visualization
 │   │   ├── indicator_panels.py # Multi-panel chart organization system
-│   │   ├── kpi_calculator.py # Financial KPI metrics calculation
-│   │   └── stock_analysis.py # Legacy file (deprecated)
+│   │   ├── kpi_manager.py # KPI management and orchestration
+│   │   ├── kpi/          # Specialized KPI calculation modules
+│   │   │   ├── __init__.py # Package initialization
+│   │   │   ├── price_metrics.py # Price-related KPI calculations
+│   │   │   ├── volume_metrics.py # Volume-related KPI calculations
+│   │   │   ├── volatility_metrics.py # Volatility-related KPI calculations
+│   │   │   ├── fundamental_metrics.py # Fundamental financial metrics
+│   │   │   ├── sentiment_metrics.py # Market sentiment metrics
+│   │   │   └── kpi_utils.py # Shared utilities for KPI calculations
 │   ├── db/               # Database related code
 │   ├── services/         # Business logic and external service integrations
 │   │   ├── llm/          # Language model related services
@@ -44,10 +51,6 @@ backend/
 │   │   │   ├── __init__.py # Package initialization
 │   │   │   ├── tavily_search.py # Tavily search API integration
 │   │   │   └── search_results_formatter.py # Formats search results
-│   │   ├── financial/    # Financial data services
-│   │   │   ├── __init__.py # Package initialization
-│   │   │   ├── financial_data_fetcher.py # Fetches financial data from various sources
-│   │   │   └── financial_metrics.py # Calculates financial metrics and KPIs
 │   │   ├── reports/      # Report generation services
 │   │   │   ├── __init__.py # Package initialization
 │   │   │   └── report_graph_builders.py # Graph-based report generation pipelines with lazy initialization
@@ -64,7 +67,7 @@ backend/
 ├── BACKEND_DOCS.md       # Documentation for the backend
 ├── requirements.txt      # Python dependencies
 ├── run.py                # Application entry point for report generation
-├── start_api_server.py   # Script to start the FastAPI server for stock analysis
+└── start_api_server.py   # Script to start the FastAPI server for stock analysis
 ``` 
 
 |--------------------------------|
@@ -98,7 +101,7 @@ backend/
   - `stock_indicators.py`: Implements technical indicator calculations and visualization
   - `stock_data_charting.py`: Manages chart creation and customization
   - `indicator_panels.py`: Provides a system for organizing technical indicators into logical panel groups
-  - `kpi_calculator.py`: Calculates key performance indicators (KPIs) for financial analysis
+  - `kpi_manager.py`: Calculates key performance indicators (KPIs) for financial analysis
   - `__init__.py`: Provides a clean public API for the package
 
 ### 1.5 `app/db/`
@@ -338,31 +341,81 @@ backend/
   - **Improved modularity with dedicated helper functions for name extraction, panel assignment, and axis configuration**
   - **Centralized default metadata through constants for consistent handling of unknown indicators**
 
-### 13. `app/stock_analysis/stock_analysis.py` (Deprecated)
-- **Purpose**: Legacy file maintained for backward compatibility only.
-- **Location**: `backend/app/stock_analysis/stock_analysis.py`
-- **Key Features**:
-  - Imports functionality from the new modular structure
-  - Issues deprecation warnings to guide users to the new modules
-  - Will be removed in a future version
-
-### 14. `app/stock_analysis/kpi_calculator.py`
-- **Purpose**: This file contains functions for calculating key performance indicators (KPIs) for financial analysis.
-- **Location**: `backend/app/stock_analysis/kpi_calculator.py`
+### 13. `app/stock_analysis/kpi_manager.py`
+- **Purpose**: This file provides a centralized manager for calculating, formatting, and organizing KPIs.
+- **Location**: `backend/app/stock_analysis/kpi_manager.py`
+- **Key Components**:
+  - **`KpiManager` class**: Factory-pattern implementation that orchestrates KPI aggregation and delivery
+  - **Constants**: Defines KPI group constants (PRICE, VOLUME, VOLATILITY, FUNDAMENTAL, SENTIMENT)
+  - **Caching System**: Implements time-based caching with configurable timeout (default 5 minutes)
 - **Key Functions**:
-  - `calculate_basic_metrics(data, ticker)`: Calculates basic price-related metrics such as percentage change, moving averages, RSI
-  - `calculate_volatility_metrics(data, ticker)`: Calculates volatility-related metrics such as standard deviation, Bollinger Bands, ATR
-  - `calculate_volume_metrics(data, ticker)`: Calculates volume-related metrics such as volume change, OBV, VWAP
-  - `calculate_financial_metrics(ticker)`: Retrieves and calculates fundamental financial metrics such as PE ratio, EPS, market cap
-  - `calculate_all_kpis(ticker, data=None)`: Orchestrates calculation of all relevant KPIs for a given ticker
-  - `format_kpi_response(kpis, ticker)`: Formats KPIs for frontend display with proper grouping and trend indicators
+  - `_is_cache_valid(cache_key)`: Checks if cached data is still valid based on timestamp
+  - `_get_from_cache(cache_key)`: Retrieves data from cache if available and valid
+  - `_store_in_cache(cache_key, data)`: Stores data in cache with current timestamp
+  - `_fetch_kpi_group(ticker, group, timeframe)`: Fetches KPIs for a specific group
+  - `get_kpis(ticker, kpi_groups, timeframe, use_cache)`: Main method that retrieves requested KPIs
+  - `get_kpi_manager()`: Singleton factory function that returns a shared KpiManager instance
 - **Key Features**:
-  - Comprehensive calculation of technical and fundamental KPIs
-  - Organization of KPIs into logical groups for frontend display
-  - Caching mechanism for frequently accessed financial data
-  - Proper error handling with fallback values when calculations fail
-  - Detailed logging for debugging KPI calculation issues
-  - Support for both real-time and historical KPI calculation
+  - Provides a unified interface for all KPI calculations
+  - Delegates specific calculations to specialized modules in the kpi/ directory
+  - Implements caching for frequently accessed data and calculations
+  - Supports partial KPI calculation based on requested categories
+  - Ensures consistent formatting and structure in KPI responses
+  - Centralizes error handling and logging for all KPI operations
+  - Uses concurrent.futures for parallel processing of KPI group calculations
+
+### 14. `app/stock_analysis/kpi/`
+- **Purpose**: This folder contains specialized modules for different categories of KPI calculations.
+- **Location**: `backend/app/stock_analysis/kpi/`
+- **Key Components**:
+  - **`__init__.py`**: Initializes the KPI package and provides exports for key functions
+    - Imports and re-exports all public functions from the specialized metric modules
+    - Defines a clean public API through `__all__` list
+    - Makes all KPI calculation functions available directly from the package level
+  - **`price_metrics.py`**: Calculates price-related metrics with functions such as:
+    - `get_current_price()`: Returns the current market price
+    - `get_price_changes()`: Calculates price changes over various periods (1d, 5d, 1mo, etc.)
+    - `get_day_high_low()`: Returns the day's high and low prices
+    - `get_open_price()`: Returns the market open price
+    - `get_previous_close()`: Returns the previous day's closing price
+    - `get_all_price_metrics()`: Aggregates all price metrics into a single response
+  - **`volume_metrics.py`**: Calculates volume-related metrics with functions such as:
+    - `get_current_volume()`: Returns the current trading volume
+    - `get_average_volume()`: Calculates average volume over a specified period
+    - `get_volume_ratio()`: Compares current volume to average volume
+    - `get_relative_volume()`: Calculates volume relative to recent averages
+    - `get_all_volume_metrics()`: Aggregates all volume metrics into a single response
+  - **`volatility_metrics.py`**: Calculates volatility-related metrics with functions such as:
+    - `get_52_week_high_low()`: Returns the 52-week high and low prices
+    - `get_historical_volatility()`: Calculates historical price volatility
+    - `get_beta()`: Calculates the stock's beta against a market index
+    - `get_average_true_range()`: Calculates the ATR indicator
+    - `get_bollinger_band_width()`: Calculates Bollinger Band width as volatility measure
+    - `get_all_volatility_metrics()`: Aggregates all volatility metrics into a single response
+  - **`fundamental_metrics.py`**: Calculates fundamental financial metrics with functions such as:
+    - `get_market_cap()`: Returns the company's market capitalization
+    - `get_pe_ratio()`: Calculates the price-to-earnings ratio
+    - `get_eps()`: Returns the earnings per share
+    - `get_dividend_yield()`: Calculates the dividend yield percentage
+    - `get_debt_to_equity()`: Returns the debt-to-equity ratio
+    - `get_roe()`: Calculates return on equity
+    - `get_price_to_book()`: Calculates price-to-book ratio
+    - `get_price_to_sales()`: Calculates price-to-sales ratio
+    - `get_all_fundamental_metrics()`: Aggregates all fundamental metrics into a single response
+  - **`sentiment_metrics.py`**: Empty file prepared for future implementation of:
+    - Market sentiment indicators
+    - Social media sentiment analysis
+    - News sentiment impact
+  - **`kpi_utils.py`**: Provides shared utilities for KPI calculations:
+    - `sanitize_ticker()`: Standardizes ticker symbol format
+    - `format_percentage()`: Formats values as percentage strings
+    - `format_currency()`: Formats values as currency strings
+    - `format_volume()`: Formats volume values with appropriate suffixes (K, M, B)
+    - `safe_calculation()`: Decorator for error handling in KPI calculations
+    - `fetch_ticker_info()`: Retrieves stock information from Yahoo Finance
+    - `fetch_ticker_history()`: Retrieves historical price data
+    - `format_kpi_value()`: Standardizes KPI value formatting based on type
+    - Various helper functions for data transformation and validation
 
 |---------------------|
 |     db folder       |

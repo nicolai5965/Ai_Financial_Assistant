@@ -248,8 +248,8 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
       <style jsx>{`
         .chart-display {
           position: relative;
-          min-height: 600px;
-          margin-top: 20px;
+          min-height: 670px;
+          margin-top: 5px;
         }
         
         .loading-overlay {
@@ -292,8 +292,8 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
         }
         
         .chart-title {
-          margin: 0;
-          font-size: 16px;
+          margin: 0px;
+          font-size: 20px;
           font-weight: 500;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -360,10 +360,10 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
         }
         
         .update-button {
-          background-color: #4CAF50;
+          background-color:rgb(35, 37, 175);
           color: white;
-          margin-right: 10px;
-          padding: 5px 10px;
+          margin-right: 15px;
+          padding: 8px 25px;
           border: none;
           border-radius: 4px;
           cursor: pointer;
@@ -371,11 +371,11 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
         }
         
         .update-button:hover {
-          background-color: #45a049;
+          background-color:rgb(24, 26, 122);
         }
         
         .update-button:disabled {
-          background-color: #cccccc;
+          background-color:rgb(35, 37, 175);
           cursor: not-allowed;
         }
       `}</style>

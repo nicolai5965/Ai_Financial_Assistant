@@ -22,6 +22,7 @@ frontend/
 │   │   │   ├── LoadingOverlay.js       # Component for displaying loading states
 │   │   │   ├── KpiContainer.js         # Container for KPI dashboard 
 │   │   │   ├── StockSettingsSidebar.js # Component for stock settings sidebar with all chart controls and indicator configuration
+│   │   │   ├── MarketHoursWidget.js    # Market hours and countdown component
 │   │   │   └── kpi/                    # KPI (Key Performance Indicators) components
 │   │   │       ├── index.js            # Exports all KPI components for easy importing
 │   │   │       ├── KpiCard.js          # Individual KPI card component
@@ -907,7 +908,13 @@ The Stock Analysis feature provides interactive stock charts with customizable t
   - `/api/stocks/analyze`: Fetch stock data and generate chart visualizations
     - Now accepts complex indicator configuration objects with customized parameters and panel assignments
   - `/api/health`: Check API availability
-- **Error Handling**: Comprehensive error handling with user-friendly messages
+  - `/api/stocks/market-hours`: Fetch real-time market status and next state change information
+- **Error Handling**: 
+  - Comprehensive error handling with user-friendly messages
+  - Uses error object pattern instead of exceptions to prevent Next.js runtime errors
+  - Detailed error detection for common issues like invalid tickers
+  - Visual error presentation with tailored suggestions based on error type
+  - See the "Error Handling Pattern for API Services" section for implementation details
 - **Optimizations**:
   - **Automatic chart reloading on indicator change with 500ms debouncing**
   - **Smarter state updates to minimize rendering cycles**
@@ -1003,7 +1010,63 @@ The Stock Analysis feature provides interactive stock charts with customizable t
      - **Better organized log messages for indicator configurations**
      - **More contextual information in error logs**
 
-4. **Error Boundaries**
+4. **Error Handling Pattern for API Services**
+   - **Problem**: Next.js displays unhandled runtime errors when exceptions are thrown from API service functions, disrupting the user experience before custom error handling can take effect
+   - **Solution**: Return error objects instead of throwing exceptions
+   - **Implementation**: 
+     ```javascript
+     // Before: Throwing exceptions (problematic with Next.js)
+     if (!response.ok) {
+       const errorMessage = await processErrorResponse(response, ticker, requestId);
+       throw new Error(errorMessage); // This triggers Next.js unhandled runtime error
+     }
+     
+     // After: Returning error objects (works better with Next.js)
+     if (!response.ok) {
+       const errorMessage = await processErrorResponse(response, ticker, requestId);
+       return { 
+         error: true, 
+         message: errorMessage,
+         ticker: ticker
+       };
+     }
+     ```
+   - **Component Usage**:
+     ```javascript
+     // Before: Try/catch based error handling
+     try {
+       const data = await fetchStockChart(configToSend);
+       setChartData(data);
+     } catch (err) {
+       const errorMessage = processApiError(err);
+       setError(errorMessage);
+     }
+     
+     // After: Error object pattern
+     const response = await fetchStockChart(configToSend);
+     if (response.error) {
+       const errorMessage = processErrorMessage(response);
+       setError(errorMessage);
+     } else {
+       setChartData(response);
+     }
+     ```
+   - **Benefits**:
+     - Prevents Next.js from displaying its error overlay during API errors
+     - Allows custom error UI to handle and display errors
+     - Improves user experience by keeping users in the application
+     - Provides more control over error presentation
+     - Maintains consistent error handling approach across the application
+   - **Where Implemented**:
+     - `services/api/stock.js`: `fetchStockChart` and `fetchMarketHours` functions
+     - `components/stock/StockChart.js`: `loadChart` function
+     - `components/stock/MarketHoursWidget.js`: `getMarketHours` function
+   - **When to Use This Pattern**:
+     - For any API service function where throwing an exception might be caught by Next.js error handling before your custom error UI can process it
+     - When providing a better user experience for expected error conditions like invalid stock tickers
+     - For API calls that need consistent error object structure across different services
+
+5. **Error Boundaries**
    - **Implementation**: Try/catch blocks in critical rendering paths
    - **Purpose**:
      - Prevent application crashes
@@ -1014,7 +1077,21 @@ The Stock Analysis feature provides interactive stock charts with customizable t
      - **Improved handling of visualization edge cases**
      - **Fallback rendering when subplot configuration fails**
 
-5. **Future Enhancements**
+6. **User-Facing Error Messages**
+   - **Implementation**: `components/stock/ErrorMessage.js`
+   - **Key Features**:
+     - Consistent styling for all error types
+     - Error categorization (ticker errors, processing errors, etc.)
+     - Visual indicators with icons for different error types
+     - Helpful suggestions based on error type
+     - Responsive design that integrates with the application theme
+   - **Error Types Handled**:
+     - Non-existent ticker symbols
+     - API processing errors
+     - Connection issues
+     - Configuration errors with indicators
+
+7. **Future Enhancements**
    - Backend logging integration
    - Error aggregation and analysis
    - Performance monitoring
@@ -1085,3 +1162,127 @@ The Stock Analysis feature provides interactive stock charts with customizable t
    - Implement proper error handling for all API calls
    - Check API health before attempting data operations
    - Provide graceful degradation when backend services are unavailable
+
+### 11. Stock Analysis Components
+
+#### 11.1. `StockChart.js`
+- **Purpose**: Main component for stock chart visualization and control
+- **Location**: `frontend/src/components/stock/StockChart.js`
+- **Key Features**:
+  - Central state management for chart configuration
+  - Integration with backend for chart data retrieval
+  - Event handling for user inputs
+  - Sub-component composition and organization
+  - Error handling and fallback rendering
+  - Exposes callbacks for ticker changes and other events
+
+#### 11.6. `MarketHoursWidget.js`
+- **Purpose**: Displays market status (open/closed) and countdown to market open/close
+- **Location**: `frontend/src/components/stock/MarketHoursWidget.js`
+- **Key Features**:
+  - Real-time countdown timer for market state changes
+  - Visual indicators for market open/closed status
+  - Automatic refresh when the market state changes
+  - Responsive styling that matches the application theme
+  - Integration with stock ticker selection
+  - Properly handles different exchanges and time zones
+  - Regular polling for market status updates
+- **State Management**:
+  - Maintains market status from API response
+  - Tracks countdown timer internally
+  - Handles loading and error states
+- **Integration Points**:
+  - Used in the StocksPage component
+  - Receives ticker prop from parent
+  - Makes API requests through the stock service
+- **UX Considerations**:
+  - Clear visual indicators (green for open, red for closed)
+  - Readable countdown format (HH:MM:SS)
+  - Smooth animation for loading states
+  - Clear error messages when API calls fail
+  - Hover effects for user feedback
+
+### 15. API Service Implementation
+
+#### 15.1 Overview
+Each API service module follows a consistent pattern to ensure maintainable and robust API communication. Here's the overview of how API services are implemented:
+
+#### 15.4 Stock API Service
+The `stock.js` service module contains all functions related to stock data retrieval and analysis.
+
+- **Location**: `frontend/src/services/api/stock.js`
+- **Base Configuration**:
+  - Uses the centralized API client with common headers
+  - Handles automatic error mapping to frontend-friendly formats
+- **Key Functions**:
+  - `fetchStockData(ticker, days, interval, indicators, chartType)`: Retrieves stock chart data
+  - `fetchKPIs(ticker, kpiGroups, timeframe)`: Retrieves key performance indicators
+  - `checkApiHealth()`: Checks if the API server is available
+  - `fetchMarketHours(ticker)`: Retrieves market hours and status information
+- **Integration**:
+  - Used by stock-related components like `StockChart` and `MarketHoursWidget`
+  - Maintains consistent error handling and logging patterns
+  - Provides typed results for improved code completion and validation
+
+#### 15.5 Common API Error Patterns
+During implementation, we encountered several common API error patterns that required specific handling strategies:
+
+1. **API Connection Issues**:
+   - Symptom: Failed to fetch, network errors
+   - Handling: Retry logic, clear error messages suggesting API server may be down
+   
+2. **404 Endpoint Errors**:
+   - Symptom: "Request failed with status code 404"
+   - Cause: Incorrect endpoint URL or the endpoint not being registered on the server
+   - Resolution: 
+     - For the market hours implementation, we encountered a 404 error because the frontend was not using the configured API base URL
+     - Fixed by modifying the `MarketHoursWidget` to use the central `fetchMarketHours` function from the stock API service
+     - Added proper logging to trace API request failures
+
+3. **Invalid Input Errors**:
+   - Symptom: 400 Bad Request, 422 Validation Error
+   - Handling: Input validation before API calls, clear error messages explaining the issue
+   
+4. **Authentication Errors**:
+   - Symptom: 401 Unauthorized, 403 Forbidden
+   - Handling: Automatic refreshing of credentials where applicable, redirecting to login when necessary
+
+5. **Service Unavailable Errors**:
+   - Symptom: 503 Service Unavailable
+   - Handling: Exponential backoff retry logic, clear messaging about temporary service disruption
+
+6. **CORS Issues**:
+   - Symptom: Cross-Origin Request Blocked
+   - Resolution: Configured the backend to allow requests from the frontend origin
+
+### 16. Frontend-Backend Integration Patterns
+
+#### 16.1 Market Hours Integration
+The market hours feature provides a good example of frontend-backend integration:
+
+1. **Backend Component**: 
+   - `MarketHoursTracker` class in `market_hours.py` determines market status and times
+   - FastAPI endpoint `/api/stocks/market-hours` exposes this functionality via HTTP
+
+2. **Frontend Service Layer**:
+   - `fetchMarketHours` function in `stock.js` makes the API request
+   - Handles errors and response formatting
+   - Acts as the intermediary between components and the API
+
+3. **Frontend Component**:
+   - `MarketHoursWidget.js` consumes the service to display data
+   - Manages local state for countdown and updates
+   - Handles loading, error, and data display states
+
+4. **Integration Challenges Encountered**:
+   - API 404 error: Initially calling the API endpoint directly rather than using the service layer
+   - Fix: Changed direct axios call to use service function with proper base URL
+   - Styling issues: White background made text hard to read
+   - Fix: Matched styling with the app's dark theme using color constants from other components
+
+5. **Best Practices Applied**:
+   - Consistent error handling across all layers
+   - Regular data refresh for time-sensitive information
+   - Clear separation of responsibilities between layers
+   - Matching styling to maintain theme consistency
+   - Graceful degradation when services are unavailable

@@ -3,7 +3,6 @@ import { logger } from '../../utils/logger';
 import { fetchStockChart } from '../../services/api/stock';
 
 // Import the new components
-// import IndicatorConfigurationPanel from './IndicatorConfigurationPanel';
 import ChartDisplay from './ChartDisplay';
 import ErrorMessage from './ErrorMessage';
 import StockSettingsSidebar from './StockSettingsSidebar';
@@ -62,8 +61,11 @@ const generateInstanceId = () => {
 /**
  * StockChart component for displaying stock charts with technical indicators.
  * Acts as the main container orchestrating the form, indicator panel, and chart display.
+ * 
+ * @param {Object} props Component props
+ * @param {Function} props.onTickerChange Callback function when ticker changes
  */
-const StockChart = () => {
+const StockChart = ({ onTickerChange }) => {
   // Create a unique instance ID for this component
   const instanceId = useRef(generateInstanceId());
   
@@ -89,7 +91,14 @@ const StockChart = () => {
   
   // New state to track chart updates (used to signal KPI container to update)
   const [chartUpdateTimestamp, setChartUpdateTimestamp] = useState(Date.now());
-  
+
+  // Initialize the ticker change callback with the default ticker
+  useEffect(() => {
+    if (onTickerChange && typeof onTickerChange === 'function') {
+      onTickerChange(DEFAULT_CONFIG.ticker);
+    }
+  }, [onTickerChange]);
+
   // Load initial chart on component mount
   useEffect(() => {
     logger.debug(`StockChart component mounted (instance: ${instanceId.current}), loading initial chart`);
@@ -124,6 +133,11 @@ const StockChart = () => {
     const { name, value } = e.target;
     setConfig(prev => ({ ...prev, [name]: value }));
     logger.debug(`Config ${name} changed to ${value}`);
+    
+    // If ticker changes, call the onTickerChange callback
+    if (name === 'ticker' && onTickerChange && typeof onTickerChange === 'function') {
+      onTickerChange(value);
+    }
   };
   
   /**
@@ -306,34 +320,6 @@ const StockChart = () => {
   };
   
   /**
-   * Process API error and generate a user-friendly message
-   * @param {Error} err - Error from API call
-   * @returns {string} Formatted error message
-   */
-  const processApiError = (err) => {
-    const errorMessage = err.message || 'Unknown error';
-    
-    // Check for "No data found for ticker" errors
-    if (errorMessage.includes('No data found for ticker')) {
-      const ticker = config.ticker.toUpperCase();
-      return `No data found for ticker "${ticker}". Please check if the ticker symbol is correct or try another one.`;
-    } 
-    
-    // Check if it's an API error with more details
-    if (errorMessage.includes('Error processing request') || 
-        errorMessage.includes('Validation Error')) {
-      logger.error('API Error Details:', err);
-      
-      // Extract specific error about indicator configuration
-      if (errorMessage.includes('IndicatorConfig')) {
-        return 'Error with indicator configuration. Please check the parameters and try again.';
-      }
-    }
-    
-    return errorMessage;
-  };
-  
-  /**
    * Load chart data from API
    * @param {Object} chartConfig - Current chart configuration
    */
@@ -346,35 +332,86 @@ const StockChart = () => {
       prevChartRef.current = chartData.chart;
     }
     
-    try {
-      logger.info(`Loading chart for ${chartConfig.ticker} with ${chartConfig.indicators.length} indicators (instance: ${instanceId.current})`);
+    logger.info(`Loading chart for ${chartConfig.ticker} with ${chartConfig.indicators.length} indicators (instance: ${instanceId.current})`);
+    
+    // Prepare configuration with processed indicators
+    const configToSend = {
+      ...chartConfig,
+      indicators: prepareIndicatorsForRequest(chartConfig.indicators)
+    };
+    
+    logger.debug(`Sending chart configuration (instance: ${instanceId.current}):`, configToSend);
+    
+    // Get response from API (might contain data or error)
+    const response = await fetchStockChart(configToSend);
+    
+    // Check if the response contains an error
+    if (response.error) {
+      // Log the error
+      logger.error(`Error details (instance: ${instanceId.current}):`, response);
       
-      // Prepare configuration with processed indicators
-      const configToSend = {
-        ...chartConfig,
-        indicators: prepareIndicatorsForRequest(chartConfig.indicators)
-      };
+      // Process the error message to make it user-friendly
+      const errorMessage = processErrorMessage(response);
       
-      logger.debug(`Sending chart configuration (instance: ${instanceId.current}):`, configToSend);
-      
-      const data = await fetchStockChart(configToSend);
-      setChartData(data);
-      
-      // Update timestamp to trigger KPI refresh
-      setChartUpdateTimestamp(Date.now());
-      
-      logger.info(`Chart data loaded successfully (instance: ${instanceId.current})`);
-    } catch (err) {
-      const errorMessage = processApiError(err);
+      // Set the error state
       setError(errorMessage);
       logger.error(`Failed to load chart (instance: ${instanceId.current}): ${errorMessage}`);
       
       // Set chartData to null to prevent displaying incorrect chart
       setChartData(null);
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Successfully got chart data
+      setChartData(response);
+      
+      // Update timestamp to trigger KPI refresh
+      setChartUpdateTimestamp(Date.now());
+      
+      logger.info(`Chart data loaded successfully (instance: ${instanceId.current})`);
     }
+    
+    setIsLoading(false);
   };
+  
+  /**
+   * Process error message from API response
+   * @param {Object} errorResponse - Error response from API
+   * @returns {string} User-friendly error message
+   */
+  const processErrorMessage = (errorResponse) => {
+    const errorMessage = errorResponse.message || 'Unknown error';
+    const ticker = errorResponse.ticker ? errorResponse.ticker.toUpperCase() : config.ticker.toUpperCase();
+    
+    // Check for "No data found for ticker" errors
+    if (errorMessage.includes('No data found for ticker')) {
+      return `No data found for ticker "${ticker}". Please check if the ticker symbol is correct or try another one.`;
+    } 
+    
+    // Check if it's an API error with more details
+    if (errorMessage.includes('Error processing request') || 
+        errorMessage.includes('Validation Error')) {
+      // Extract specific error about indicator configuration
+      if (errorMessage.includes('IndicatorConfig')) {
+        return 'Error with indicator configuration. Please check the parameters and try again.';
+      }
+      
+      // Check if it might be a no data found error wrapped in a generic error
+      if (errorMessage.toLowerCase().includes('no data') ||
+          errorMessage.toLowerCase().includes('not found') ||
+          errorMessage.toLowerCase().includes('404')) {
+        return `No data found for ticker "${ticker}". Please check if the ticker symbol is correct or try another one.`;
+      }
+      
+      // If we have a generic "Error processing request" with no other details
+      if (errorMessage === 'Error processing request') {
+        return `Unable to process your request. This may be due to an invalid ticker symbol or a temporary service issue. Please try a different ticker or try again later.`;
+      }
+    }
+    
+    return errorMessage;
+  };
+  
+  // Maintain the old processApiError function for backward compatibility
+  const processApiError = processErrorMessage;
   
   /**
    * Handle form submission for ticker/time period changes
@@ -399,13 +436,15 @@ const StockChart = () => {
     <div className="stock-chart-container">
       <h2>Stock Chart Analysis</h2>
       
-      {/* Error Message */}
-      <ErrorMessage message={error} />
+      {/* Error Message - only display once at the top level */}
+      {error && <ErrorMessage message={error} />}
       
       {/* Main chart area with error handling */}
       <div className="chart-area">
         {error ? (
-          <ErrorMessage message={error} />
+          <div className="placeholder-message">
+            Please correct the error above to load the chart.
+          </div>
         ) : (
           <>
             <ChartDisplay 
@@ -461,6 +500,14 @@ const StockChart = () => {
         
         h2 {
           margin-bottom: 20px;
+        }
+        
+        .placeholder-message {
+          text-align: center;
+          padding: 40px;
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 4px;
+          margin: 20px 0;
         }
       `}</style>
     </div>

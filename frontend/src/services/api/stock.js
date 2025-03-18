@@ -76,10 +76,21 @@ const processErrorResponse = async (response, ticker, requestId) => {
   try {
     const errorData = await response.json();
     if (errorData && typeof errorData === 'object') {
-      errorMessage = errorData.detail || errorData.message || errorMessage;
+      // Try to get the most specific error message
+      errorMessage = errorData.detail || errorData.message || errorData.error || errorMessage;
+      
+      // Log the full error data for debugging
+      logger.debug(`Error response data (request: ${requestId}):`, errorData);
       
       // Check specifically for 404 errors related to tickers
-      if (response.status === 404 && errorMessage.includes('No data')) {
+      if (response.status === 404 || errorMessage.includes('No data')) {
+        errorMessage = `No data found for ticker ${ticker}`;
+      }
+      
+      // Check if there's error details about the ticker
+      if (errorMessage.toLowerCase().includes('ticker') && 
+          (errorMessage.toLowerCase().includes('invalid') || 
+           errorMessage.toLowerCase().includes('not found'))) {
         errorMessage = `No data found for ticker ${ticker}`;
       }
     }
@@ -107,7 +118,7 @@ const processErrorResponse = async (response, ticker, requestId) => {
  * @param {Array} [config.indicators=[]] - List of technical indicators to include. 
  *                                         Can be strings or objects with name and parameters.
  * @param {string} [config.chartType='candlestick'] - Chart type ('candlestick' or 'line')
- * @returns {Promise<Object>} - The chart data as a Plotly JSON object
+ * @returns {Promise<Object>} - The chart data as a Plotly JSON object or an error object
  */
 export async function fetchStockChart(config) {
   const { ticker, days = 10, interval = '1d', indicators = [], chartType = 'candlestick' } = config;
@@ -138,7 +149,13 @@ export async function fetchStockChart(config) {
     if (!response.ok) {
       // Extract error message using the helper function
       const errorMessage = await processErrorResponse(response, ticker, requestId);
-      throw new Error(errorMessage);
+      
+      // Instead of throwing the error, return an error object
+      return { 
+        error: true, 
+        message: errorMessage,
+        ticker: ticker
+      };
     }
 
     const data = await response.json();
@@ -148,7 +165,13 @@ export async function fetchStockChart(config) {
     // Safer error logging with consistent format
     const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
     logger.error(`Failed to fetch stock chart (request: ${requestId}): ${errorMessage}`);
-    throw error;
+    
+    // Return an error object instead of re-throwing
+    return { 
+      error: true, 
+      message: errorMessage,
+      ticker: ticker
+    };
   }
 }
 
@@ -181,5 +204,54 @@ export async function checkApiHealth() {
     const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
     logger.error(`API health check failed (request: ${requestId}): ${errorMessage}`);
     return false;
+  }
+}
+
+/**
+ * Fetch market hours data for a specific ticker.
+ * 
+ * @param {string} ticker - Stock ticker symbol (e.g., 'AAPL')
+ * @returns {Promise<Object>} - Market hours status information or error object
+ */
+export async function fetchMarketHours(ticker) {
+  const requestId = generateRequestId();
+  
+  try {
+    logger.info(`Fetching market hours for ${ticker} (request: ${requestId})`);
+    
+    const response = await fetch(`${API_URL}/api/stocks/market-hours`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ticker }),
+    });
+
+    if (!response.ok) {
+      // Extract error message using the helper function
+      const errorMessage = await processErrorResponse(response, ticker, requestId);
+      
+      // Return an error object instead of throwing
+      return {
+        error: true,
+        message: errorMessage,
+        ticker: ticker
+      };
+    }
+
+    const data = await response.json();
+    logger.info(`Successfully fetched market hours for ${ticker} (request: ${requestId})`);
+    return data;
+  } catch (error) {
+    // Safer error logging with consistent format
+    const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+    logger.error(`Failed to fetch market hours (request: ${requestId}): ${errorMessage}`);
+    
+    // Return an error object instead of re-throwing
+    return {
+      error: true,
+      message: errorMessage,
+      ticker: ticker
+    };
   }
 } 

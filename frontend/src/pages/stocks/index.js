@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { logger } from '../../utils/logger';
 import { checkApiHealth } from '../../services/api/stock';
+import MarketHoursWidget from '../../components/stock/MarketHoursWidget';
 
 // Color constants for styling
 const COLORS = {
@@ -50,6 +51,9 @@ const StocksPage = () => {
     healthy: false,
     message: API_MESSAGES.CHECKING
   });
+
+  // Add state for current ticker
+  const [currentTicker, setCurrentTicker] = useState('AAPL'); // Default ticker
 
   // Log when page component mounts and unmounts
   useEffect(() => {
@@ -119,6 +123,12 @@ const StocksPage = () => {
     </div>
   );
 
+  // Callback to update the current ticker when the StockChart ticker changes
+  const handleTickerChange = (ticker) => {
+    logger.debug(`Ticker changed to: ${ticker}`);
+    setCurrentTicker(ticker);
+  };
+
   return (
     <div className="stocks-page">
       {/* API Status Indicator positioned above the title */}
@@ -126,8 +136,17 @@ const StocksPage = () => {
       
       <h1>Stock Market Analysis</h1>
       
+      {/* Market Hours Widget - only displayed when API is healthy */}
+      {apiStatus.healthy && currentTicker && (
+        <MarketHoursWidget ticker={currentTicker} />
+      )}
+      
       {/* Conditionally render StockChart or connection error based on API health */}
-      {apiStatus.healthy ? <StockChart /> : renderConnectionError()}
+      {apiStatus.healthy ? (
+        <StockChart onTickerChange={handleTickerChange} />
+      ) : (
+        renderConnectionError()
+      )}
       
       <style jsx>{`
         .stocks-page {

@@ -28,6 +28,7 @@ backend/
 │   │   ├── stock_indicators.py # Technical indicators calculation
 │   │   ├── stock_data_charting.py # Chart creation and visualization
 │   │   ├── indicator_panels.py # Multi-panel chart organization system
+│   │   ├── market_hours.py    # Market hours tracking functionality
 │   │   ├── kpi_manager.py # KPI management and orchestration
 │   │   ├── kpi/          # Specialized KPI calculation modules
 │   │   │   ├── __init__.py # Package initialization
@@ -101,6 +102,7 @@ backend/
   - `stock_indicators.py`: Implements technical indicator calculations and visualization
   - `stock_data_charting.py`: Manages chart creation and customization
   - `indicator_panels.py`: Provides a system for organizing technical indicators into logical panel groups
+  - `market_hours.py`: Provides functionality to track market hours and trading schedules for different exchanges
   - `kpi_manager.py`: Calculates key performance indicators (KPIs) for financial analysis
   - `__init__.py`: Provides a clean public API for the package
 
@@ -417,6 +419,23 @@ backend/
     - `format_kpi_value()`: Standardizes KPI value formatting based on type
     - Various helper functions for data transformation and validation
 
+### 15. `app/stock_analysis/market_hours.py`
+- **Purpose**: This file handles tracking market hours for different stock exchanges around the world.
+- **Location**: `backend/app/stock_analysis/market_hours.py`
+- **Key Class**:
+  - `MarketHoursTracker`: Main class for tracking stock market hours
+- **Key Methods**:
+  - `get_market_hours(ticker, date)`: Gets market open/close hours for a specific date
+  - `get_market_status(ticker)`: Gets current market status (open/closed) and time until next state change
+  - `get_trading_schedule(ticker, start_date, end_date)`: Gets trading schedule for a date range
+- **Key Features**:
+  - Handles different exchanges and time zones
+  - Uses pandas_market_calendars for accurate market calendar data
+  - Provides countdown information for markets opening/closing
+  - Handles weekends, holidays, and other non-trading days
+  - Implements exchange mapping to determine the correct exchange for a ticker
+  - Gracefully handles fallback to default exchange when specific exchange is unavailable
+
 |---------------------|
 |     db folder       |
 |---------------------|
@@ -427,15 +446,15 @@ Nothing to see here yet.
 |     models folder   |
 |---------------------|
 
-### 15. `app/models/__init__.py`
+### 16. `app/models/__init__.py`
 - **Purpose**: This file is used to initialize the models package.
 - **Location**: `backend/app/models/__init__.py`
 
-### 16. `app/models/report_models.py`
+### 17. `app/models/report_models.py`
 - **Purpose**: This file contains data models related to reports.
 - **Location**: `backend/app/models/report_models.py`
 
-### 17. `app/models/stock_models.py`
+### 18. `app/models/stock_models.py`
 - **Purpose**: This file contains data models specific to stock analysis and financial metrics.
 - **Location**: `backend/app/models/stock_models.py`
 - **Key Classes**:
@@ -453,7 +472,7 @@ Nothing to see here yet.
   - Methods for data conversion and formatting
   - JSON serialization for API responses
 
-### 18. `app/models/structured_report_nodes.py`
+### 19. `app/models/structured_report_nodes.py`
 - **Purpose**: This file contains node definitions for report generation.
 - **Location**: `backend/app/models/structured_report_nodes.py`
 - **Key Features**:
@@ -465,21 +484,21 @@ Nothing to see here yet.
 |    services folder  |
 |---------------------|
 
-### 19. `app/services/__init__.py`
+### 20. `app/services/__init__.py`
 - **Purpose**: This file is used to initialize the services package and provides access to core services.
 - **Location**: `backend/app/services/__init__.py`
 - **Key Features**:
   - Imports and re-exports key service functions like `fetch_prompts()` without triggering immediate execution
   - Uses carefully structured imports to minimize side effects during module loading
 
-### 20. `app/services/financial/__init__.py`
+### 21. `app/services/financial/__init__.py`
 - **Purpose**: This file initializes the financial services package and provides access to key financial data functions.
 - **Location**: `backend/app/services/financial/__init__.py`
 - **Key Features**:
   - Imports and re-exports key financial service functions
   - Uses carefully structured imports to minimize side effects during module loading
 
-### 21. `app/services/financial/financial_data_fetcher.py`
+### 22. `app/services/financial/financial_data_fetcher.py`
 - **Purpose**: This file provides functions for retrieving financial data from various sources.
 - **Location**: `backend/app/services/financial/financial_data_fetcher.py`
 - **Key Functions**:
@@ -497,7 +516,7 @@ Nothing to see here yet.
   - Rate limiting to prevent API quota exhaustion
   - Data normalization for consistent format across providers
 
-### 22. `app/services/financial/financial_metrics.py`
+### 23. `app/services/financial/financial_metrics.py`
 - **Purpose**: This file contains functions for calculating financial metrics and key performance indicators.
 - **Location**: `backend/app/services/financial/financial_metrics.py`
 - **Key Functions**:
@@ -519,11 +538,11 @@ Nothing to see here yet.
 |     utils folder    |
 |---------------------|
 
-### 23. `app/utils/__init__.py`
+### 24. `app/utils/__init__.py`
 - **Purpose**: This file is used to initialize the utils package.
 - **Location**: `backend/app/utils/__init__.py`
 
-### 24. `app/utils/system_checks.py`
+### 25. `app/utils/system_checks.py`
 - **Purpose**: This file contains utilities for checking system requirements.
 - **Location**: `backend/app/utils/system_checks.py`
 
@@ -531,7 +550,7 @@ Nothing to see here yet.
 |    logs folder      |
 |---------------------|
 
-### 25. `logs/app.log`
+### 26. `logs/app.log`
 - **Purpose**: This file contains application logs generated by the logging system. The logs include timestamps, log levels, and structured information about application events and errors.
 - **Location**: `backend/logs/app.log`
 
@@ -539,11 +558,11 @@ Nothing to see here yet.
 |    root folder      |
 |---------------------|
 
-### 26. `BACKEND_DOCS.md`
+### 27. `BACKEND_DOCS.md`
 - **Purpose**: This file contains the documentation for the backend.
 - **Location**: `backend/BACKEND_DOCS.md`
 
-### 27. `requirements.txt`
+### 28. `requirements.txt`
 - **Purpose**: This file contains the dependencies for the backend.
 - **Location**: `backend/requirements.txt`
 - **Key Features**:
@@ -551,11 +570,11 @@ Nothing to see here yet.
   - Contains yfinance for stock data retrieval
   - Includes plotting libraries like matplotlib and plotly
 
-### 28. `run.py`
+### 29. `run.py`
 - **Purpose**: This file is the entry point for the report generation functionality.
 - **Location**: `backend/run.py`
 
-### 29. `start_api_server.py`
+### 30. `start_api_server.py`
 - **Purpose**: Entry point script for starting the FastAPI stock analysis API server.
 - **Location**: `backend/start_api_server.py`
 - **Key Features**:
@@ -585,7 +604,7 @@ Key Features (Updated):
 - Flexible Port Configuration:
   - Retrieves the API port from the environment variable (API_PORT), defaulting to 8000 if not provided.
 
-### 30. `.env`
+### 31. `.env`
 - **Purpose**: This file contains the environment variables for the backend.
 - **Location**: `backend/.env`
 - **Key Variables**:
@@ -809,3 +828,71 @@ The stock analysis API now includes endpoints for retrieving KPI data:
     - `type` (query): Type of financial data (income, balance, cash_flow, ratios, all)
     - `period` (query, optional): Period (annual, quarterly, default: annual)
   - **Response**: Financial data in a structured JSON format
+
+### 2. Market Hours Endpoint
+- **`/api/stocks/market-hours`** (POST): Retrieves current market hours status for a specific ticker
+  - **Request Body**:
+    ```json
+    {
+      "ticker": "AAPL"  // Stock ticker symbol
+    }
+    ```
+  - **Response**:
+    ```json
+    {
+      "ticker": "AAPL",
+      "is_market_open": true,  // Whether the market is currently open
+      "exchange": "NYSE",      // The exchange where the ticker is traded
+      "next_state": "close",   // Next state change (open or close)
+      "next_state_change": "2023-06-15T20:00:00Z",  // ISO timestamp of next state change
+      "seconds_until_change": 14400,  // Seconds until the next state change
+      "current_time": "2023-06-15T16:00:00Z"  // Current time in ISO format
+    }
+    ```
+  - **Error Handling**:
+    - Returns 404 if ticker is not found
+    - Returns 500 for server-side errors
+
+### 4. Error Handling in API Services
+In the development process of market hours functionality, we encountered several error scenarios that required careful handling:
+
+1. **404 API Endpoint Errors**: When first implementing the market hours functionality, we encountered a 404 error because the frontend was not correctly using the established API URL pattern. This was fixed by:
+   - Adding a proper API service function for market hours in the stock.js file
+   - Using the centralized API_URL configuration instead of hardcoded paths
+   - Following the same error handling pattern used in other API functions
+
+2. **Data Validation Errors**: When handling market hours data, we need to validate that:
+   - The exchange for a ticker is correctly identified
+   - Fallback to a default exchange (NYSE) if unknown
+   - Handle cases where the market calendar for an exchange is not available
+
+3. **Time Zone Handling**: Market hours calculation requires careful time zone handling:
+   - All times are converted to UTC for consistency
+   - Market open/close times need to respect exchange-specific time zones
+   - Countdown calculations must account for time zone differences
+
+4. **Edge Cases**:
+   - Handling weekends and holidays (non-trading days)
+   - Finding the next trading day when markets are closed
+   - Handling markets that span midnight (cross-day trading sessions)
+
+These error handling strategies are implemented in both the backend MarketHoursTracker and the API endpoint response formatting.
+
+### Additional Dependencies for Market Hours Tracking
+
+#### 1. pandas_market_calendars
+- **Purpose**: Provides accurate exchange calendars for different stock markets around the world.
+- **Features**:
+  - Contains trading calendars for major exchanges (NYSE, NASDAQ, LSE, etc.)
+  - Handles holidays, early closings, and special trading days
+  - Provides API for querying market open/close times
+  - Manages time zone conversions between exchanges
+- **Integration**:
+  - Used by the MarketHoursTracker class to determine trading schedules
+  - Key dependency for market hours countdown functionality
+  - Added to requirements.txt to ensure availability
+
+#### 2. Python Standard Library Dependencies for Market Hours
+- **datetime**: Used for date and time handling in market hours calculations
+- **pytz**: Used for time zone conversions between different market exchanges
+- **typing**: Used for type hints to improve code quality and IDE support

@@ -14,6 +14,7 @@ from ..stock_analysis.stock_data_fetcher import fetch_stock_data, get_company_na
 from ..stock_analysis.stock_data_charting import analyze_ticker
 from ..core.logging_config import get_logger
 from ..stock_analysis.kpi_manager import get_kpis, AVAILABLE_KPI_GROUPS
+from ..stock_analysis.market_hours import MarketHoursTracker
 
 # Get the logger
 logger = get_logger()
@@ -24,6 +25,9 @@ app = FastAPI(
     description="API for analyzing and visualizing stock market data",
     version="1.0.0"
 )
+
+# Initialize the market hours tracker
+market_hours_tracker = MarketHoursTracker()
 
 # Add CORS middleware
 app.add_middleware(
@@ -109,6 +113,23 @@ class StockKpiRequest(BaseModel):
                     "kpi_groups": ["price", "volume"],
                     "timeframe": "1d",
                     "use_cache": True
+                }
+            ]
+        }
+    }
+
+# Add this Pydantic model for market hours requests
+class MarketHoursRequest(BaseModel):
+    """
+    Request model for market hours information.
+    """
+    ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "ticker": "AAPL"
                 }
             ]
         }
@@ -337,3 +358,37 @@ async def get_stock_kpis_endpoint(request: StockKpiRequest):
         error_msg = f"Error processing KPI request: {str(e)}"
         logger.error(error_msg)
         raise HTTPException(status_code=500, detail=error_msg)
+
+@app.post("/api/stocks/market-hours")
+async def get_market_hours(request: MarketHoursRequest):
+    """
+    Get the current market hours status for a specific stock ticker.
+    
+    Args:
+        request: MarketHoursRequest containing the ticker symbol
+        
+    Returns:
+        JSON: Market hours information including open/closed status and countdown
+    """
+    try:
+        ticker = request.ticker
+        logger.info(f"Getting market hours information for {ticker}")
+        
+        # Get market status using our tracker
+        market_status = market_hours_tracker.get_market_status(ticker)
+        
+        # Format the response
+        response = {
+            "ticker": ticker,
+            "is_market_open": market_status["is_market_open"],
+            "exchange": market_status["exchange"],
+            "next_state": market_status["next_state"],
+            "next_state_change": market_status["next_state_change"].isoformat(),
+            "seconds_until_change": market_status["seconds_until_change"],
+            "current_time": market_status["current_time"].isoformat(),
+        }
+        
+        return response
+    except Exception as e:
+        logger.error(f"Error getting market hours for {request.ticker}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting market hours: {str(e)}")

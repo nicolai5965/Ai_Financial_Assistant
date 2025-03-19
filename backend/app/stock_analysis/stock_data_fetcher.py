@@ -2,9 +2,38 @@ import yfinance as yf
 import pandas as pd
 from datetime import time
 import pytz
+from pydantic import BaseModel, Field
 from ..core.logging_config import get_logger
 
 logger = get_logger()
+
+# Pydantic model for company info
+class CompanyInfo(BaseModel):
+    """
+    Pydantic model for company information.
+    
+    Attributes:
+        Name (str): Company name
+        Sector (str): Company sector
+        Industry (str): Company industry
+        Country (str): Company country
+        Website (str): Company website
+    """
+    Name: str = Field(..., description="Company name")
+    Sector: str = Field(..., description="Company sector")
+    Industry: str = Field(..., description="Company industry")
+    Country: str = Field(..., description="Company country")
+    Website: str = Field(..., description="Company website")
+
+# Pydantic model for the Stock section
+class Stock(BaseModel):
+    """
+    Pydantic model for stock information.
+    
+    Attributes:
+        Company_Info (CompanyInfo): Company information
+    """
+    Company_Info: CompanyInfo
 
 def fetch_stock_data(tickers, start_date, end_date, interval):
     """
@@ -94,3 +123,42 @@ def get_company_name(ticker):
     except Exception as e:
         logger.error(f"Error retrieving company name for {ticker}: {str(e)}")
         return ticker 
+
+def get_company_info(ticker: str) -> CompanyInfo:
+    """
+    Get comprehensive company information for a given ticker.
+    
+    Parameters:
+        ticker (str): The stock ticker symbol.
+        
+    Returns:
+        CompanyInfo: A Pydantic model containing company information.
+        
+    Logging:
+        Logs any errors encountered during the process.
+    """
+    try:
+        logger.info(f"Fetching company info for {ticker}")
+        ticker_obj = yf.Ticker(ticker)
+        info = ticker_obj.info
+        
+        company_info = CompanyInfo(
+            Name=info.get("shortName", info.get("longName", "N/A")),
+            Sector=info.get("sector", "N/A"),
+            Industry=info.get("industry", "N/A"),
+            Country=info.get("country", "N/A"),
+            Website=info.get("website", "N/A")
+        )
+        
+        logger.info(f"Retrieved company info for {ticker}: {company_info}")
+        return company_info
+    except Exception as e:
+        logger.exception(f"Error retrieving company info for {ticker}: {str(e)}")
+        # Return minimal information with N/A values in case of an error
+        return CompanyInfo(
+            Name=ticker,
+            Sector="N/A",
+            Industry="N/A",
+            Country="N/A",
+            Website="N/A"
+        ) 

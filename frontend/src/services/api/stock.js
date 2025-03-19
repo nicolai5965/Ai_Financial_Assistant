@@ -254,4 +254,53 @@ export async function fetchMarketHours(ticker) {
       ticker: ticker
     };
   }
+}
+
+/**
+ * Fetch company information for a specific ticker.
+ * 
+ * @param {string} ticker - Stock ticker symbol (e.g., 'AAPL')
+ * @returns {Promise<Object>} - Company information or error object
+ */
+export async function fetchCompanyInfo(ticker) {
+  const requestId = generateRequestId();
+  
+  try {
+    logger.info(`Fetching company info for ${ticker} (request: ${requestId})`);
+    
+    const response = await fetch(`${API_URL}/api/stocks/company-info`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ticker }),
+    });
+
+    if (!response.ok) {
+      // Extract error message using the helper function
+      const errorMessage = await processErrorResponse(response, ticker, requestId);
+      
+      // Return an error object instead of throwing
+      return {
+        error: true,
+        message: errorMessage,
+        ticker: ticker
+      };
+    }
+
+    const data = await response.json();
+    logger.info(`Successfully fetched company info for ${ticker} (request: ${requestId})`);
+    return data;
+  } catch (error) {
+    // Safer error logging with consistent format
+    const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+    logger.error(`Failed to fetch company info (request: ${requestId}): ${errorMessage}`);
+    
+    // Return an error object instead of re-throwing
+    return { 
+      error: true, 
+      message: errorMessage,
+      ticker: ticker
+    };
+  }
 } 

@@ -40,15 +40,21 @@ const DEFAULT_INDICATOR_PARAMS = {
 // Default configuration
 const DEFAULT_CONFIG = {
   ticker: 'NVDA',
-  days: 30,
+  days: 10,
   interval: '1h',
   indicators: [],
   chartType: 'candlestick'
 };
 
+// refresh interval in minutes
+const REFRESH_INTERVAL = 5;
+
 // Styling constants
 const CONTAINER_BG_COLOR = '#1B1610';
 const TEXT_COLOR = '#fff';
+const AUTO_REFRESH_NOTIF_BG = 'rgba(92, 230, 207, 0.2)';
+const AUTO_REFRESH_NOTIF_BORDER = 'rgba(92, 230, 207, 0.7)';
+const AUTO_REFRESH_NOTIF_TEXT = '#fff';
 
 /**
  * Generates a simple unique ID for component instance tracking
@@ -86,11 +92,25 @@ const StockChart = ({ onTickerChange }) => {
   // State for settings sidebar visibility
   const [isSettingsSidebarOpen, setIsSettingsSidebarOpen] = useState(false);
   
+  // Add state for the auto-refresh notification
+  const [showAutoRefreshNotif, setShowAutoRefreshNotif] = useState(false);
+  
   // Ref to keep track of the previous chart while loading new one
   const prevChartRef = useRef(null);
   
   // New state to track chart updates (used to signal KPI container to update)
   const [chartUpdateTimestamp, setChartUpdateTimestamp] = useState(Date.now());
+  
+  // Add refresh timer reference and interval setting
+  const refreshTimerRef = useRef(null);
+  const DEFAULT_REFRESH_INTERVAL = REFRESH_INTERVAL * 60 * 1000; // convert to milliseconds
+  // Also add a ref for the current config to avoid stale closures in the timer
+  const configRef = useRef(config);
+  
+  // Update configRef whenever config changes
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
 
   // Initialize the ticker change callback with the default ticker
   useEffect(() => {
@@ -99,31 +119,46 @@ const StockChart = ({ onTickerChange }) => {
     }
   }, [onTickerChange]);
 
-  // Load initial chart on component mount
+  // Load initial chart on component mount and set up auto-refresh
   useEffect(() => {
     logger.debug(`StockChart component mounted (instance: ${instanceId.current}), loading initial chart`);
     loadChart(DEFAULT_CONFIG);
     
+    // Set up the auto-refresh timer
+    setupRefreshTimer();
+    
     // Clean up when component unmounts
     return () => {
       logger.debug(`StockChart component unmounting (instance: ${instanceId.current})`);
+      // Clear the refresh timer when component unmounts
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
     };
   }, []);
   
-  // Automatically reload chart when configuration changes
-  useEffect(() => {
-    // Skip the initial render
-    if (config === DEFAULT_CONFIG) return;
+  /**
+   * Sets up or resets the auto-refresh timer
+   */
+  const setupRefreshTimer = () => {
+    // Clear any existing timer
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+    }
     
-    // Use a debounce to prevent too many requests
-    const handler = setTimeout(() => {
-      logger.debug('Config changed, reloading chart');
-      loadChart(config);
-    }, 500); // 500ms debounce
+    // Set a new timer
+    refreshTimerRef.current = setTimeout(() => {
+      logger.debug(`Auto-refresh timer triggered, reloading chart (instance: ${instanceId.current})`);
+      // Log the ticker to make it clear we're using the current config
+      logger.info(`AUTO-REFRESH: Reloading chart for ${configRef.current.ticker} at ${new Date().toLocaleTimeString()}`);
+      // Use the current config from the ref to avoid stale closure issues
+      loadChart(configRef.current, true); // Pass true to indicate this is an auto-refresh
+      // Reset the timer after refresh
+      setupRefreshTimer();
+    }, DEFAULT_REFRESH_INTERVAL);
     
-    // Clean up timeout
-    return () => clearTimeout(handler);
-  }, [config]); // Re-run when config changes
+    logger.debug(`Auto-refresh timer set for ${DEFAULT_REFRESH_INTERVAL/1000} seconds from ${new Date().toLocaleTimeString()}`);
+  };
   
   /**
    * Handles form input changes
@@ -322,8 +357,9 @@ const StockChart = ({ onTickerChange }) => {
   /**
    * Load chart data from API
    * @param {Object} chartConfig - Current chart configuration
+   * @param {boolean} isAutoRefresh - Whether this is an automatic refresh
    */
-  const loadChart = async (chartConfig) => {
+  const loadChart = async (chartConfig, isAutoRefresh = false) => {
     setIsLoading(true);
     setError(null);
     
@@ -367,7 +403,19 @@ const StockChart = ({ onTickerChange }) => {
       setChartUpdateTimestamp(Date.now());
       
       logger.info(`Chart data loaded successfully (instance: ${instanceId.current})`);
+      
+      // Show auto-refresh notification if this was an auto-refresh
+      if (isAutoRefresh) {
+        setShowAutoRefreshNotif(true);
+        // Hide notification after 3 seconds
+        setTimeout(() => {
+          setShowAutoRefreshNotif(false);
+        }, 3000);
+      }
     }
+    
+    // Reset the auto-refresh timer whenever a chart is loaded (manual or auto)
+    setupRefreshTimer();
     
     setIsLoading(false);
   };
@@ -439,6 +487,14 @@ const StockChart = ({ onTickerChange }) => {
       {/* Error Message - only display once at the top level */}
       {error && <ErrorMessage message={error} />}
       
+      {/* Auto-refresh notification */}
+      {showAutoRefreshNotif && (
+        <div className="auto-refresh-notification">
+          <div className="notification-icon">🔄</div>
+          <div className="notification-text">Chart automatically refreshed at {new Date().toLocaleTimeString()}</div>
+        </div>
+      )}
+      
       {/* Main chart area with error handling */}
       <div className="chart-area">
         {error ? (
@@ -482,6 +538,7 @@ const StockChart = ({ onTickerChange }) => {
         panelAssignments={panelAssignments}
         onParamChange={handleParamChange}
         onPanelChange={handlePanelChange}
+        lastAutoRefreshTime={showAutoRefreshNotif ? Date.now() : null}
       />
       
       <style jsx>{`
@@ -508,6 +565,31 @@ const StockChart = ({ onTickerChange }) => {
           background: rgba(0, 0, 0, 0.05);
           border-radius: 4px;
           margin: 20px 0;
+        }
+        
+        .auto-refresh-notification {
+          display: flex;
+          align-items: center;
+          padding: 8px 16px;
+          background-color: ${AUTO_REFRESH_NOTIF_BG};
+          border: 1px solid ${AUTO_REFRESH_NOTIF_BORDER};
+          border-radius: 4px;
+          margin-bottom: 15px;
+          color: ${AUTO_REFRESH_NOTIF_TEXT};
+          animation: fadeInOut 3s;
+          font-size: 14px;
+        }
+        
+        .notification-icon {
+          margin-right: 10px;
+          font-size: 16px;
+        }
+        
+        @keyframes fadeInOut {
+          0% { opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { opacity: 0; }
         }
       `}</style>
     </div>

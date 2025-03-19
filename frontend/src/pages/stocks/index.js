@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { logger } from '../../utils/logger';
 import { checkApiHealth } from '../../services/api/stock';
 import MarketHoursWidget from '../../components/stock/MarketHoursWidget';
+import CompanyInfoWidget from '../../components/stock/CompanyInfoWidget';
 
 // Color constants for styling
 const COLORS = {
@@ -136,9 +137,12 @@ const StocksPage = () => {
       
       <h1>Stock Market Analysis</h1>
       
-      {/* Market Hours Widget - only displayed when API is healthy */}
+      {/* Info widgets container with both Market Hours and Company Info */}
       {apiStatus.healthy && currentTicker && (
-        <MarketHoursWidget ticker={currentTicker} />
+        <div className="info-widgets-container">
+          <MarketHoursWidget ticker={currentTicker} />
+          <CompanyInfoWidget ticker={currentTicker} />
+        </div>
       )}
       
       {/* Conditionally render StockChart or connection error based on API health */}
@@ -157,6 +161,20 @@ const StocksPage = () => {
         h1 {
           margin-bottom: 20px;
           color: ${COLORS.LIGHT_GRAY};
+        }
+        
+        .info-widgets-container {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 20px;
+          margin-bottom: 20px;
+        }
+        
+        /* Responsive styling for smaller screens */
+        @media (max-width: 768px) {
+          .info-widgets-container {
+            flex-direction: column;
+          }
         }
         
         .api-status {

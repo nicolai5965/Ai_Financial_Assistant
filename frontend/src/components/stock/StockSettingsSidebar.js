@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { logger } from '../../utils/logger';
 
@@ -106,6 +106,10 @@ const CHART_TYPES = [
   { value: 'line', label: 'Line' },
 ];
 
+// Some constants for the new UI elements
+const HIGHLIGHT_COLOR = 'rgba(92, 230, 207, 0.7)';
+const WARNING_COLOR = 'rgba(255, 165, 0, 0.7)';
+
 /**
  * StockSettingsSidebar component for displaying and configuring stock chart settings
  * Organized by panel type for better usability
@@ -122,6 +126,7 @@ const CHART_TYPES = [
  * @param {Object} props.panelAssignments - Panel assignments for each indicator
  * @param {Function} props.onParamChange - Handler for indicator parameter changes
  * @param {Function} props.onPanelChange - Handler for indicator panel assignment changes
+ * @param {number|null} props.lastAutoRefreshTime - Timestamp of the last auto-refresh (null if none)
  */
 const StockSettingsSidebar = ({ 
   isOpen, 
@@ -134,12 +139,31 @@ const StockSettingsSidebar = ({
   indicatorConfigs,
   panelAssignments,
   onParamChange,
-  onPanelChange
+  onPanelChange,
+  lastAutoRefreshTime
 }) => {
+  // Add state to track if there are unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Keep track of the last auto-refresh time using a ref to compare in useEffect
+  const lastAutoRefreshTimeRef = useRef(lastAutoRefreshTime);
+  
   // Log when sidebar state changes
   React.useEffect(() => {
     logger.info(`Stock settings sidebar ${isOpen ? 'opened' : 'closed'}`);
   }, [isOpen]);
+  
+  // Reset unsaved changes when an auto-refresh occurs
+  useEffect(() => {
+    if (lastAutoRefreshTime !== null && lastAutoRefreshTime !== lastAutoRefreshTimeRef.current) {
+      lastAutoRefreshTimeRef.current = lastAutoRefreshTime;
+      
+      if (hasUnsavedChanges) {
+        logger.debug('Auto-refresh occurred, clearing unsaved changes notification');
+        setHasUnsavedChanges(false);
+      }
+    }
+  }, [lastAutoRefreshTime, hasUnsavedChanges]);
 
   // Handle close button click
   const handleCloseClick = () => {
@@ -152,6 +176,31 @@ const StockSettingsSidebar = ({
     e.preventDefault();
     logger.debug('User submitted settings from sidebar');
     onSubmit(e);
+    setHasUnsavedChanges(false); // Reset the unsaved changes flag
+  };
+  
+  // Wrapper for input change handler to track unsaved changes
+  const handleInputChange = (e) => {
+    onInputChange(e);
+    setHasUnsavedChanges(true);
+  };
+  
+  // Wrapper for indicator change handler to track unsaved changes
+  const handleIndicatorChange = (e) => {
+    onIndicatorChange(e);
+    setHasUnsavedChanges(true);
+  };
+  
+  // Wrapper for parameter change handler to track unsaved changes
+  const handleParamChange = (indicatorName, paramName, value) => {
+    onParamChange(indicatorName, paramName, value);
+    setHasUnsavedChanges(true);
+  };
+  
+  // Wrapper for panel change handler to track unsaved changes
+  const handlePanelChange = (indicatorName, value) => {
+    onPanelChange(indicatorName, value);
+    setHasUnsavedChanges(true);
   };
 
   /**
@@ -309,7 +358,7 @@ const StockSettingsSidebar = ({
               <div 
                 key={indicator.value} 
                 className={`indicator-checkbox ${isSelected ? 'selected' : ''}`}
-                onClick={() => onIndicatorChange({ target: { value: indicator.value, checked: !isSelected }})}
+                onClick={() => handleIndicatorChange({ target: { value: indicator.value, checked: !isSelected }})}
                 style={{ marginBottom: CHECKBOX_ROW_SPACING }}
               >
                 <table className="indicator-table" cellSpacing="0" cellPadding="0" style={{ width: '100%' }}>
@@ -379,7 +428,7 @@ const StockSettingsSidebar = ({
                   id={`sidebar-param-${indicatorName}-${paramName}`}
                   type="number"
                   value={paramValue}
-                  onChange={(e) => onParamChange(indicatorName, paramName, e.target.value)}
+                  onChange={(e) => handleParamChange(indicatorName, paramName, e.target.value)}
                   style={{ 
                     backgroundColor: INPUT_BG_COLOR, 
                     border: INPUT_BORDER, 
@@ -400,7 +449,7 @@ const StockSettingsSidebar = ({
               <select
                 id={`sidebar-panel-${indicatorName}`}
                 value={panelAssignments[indicatorName] || 'main'}
-                onChange={(e) => onPanelChange(indicatorName, e.target.value)}
+                onChange={(e) => handlePanelChange(indicatorName, e.target.value)}
                 className="futuristic-select"
                 style={{ 
                   height: INPUT_HEIGHT, 
@@ -564,7 +613,7 @@ const StockSettingsSidebar = ({
                 'ticker', 
                 'text', 
                 config.ticker, 
-                onInputChange, 
+                handleInputChange, 
                 { required: true }
               )}
               
@@ -574,7 +623,7 @@ const StockSettingsSidebar = ({
                 'days', 
                 'number', 
                 config.days, 
-                onInputChange, 
+                handleInputChange, 
                 { min: '1', max: '365' }
               )}
               
@@ -584,7 +633,7 @@ const StockSettingsSidebar = ({
                 'interval', 
                 'select', 
                 config.interval, 
-                onInputChange, 
+                handleInputChange, 
                 { items: INTERVALS }
               )}
               
@@ -594,11 +643,19 @@ const StockSettingsSidebar = ({
                 'chartType', 
                 'select', 
                 config.chartType, 
-                onInputChange, 
+                handleInputChange, 
                 { items: CHART_TYPES }
               )}
               
-              <button type="submit" className="update-button" disabled={isLoading}>
+              {/* Unsaved changes indicator */}
+              {hasUnsavedChanges && (
+                <div className="unsaved-changes-alert">
+                  <div className="alert-icon">⚠️</div>
+                  <div className="alert-text">Changes not applied. Click "Update Chart" to apply.</div>
+                </div>
+              )}
+              
+              <button type="submit" className={`update-button ${hasUnsavedChanges ? 'has-changes' : ''}`} disabled={isLoading}>
                 {isLoading ? 'Loading...' : 'Update Chart'}
               </button>
             </form>
@@ -866,6 +923,24 @@ const StockSettingsSidebar = ({
           height: ${BUTTON_HEIGHT};
         }
         
+        .update-button.has-changes {
+          animation: pulse 2s infinite;
+          background-color: ${HIGHLIGHT_COLOR};
+          box-shadow: 0 2px 10px ${HIGHLIGHT_COLOR}, 0 0 15px rgba(92, 230, 207, 0.3);
+        }
+        
+        @keyframes pulse {
+          0% {
+            box-shadow: 0 2px 10px ${HIGHLIGHT_COLOR}, 0 0 5px rgba(92, 230, 207, 0.3);
+          }
+          50% {
+            box-shadow: 0 2px 15px ${HIGHLIGHT_COLOR}, 0 0 20px rgba(92, 230, 207, 0.5);
+          }
+          100% {
+            box-shadow: 0 2px 10px ${HIGHLIGHT_COLOR}, 0 0 5px rgba(92, 230, 207, 0.3);
+          }
+        }
+        
         .update-button:hover {
           background-color: ${ACCENT_HOVER};
           transform: translateY(-2px);
@@ -882,6 +957,28 @@ const StockSettingsSidebar = ({
           cursor: not-allowed;
           transform: none;
           box-shadow: none;
+          animation: none;
+        }
+        
+        .unsaved-changes-alert {
+          display: flex;
+          align-items: center;
+          padding: 8px 12px;
+          background: rgba(255, 165, 0, 0.15);
+          border-left: 3px solid ${WARNING_COLOR};
+          border-radius: 3px;
+          margin: 10px 0;
+          font-size: 13px;
+        }
+        
+        .alert-icon {
+          margin-right: 8px;
+          font-size: 16px;
+        }
+        
+        .alert-text {
+          color: ${TEXT_PRIMARY};
+          font-weight: 500;
         }
         
         .indicators-section {

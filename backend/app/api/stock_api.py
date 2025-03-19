@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any, Union
 from datetime import date, timedelta, datetime
 import logging
 
-from ..stock_analysis.stock_data_fetcher import fetch_stock_data, get_company_name
+from ..stock_analysis.stock_data_fetcher import fetch_stock_data, get_company_name, get_company_info, CompanyInfo
 from ..stock_analysis.stock_data_charting import analyze_ticker
 from ..core.logging_config import get_logger
 from ..stock_analysis.kpi_manager import get_kpis, AVAILABLE_KPI_GROUPS
@@ -122,6 +122,23 @@ class StockKpiRequest(BaseModel):
 class MarketHoursRequest(BaseModel):
     """
     Request model for market hours information.
+    """
+    ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "ticker": "AAPL"
+                }
+            ]
+        }
+    }
+
+# Add this Pydantic model for company info requests
+class CompanyInfoRequest(BaseModel):
+    """
+    Request model for company information.
     """
     ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
 
@@ -392,3 +409,36 @@ async def get_market_hours(request: MarketHoursRequest):
     except Exception as e:
         logger.error(f"Error getting market hours for {request.ticker}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting market hours: {str(e)}")
+
+@app.post("/api/stocks/company-info")
+async def get_company_info_endpoint(request: CompanyInfoRequest):
+    """
+    Get comprehensive company information for a specific stock ticker.
+    
+    Args:
+        request: CompanyInfoRequest containing the ticker symbol
+        
+    Returns:
+        JSON: Company information including name, sector, industry, country, and website
+    """
+    try:
+        ticker = request.ticker
+        logger.info(f"Getting company information for {ticker}")
+        
+        # Get company info using our fetcher
+        company_info = get_company_info(ticker)
+        
+        # Format the response
+        response = {
+            "ticker": ticker,
+            "name": company_info.Name,
+            "sector": company_info.Sector,
+            "industry": company_info.Industry,
+            "country": company_info.Country,
+            "website": company_info.Website
+        }
+        
+        return response
+    except Exception as e:
+        logger.error(f"Error getting company info for {request.ticker}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting company info: {str(e)}")

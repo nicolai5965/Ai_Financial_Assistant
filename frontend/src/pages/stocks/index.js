@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { logger } from '../../utils/logger';
-import { checkApiHealth } from '../../services/api/stock';
+import { checkApiHealth, DEFAULT_TICKER } from '../../services/api/stock';
 import MarketHoursWidget from '../../components/stock/MarketHoursWidget';
 import CompanyInfoWidget from '../../components/stock/CompanyInfoWidget';
 
@@ -53,8 +53,11 @@ const StocksPage = () => {
     message: API_MESSAGES.CHECKING
   });
 
-  // Add state for current ticker
-  const [currentTicker, setCurrentTicker] = useState('AAPL'); // Default ticker
+  // Using centralized default ticker from stock.js service
+  const [displayedTicker, setDisplayedTicker] = useState(DEFAULT_TICKER);
+  
+  // Add a new state to track chart error status
+  const [chartHasError, setChartHasError] = useState(false);
 
   // Log when page component mounts and unmounts
   useEffect(() => {
@@ -124,10 +127,19 @@ const StocksPage = () => {
     </div>
   );
 
-  // Callback to update the current ticker when the StockChart ticker changes
+  // Callback to update the displayed ticker when the StockChart ticker changes
+  // This now only happens when the chart is actually updated
   const handleTickerChange = (ticker) => {
-    logger.debug(`Ticker changed to: ${ticker}`);
-    setCurrentTicker(ticker);
+    logger.debug(`Displayed ticker changed to: ${ticker}`);
+    setDisplayedTicker(ticker);
+    // Reset chart error state when ticker successfully changes
+    setChartHasError(false);
+  };
+  
+  // Callback to handle chart error state
+  const handleChartError = (hasError) => {
+    logger.debug(`Chart error state changed to: ${hasError}`);
+    setChartHasError(hasError);
   };
 
   return (
@@ -138,16 +150,19 @@ const StocksPage = () => {
       <h1>Stock Market Analysis</h1>
       
       {/* Info widgets container with both Market Hours and Company Info */}
-      {apiStatus.healthy && currentTicker && (
+      {apiStatus.healthy && displayedTicker && !chartHasError && (
         <div className="info-widgets-container">
-          <MarketHoursWidget ticker={currentTicker} />
-          <CompanyInfoWidget ticker={currentTicker} />
+          <MarketHoursWidget ticker={displayedTicker} />
+          <CompanyInfoWidget ticker={displayedTicker} />
         </div>
       )}
       
       {/* Conditionally render StockChart or connection error based on API health */}
       {apiStatus.healthy ? (
-        <StockChart onTickerChange={handleTickerChange} />
+        <StockChart 
+          onTickerChange={handleTickerChange} 
+          onErrorChange={handleChartError}
+        />
       ) : (
         renderConnectionError()
       )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { logger } from '../../utils/logger';
-import { fetchStockChart } from '../../services/api/stock';
+import { fetchStockChart, DEFAULT_CHART_CONFIG, REFRESH_INTERVAL } from '../../services/api/stock';
 
 // Import the new components
 import ChartDisplay from './ChartDisplay';
@@ -37,18 +37,6 @@ const DEFAULT_INDICATOR_PARAMS = {
   // VWAP and OBV don't have configurable parameters
 };
 
-// Default configuration
-const DEFAULT_CONFIG = {
-  ticker: 'NVDA',
-  days: 10,
-  interval: '1h',
-  indicators: [],
-  chartType: 'candlestick'
-};
-
-// refresh interval in minutes
-const REFRESH_INTERVAL = 5;
-
 // Styling constants
 const CONTAINER_BG_COLOR = '#1B1610';
 const TEXT_COLOR = '#fff';
@@ -70,15 +58,19 @@ const generateInstanceId = () => {
  * 
  * @param {Object} props Component props
  * @param {Function} props.onTickerChange Callback function when ticker changes
+ * @param {Function} props.onErrorChange Callback function when chart error state changes
  */
-const StockChart = ({ onTickerChange }) => {
+const StockChart = ({ onTickerChange, onErrorChange }) => {
   // Create a unique instance ID for this component
   const instanceId = useRef(generateInstanceId());
   
   // State for form controls
-  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [config, setConfig] = useState(DEFAULT_CHART_CONFIG);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Add new state for the currently displayed ticker (separate from config.ticker)
+  const [displayedTicker, setDisplayedTicker] = useState(DEFAULT_CHART_CONFIG.ticker);
   
   // State for the chart data
   const [chartData, setChartData] = useState(null);
@@ -115,14 +107,28 @@ const StockChart = ({ onTickerChange }) => {
   // Initialize the ticker change callback with the default ticker
   useEffect(() => {
     if (onTickerChange && typeof onTickerChange === 'function') {
-      onTickerChange(DEFAULT_CONFIG.ticker);
+      // Only update the parent if we need to - this avoids unnecessary API calls
+      // during initialization. The parent already has a default (AAPL) so we only
+      // need to call this if our default ticker is different, which it no longer is
+      // since we changed it to match.
+      //onTickerChange(DEFAULT_CHART_CONFIG.ticker);
+      
+      // Instead, just log that we're initialized
+      logger.debug(`StockChart ticker initialized to: ${DEFAULT_CHART_CONFIG.ticker}`);
     }
   }, [onTickerChange]);
+
+  // Notify parent component about error state changes
+  useEffect(() => {
+    if (onErrorChange && typeof onErrorChange === 'function') {
+      onErrorChange(error !== null);
+    }
+  }, [error, onErrorChange]);
 
   // Load initial chart on component mount and set up auto-refresh
   useEffect(() => {
     logger.debug(`StockChart component mounted (instance: ${instanceId.current}), loading initial chart`);
-    loadChart(DEFAULT_CONFIG);
+    loadChart(DEFAULT_CHART_CONFIG);
     
     // Set up the auto-refresh timer
     setupRefreshTimer();
@@ -169,10 +175,10 @@ const StockChart = ({ onTickerChange }) => {
     setConfig(prev => ({ ...prev, [name]: value }));
     logger.debug(`Config ${name} changed to ${value}`);
     
-    // If ticker changes, call the onTickerChange callback
-    if (name === 'ticker' && onTickerChange && typeof onTickerChange === 'function') {
-      onTickerChange(value);
-    }
+    // Remove the premature ticker update - only update ticker when chart is actually updated
+    // if (name === 'ticker' && onTickerChange && typeof onTickerChange === 'function') {
+    //   onTickerChange(value);
+    // }
   };
   
   /**
@@ -363,6 +369,11 @@ const StockChart = ({ onTickerChange }) => {
     setIsLoading(true);
     setError(null);
     
+    // Notify parent of error state change (no error when starting load)
+    if (onErrorChange && typeof onErrorChange === 'function') {
+      onErrorChange(false);
+    }
+    
     // Store current chart for display while loading
     if (chartData) {
       prevChartRef.current = chartData.chart;
@@ -395,9 +406,23 @@ const StockChart = ({ onTickerChange }) => {
       
       // Set chartData to null to prevent displaying incorrect chart
       setChartData(null);
+      
+      // Notify parent of error state change
+      if (onErrorChange && typeof onErrorChange === 'function') {
+        onErrorChange(true);
+      }
     } else {
       // Successfully got chart data
       setChartData(response);
+      
+      // Update the displayed ticker to match what's now shown on the chart
+      // This is key for ensuring other components only update when chart updates
+      setDisplayedTicker(chartConfig.ticker);
+      
+      // Only call onTickerChange when the displayed ticker actually changes
+      if (chartConfig.ticker !== displayedTicker && onTickerChange && typeof onTickerChange === 'function') {
+        onTickerChange(chartConfig.ticker);
+      }
       
       // Update timestamp to trigger KPI refresh
       setChartUpdateTimestamp(Date.now());
@@ -411,6 +436,11 @@ const StockChart = ({ onTickerChange }) => {
         setTimeout(() => {
           setShowAutoRefreshNotif(false);
         }, 3000);
+      }
+      
+      // Notify parent of error state change (no error on success)
+      if (onErrorChange && typeof onErrorChange === 'function') {
+        onErrorChange(false);
       }
     }
     
@@ -510,10 +540,10 @@ const StockChart = ({ onTickerChange }) => {
               onUpdate={handleSubmit}
             />
             
-            {/* KPI Container */}
+            {/* KPI Container - pass displayedTicker instead of config.ticker */}
             {chartData && (
               <KpiContainer 
-                ticker={config.ticker} 
+                ticker={displayedTicker} 
                 onTickerChange={(newTicker) => {
                   setConfig(prev => ({ ...prev, ticker: newTicker }));
                   loadChart({ ...config, ticker: newTicker });

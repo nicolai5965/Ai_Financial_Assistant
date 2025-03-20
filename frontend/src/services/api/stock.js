@@ -8,6 +8,25 @@ import { logger } from '../../utils/logger';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
+ * Stock Configuration Constants
+ * Centralized configuration values for stock-related functionality
+ */
+// Default ticker symbol used throughout the application
+export const DEFAULT_TICKER = 'AAPL';
+
+// Default chart configuration used for initial load and resets
+export const DEFAULT_CHART_CONFIG = {
+  ticker: DEFAULT_TICKER,
+  days: 10,
+  interval: '1h',
+  indicators: [],
+  chartType: 'candlestick'
+};
+
+// Auto-refresh interval in minutes
+export const REFRESH_INTERVAL = 5;
+
+/**
  * Generate a simple unique ID for request tracking
  * @returns {string} A unique request identifier
  */

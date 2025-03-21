@@ -1,19 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { fetchCompanyInfo } from '../../services/api/stock';
+import React from 'react';
 import { logger } from '../../utils/logger';
 
 /**
  * CompanyInfoWidget - Displays company information including name, sector, industry, country, and website
  * 
  * @param {Object} props Component props
- * @param {string} props.ticker Current stock ticker symbol
+ * @param {Object} props.data Company information data from dashboard endpoint
  */
-const CompanyInfoWidget = ({ ticker }) => {
-  const [companyInfo, setCompanyInfo] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Color constants to match app theme (same as MarketHoursWidget)
+const CompanyInfoWidget = ({ data }) => {
+  // Color constants to match app theme
+  console.log("CompanyInfoWidget: data:", data);
   const COLORS = {
     PRIMARY_DARK: 'rgba(13, 27, 42, 1)',      // Dark blue
     PRIMARY_LIGHT: 'rgba(26, 42, 58, 1)',     // Light blue
@@ -28,39 +24,6 @@ const CompanyInfoWidget = ({ ticker }) => {
     STATUS_OPEN: 'rgba(76, 175, 80, 1)',      // Green for open market using rgba
     STATUS_CLOSED: 'rgba(244, 67, 54, 1)'     // Red for closed market using rgba
   };
-
-  // Fetch company information
-  const getCompanyInfo = async () => {
-    if (!ticker) return;
-    
-    try {
-      setLoading(true);
-      const response = await fetchCompanyInfo(ticker);
-      
-      // Check if the response contains an error
-      if (response.error) {
-        logger.error(`Error fetching company info: ${response.message}`);
-        setError('Failed to load company information');
-        setCompanyInfo(null);
-      } else {
-        setCompanyInfo(response);
-        setError(null);
-        logger.debug(`Company info loaded for ${ticker}`, response);
-      }
-    } catch (err) {
-      // This catch is only for unexpected errors, not API errors
-      logger.error(`Unexpected error fetching company info: ${err.message || 'Unknown error'}`);
-      setError('Failed to load company information');
-      setCompanyInfo(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Effect to fetch company info when the ticker changes
-  useEffect(() => {
-    getCompanyInfo();
-  }, [ticker]);
 
   // Main container style to match app theme
   const containerStyle = {
@@ -83,35 +46,8 @@ const CompanyInfoWidget = ({ ticker }) => {
     boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3), 0 0 1px rgba(92, 230, 207, 0.3)'
   };
 
-  // Loading state
-  if (loading && !companyInfo) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-          <div style={{ borderTop: `2px solid ${COLORS.ACCENT_PRIMARY}`, borderRadius: '50%', width: '20px', height: '20px', marginRight: '10px', animation: 'spin 1s linear infinite' }}></div>
-          <div style={{ color: COLORS.TEXT_PRIMARY }}>Loading company info...</div>
-        </div>
-        <style jsx>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ color: COLORS.STATUS_CLOSED, width: '100%', textAlign: 'center' }}>{error}</div>
-      </div>
-    );
-  }
-
   // No data state
-  if (!companyInfo) {
+  if (!data) {
     return null;
   }
 
@@ -133,29 +69,29 @@ const CompanyInfoWidget = ({ ticker }) => {
         borderBottom: `1px solid ${COLORS.ACCENT_PRIMARY}`,
         paddingBottom: '5px'
       }}>
-        {companyInfo.name}
+        {data.name}
       </div>
       
       <div style={{ marginBottom: '5px' }}>
         <span style={{ color: COLORS.TEXT_SECONDARY }}>Sector: </span>
-        <span style={{ color: COLORS.TEXT_PRIMARY }}>{companyInfo.sector}</span>
+        <span style={{ color: COLORS.TEXT_PRIMARY }}>{data.sector}</span>
       </div>
       
       <div style={{ marginBottom: '5px' }}>
         <span style={{ color: COLORS.TEXT_SECONDARY }}>Industry: </span>
-        <span style={{ color: COLORS.TEXT_PRIMARY }}>{companyInfo.industry}</span>
+        <span style={{ color: COLORS.TEXT_PRIMARY }}>{data.industry}</span>
       </div>
       
       <div style={{ marginBottom: '5px' }}>
         <span style={{ color: COLORS.TEXT_SECONDARY }}>Country: </span>
-        <span style={{ color: COLORS.TEXT_PRIMARY }}>{companyInfo.country}</span>
+        <span style={{ color: COLORS.TEXT_PRIMARY }}>{data.country}</span>
       </div>
       
       <div style={{ marginBottom: '5px' }}>
         <span style={{ color: COLORS.TEXT_SECONDARY }}>Website: </span>
-        {companyInfo.website && companyInfo.website !== 'N/A' ? (
+        {data.website && data.website !== 'N/A' ? (
           <a 
-            href={companyInfo.website} 
+            href={data.website} 
             target="_blank" 
             rel="noopener noreferrer"
             style={{ 
@@ -172,10 +108,10 @@ const CompanyInfoWidget = ({ ticker }) => {
               e.target.style.textDecoration = 'none';
             }}
           >
-            {companyInfo.website.replace(/^https?:\/\//, '')}
+            {data.website.replace(/^https?:\/\//, '')}
           </a>
         ) : (
-          <span style={{ color: COLORS.TEXT_PRIMARY }}>{companyInfo.website}</span>
+          <span style={{ color: COLORS.TEXT_PRIMARY }}>{data.website}</span>
         )}
       </div>
     </div>

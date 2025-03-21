@@ -47,27 +47,25 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
   const processChartData = (data) => {
     if (!data) return { data: [], layout: {}, originalTitle: "" };
     try {
-      const parsedData = JSON.parse(data);
+      // Check if data is a string before parsing it
+      const parsedData = typeof data === "string" ? JSON.parse(data) : data;
       
       // Ensure layout exists and enforce autosize
       parsedData.layout = parsedData.layout || {};
       parsedData.layout.autosize = true;
       
-      // Extract the original title before removing it
+      // Extract and remove the title from the layout if present
       let originalTitle = "";
       if (parsedData.layout.title) {
         if (typeof parsedData.layout.title === 'string') {
           originalTitle = parsedData.layout.title;
-          // Remove the title from the chart
           parsedData.layout.title = "";
         } else if (parsedData.layout.title.text) {
           originalTitle = parsedData.layout.title.text;
-          // Remove the title but keep the title object structure
           parsedData.layout.title.text = "";
         }
       }
       
-      // Keep the original parsed data structure but store the title separately
       return {
         data: parsedData.data || [],
         layout: parsedData.layout,
@@ -78,6 +76,8 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
       return { data: [], layout: {}, originalTitle: "" };
     }
   };
+  
+  
 
   // Store fixed chart height as a number to avoid repeated parsing
   const fixedChartHeight = parseInt(CHART_HEIGHT);

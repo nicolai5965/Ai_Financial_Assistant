@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
 from datetime import date, timedelta, datetime
 import logging
+import asyncio
 
 from ..stock_analysis.stock_data_fetcher import fetch_stock_data, get_company_name, get_company_info, CompanyInfo
 from ..stock_analysis.stock_data_charting import analyze_ticker
@@ -81,28 +82,23 @@ class IndicatorConfig(BaseModel):
         }
     }
 
-# Define request model
-class StockAnalysisRequest(BaseModel):
+class DashboardDataRequest(BaseModel):
     """
-    Request model for stock analysis.
+    Combined request model for all dashboard data.
+    Replaces individual request models for chart, KPIs, market hours, and company info.
     """
     ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
-    days: Optional[int] = Field(10, description="Number of days to look back")
-    interval: str = Field("1d", description="Data interval (e.g., '1d', '1h', '5m', '1m', '1wk', '1mo')")
+    # Chart-specific fields
+    days: Optional[int] = Field(10, description="Number of days to look back for chart data")
+    interval: str = Field("1d", description="Data interval for chart (e.g., '1d', '1h', '5m')")
     indicators: List[Union[str, IndicatorConfig]] = Field(
         default=[], 
-        description="List of technical indicators to include. Can be simple strings or detailed configurations."
+        description="List of technical indicators to include in chart"
     )
     chart_type: str = Field("candlestick", description="Chart type: 'candlestick' or 'line'")
-
-# Add this Pydantic model to the other models
-class StockKpiRequest(BaseModel):
-    """
-    Request model for stock KPI data.
-    """
-    ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
-    kpi_groups: Optional[List[str]] = Field(None, description="Optional list of KPI groups to include (price, volume, volatility, fundamental, sentiment)")
-    timeframe: str = Field("1d", description="Timeframe for KPI data (e.g., '1d', '5d', '1mo', '3mo', '6mo', '1y', '5y')")
+    # KPI-specific fields
+    kpi_groups: Optional[List[str]] = Field(None, description="Optional list of KPI groups to include")
+    kpi_timeframe: str = Field("1d", description="Timeframe for KPI data")
     use_cache: bool = Field(True, description="Whether to use cached data if available")
 
     model_config = {
@@ -110,43 +106,13 @@ class StockKpiRequest(BaseModel):
             "examples": [
                 {
                     "ticker": "AAPL",
+                    "days": 10,
+                    "interval": "1d",
+                    "indicators": ["RSI", "MACD"],
+                    "chart_type": "candlestick",
                     "kpi_groups": ["price", "volume"],
-                    "timeframe": "1d",
+                    "kpi_timeframe": "1d",
                     "use_cache": True
-                }
-            ]
-        }
-    }
-
-# Add this Pydantic model for market hours requests
-class MarketHoursRequest(BaseModel):
-    """
-    Request model for market hours information.
-    """
-    ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "ticker": "AAPL"
-                }
-            ]
-        }
-    }
-
-# Add this Pydantic model for company info requests
-class CompanyInfoRequest(BaseModel):
-    """
-    Request model for company information.
-    """
-    ticker: str = Field(..., description="Stock ticker symbol (e.g., 'AAPL')")
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "ticker": "AAPL"
                 }
             ]
         }
@@ -209,7 +175,6 @@ def process_indicators(indicators: List[Union[str, IndicatorConfig]]) -> List[Di
             
     return processed_indicators
 
-
 def calculate_date_range(days: int, interval: str) -> tuple:
     """
     Calculate and validate the appropriate date range based on the interval and days.
@@ -245,67 +210,131 @@ def calculate_date_range(days: int, interval: str) -> tuple:
     
     return start_date, end_date
 
-
-# Create API endpoints
-@app.post("/api/stocks/analyze")
-async def analyze_stock(request: StockAnalysisRequest):
+@app.post("/api/stocks/dashboard-data")
+async def get_dashboard_data(request: DashboardDataRequest):
     """
-    Analyze stock data and return a visualization.
+    Unified endpoint that fetches all dashboard data for a specific ticker in a single request.
+    Replaces separate endpoints for chart, KPIs, market hours, and company info.
     
     Args:
-        request: StockAnalysisRequest containing analysis parameters
+        request: DashboardDataRequest containing all parameters
         
     Returns:
-        JSON: Plotly figure JSON representation
+        JSON: Combined dashboard data including chart, KPIs, market hours, and company info
     """
     try:
-        # Store repeated request values in local variables
-        ticker = request.ticker
-        interval = request.interval
-        days = request.days
-        chart_type = request.chart_type
-        indicators = request.indicators
+        ticker = request.ticker.strip().upper()
+        if not ticker:
+            raise HTTPException(status_code=400, detail="Ticker symbol is required")
+        
+        logger.info(f"Getting unified dashboard data for ticker: {ticker}")
+        
+        # Create tasks for parallel execution
+        tasks = []
+        
+        # Task 1: Chart Data
+        async def get_chart_data():
+            try:
+                processed_indicators = process_indicators(request.indicators)
+                start_date, end_date = calculate_date_range(request.days, request.interval)
+                
+                stock_data = fetch_stock_data([ticker], start_date, end_date, request.interval)
+                if not stock_data or ticker not in stock_data:
+                    return {"error": f"No data found for ticker {ticker}"}
+                
+                ticker_data = stock_data[ticker]
+                if ticker_data.empty:
+                    return {"error": f"No trading data found for {ticker}"}
+                
+                company_name = get_company_name(ticker)
+                fig = analyze_ticker(
+                    ticker, 
+                    ticker_data, 
+                    processed_indicators, 
+                    request.interval,
+                    chart_type=request.chart_type
+                )
+                
+                return {
+                    "chart": fig.to_json(),
+                    "company_name": company_name
+                }
+            except Exception as e:
+                logger.exception(f"Error processing chart data: {str(e)}")
+                return {"error": str(e)}
+        
+        # Task 2: KPI Data
+        async def get_kpi_data():
+            try:
+                return {
+                    "kpi_data": get_kpis(
+                        ticker, 
+                        request.kpi_groups, 
+                        request.kpi_timeframe, 
+                        request.use_cache
+                    )
+                }
+            except Exception as e:
+                logger.exception(f"Error processing KPI data: {str(e)}")
+                return {"error": str(e)}
+        
+        # Task 3: Market Hours Data
+        async def get_market_hours_data():
+            try:
+                market_status = market_hours_tracker.get_market_status(ticker)
+                return {
+                    "is_market_open": market_status["is_market_open"],
+                    "exchange": market_status["exchange"],
+                    "next_state": market_status["next_state"],
+                    "next_state_change": market_status["next_state_change"].isoformat(),
+                    "seconds_until_change": market_status["seconds_until_change"],
+                    "current_time": market_status["current_time"].isoformat()
+                }
+            except Exception as e:
+                logger.exception(f"Error processing market hours data: {str(e)}")
+                return {"error": str(e)}
+        
+        # Task 4: Company Info Data
+        async def get_company_info_data():
+            try:
+                company_info = get_company_info(ticker)
+                return {
+                    "name": company_info.Name,
+                    "sector": company_info.Sector,
+                    "industry": company_info.Industry,
+                    "country": company_info.Country,
+                    "website": company_info.Website
+                }
+            except Exception as e:
+                logger.exception(f"Error processing company info data: {str(e)}")
+                return {"error": str(e)}
 
-        logger.info(f"Analyzing stock data for {ticker} with {interval} interval")
+        # Add all tasks for parallel execution
+        tasks = [
+            asyncio.create_task(get_chart_data()),
+            asyncio.create_task(get_kpi_data()),
+            asyncio.create_task(get_market_hours_data()),
+            asyncio.create_task(get_company_info_data())
+        ]
         
-        # Process indicators into a standardized format
-        processed_indicators = process_indicators(indicators)
+        # Execute all tasks concurrently
+        chart_result, kpi_result, market_hours_result, company_info_result = await asyncio.gather(*tasks)
         
-        # Calculate and validate date range
-        start_date, end_date = calculate_date_range(days, interval)
+        # Prepare unified response
+        response = {
+            "ticker": ticker,
+            "timestamp": datetime.now().isoformat(),
+            "chart_data": chart_result,
+            "kpi_data": kpi_result,
+            "market_hours": market_hours_result,
+            "company_info": company_info_result
+        }
         
-        # Fetch stock data
-        stock_data = fetch_stock_data([ticker], start_date, end_date, interval)
-        if not stock_data or ticker not in stock_data:
-            logger.error(f"No data found for ticker {ticker}")
-            raise HTTPException(status_code=404, detail=f"No data found for ticker {ticker}")
+        return JSONResponse(content=response)
         
-        ticker_data = stock_data[ticker]
-        if ticker_data.empty:
-            logger.error(f"No trading data found for {ticker}")
-            raise HTTPException(status_code=404, detail=f"No trading data found for {ticker}")
-        
-        # Get company name
-        company_name = get_company_name(ticker)
-        
-        # Generate chart using processed indicators
-        fig = analyze_ticker(
-            ticker, 
-            ticker_data, 
-            processed_indicators, 
-            interval,
-            chart_type=chart_type
-        )
-        
-        # Convert chart to JSON and prepare response
-        chart_json = fig.to_json()
-        
-        return JSONResponse(content={"chart": chart_json, "ticker": ticker, "company_name": company_name})
-    
     except Exception as e:
-        logger.exception(f"Error analyzing stock data: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error processing request")
-
+        logger.exception(f"Error processing dashboard data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing dashboard data: {str(e)}")
 
 # Simple health check endpoint
 @app.get("/api/health")
@@ -315,7 +344,6 @@ async def health_check():
     """
     return {"status": "healthy", "service": "stock-analysis-api"}
 
-
 # Global exception handler for unhandled exceptions
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
@@ -324,121 +352,3 @@ async def general_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": f"Internal server error: {str(exc)}"}
     )
-
-# Add this new endpoint to the FastAPI app
-@app.post("/api/stocks/kpi")
-async def get_stock_kpis_endpoint(request: StockKpiRequest):
-    """
-    Get KPIs for a specific stock ticker.
-    
-    Args:
-        request: StockKpiRequest containing ticker and optional KPI group filters
-        
-    Returns:
-        JSON response with KPI data
-    """
-    try:
-        # Extract and validate parameters
-        ticker = request.ticker.strip().upper()
-        if not ticker:
-            raise HTTPException(status_code=400, detail="Ticker symbol is required")
-        
-        kpi_groups = request.kpi_groups
-        timeframe = request.timeframe
-        use_cache = request.use_cache
-        
-        # Validate KPI groups if provided
-        if kpi_groups:
-            invalid_groups = [g for g in kpi_groups if g not in AVAILABLE_KPI_GROUPS]
-            if invalid_groups:
-                logger.warning(f"Invalid KPI groups requested: {invalid_groups}")
-        
-        # Log the request
-        logger.info(f"KPI request received for ticker: {ticker}, groups: {kpi_groups}, timeframe: {timeframe}")
-        
-        # Fetch the KPI data
-        kpi_data = get_kpis(ticker, kpi_groups, timeframe, use_cache)
-        
-        # Return the KPI data
-        return {
-            "ticker": ticker,
-            "timestamp": datetime.now().isoformat(),
-            "data": kpi_data
-        }
-    except ValueError as e:
-        # Handle validation errors
-        error_msg = str(e)
-        logger.error(f"Validation error in KPI request: {error_msg}")
-        raise HTTPException(status_code=400, detail=error_msg)
-    except Exception as e:
-        # Handle unexpected errors
-        error_msg = f"Error processing KPI request: {str(e)}"
-        logger.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
-
-@app.post("/api/stocks/market-hours")
-async def get_market_hours(request: MarketHoursRequest):
-    """
-    Get the current market hours status for a specific stock ticker.
-    
-    Args:
-        request: MarketHoursRequest containing the ticker symbol
-        
-    Returns:
-        JSON: Market hours information including open/closed status and countdown
-    """
-    try:
-        ticker = request.ticker
-        logger.info(f"Getting market hours information for {ticker}")
-        
-        # Get market status using our tracker
-        market_status = market_hours_tracker.get_market_status(ticker)
-        
-        # Format the response
-        response = {
-            "ticker": ticker,
-            "is_market_open": market_status["is_market_open"],
-            "exchange": market_status["exchange"],
-            "next_state": market_status["next_state"],
-            "next_state_change": market_status["next_state_change"].isoformat(),
-            "seconds_until_change": market_status["seconds_until_change"],
-            "current_time": market_status["current_time"].isoformat(),
-        }
-        
-        return response
-    except Exception as e:
-        logger.error(f"Error getting market hours for {request.ticker}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error getting market hours: {str(e)}")
-
-@app.post("/api/stocks/company-info")
-async def get_company_info_endpoint(request: CompanyInfoRequest):
-    """
-    Get comprehensive company information for a specific stock ticker.
-    
-    Args:
-        request: CompanyInfoRequest containing the ticker symbol
-        
-    Returns:
-        JSON: Company information including name, sector, industry, country, and website
-    """
-    try:
-        ticker = request.ticker
-        logger.info(f"Getting company information for {ticker}")
-        
-        # Get company info using our fetcher
-        company_info = get_company_info(ticker)
-        
-        # Format the response
-        response = {
-            "ticker": ticker,
-            "name": company_info.Name,
-            "sector": company_info.Sector,
-            "industry": company_info.Industry,
-            "country": company_info.Country,
-            "website": company_info.Website
-        }
-        
-        return response
-    except Exception as e:
-        logger.error(f"Error getting company info for {request.ticker}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error getting company info: {str(e)}")

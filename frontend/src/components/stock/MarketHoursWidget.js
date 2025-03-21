@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { fetchMarketHours } from '../../services/api/stock';
 import { logger } from '../../utils/logger';
 
 /**
@@ -7,12 +6,13 @@ import { logger } from '../../utils/logger';
  * for when the market will open or close
  * 
  * @param {Object} props Component props
- * @param {string} props.ticker Current stock ticker symbol
+ * @param {Object} props.data Market hours data from dashboard endpoint
  */
-const MarketHoursWidget = ({ ticker }) => {
-  const [marketStatus, setMarketStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const MarketHoursWidget = ({ data }) => {
+
+  console.log("Debug Console log:MarketHoursWidget: data:", data); // Will be deleted after testing
+  
+  // Keep countdown state for timer functionality
   const [countdown, setCountdown] = useState({
     hours: 0,
     minutes: 0,
@@ -49,65 +49,20 @@ const MarketHoursWidget = ({ ticker }) => {
     setCountdown({ hours, minutes, seconds });
   };
 
-  // Fetch market hours data
-  const getMarketHours = async () => {
-    if (!ticker) return;
-    
-    try {
-      setLoading(true);
-      // Use the new API service function instead of axios
-      const response = await fetchMarketHours(ticker);
-      
-      // Check if the response contains an error
-      if (response.error) {
-        logger.error(`Error fetching market hours: ${response.message}`);
-        setError('Failed to load market hours data');
-        setMarketStatus(null);
-      } else {
-        setMarketStatus(response);
-        updateCountdown(response.seconds_until_change);
-        setError(null);
-        logger.debug(`Market hours data loaded for ${ticker}`, response);
-      }
-    } catch (err) {
-      // This catch is only for unexpected errors, not API errors
-      logger.error(`Unexpected error fetching market hours: ${err.message || 'Unknown error'}`);
-      setError('Failed to load market hours data');
-      setMarketStatus(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Effect to fetch market hours when the ticker changes
-  useEffect(() => {
-    getMarketHours();
-
-    // Set up interval to refresh market hours data every minute
-    const refreshInterval = setInterval(() => {
-      getMarketHours();
-    }, 60000); // 60 seconds
-
-    return () => {
-      clearInterval(refreshInterval);
-    };
-  }, [ticker]);
-
   // Effect to update the countdown every second
   useEffect(() => {
-    if (!marketStatus) return;
+    if (!data) return;
 
     // Update the countdown immediately
-    updateCountdown(marketStatus.seconds_until_change);
+    updateCountdown(data.seconds_until_change);
 
     // Set up interval to update countdown every second
     const timer = setInterval(() => {
       setCountdown(prev => {
         let totalSeconds = prev.hours * 3600 + prev.minutes * 60 + prev.seconds - 1;
         
-        // If countdown reaches zero, refresh market data
+        // If countdown reaches zero, parent will handle refresh
         if (totalSeconds <= 0) {
-          getMarketHours();
           return prev;
         }
         
@@ -122,23 +77,7 @@ const MarketHoursWidget = ({ ticker }) => {
     return () => {
       clearInterval(timer);
     };
-  }, [marketStatus]);
-
-  // Status indicator styles
-  const statusStyles = {
-    open: {
-      backgroundColor: COLORS.STATUS_OPEN,
-      color: COLORS.PRIMARY_DARK,
-      fontWeight: 'bold',
-      textShadow: '0 1px 1px rgba(0, 0, 0, 0.2)'
-    },
-    closed: {
-      backgroundColor: COLORS.STATUS_CLOSED,
-      color: COLORS.PRIMARY_DARK,
-      fontWeight: 'bold',
-      textShadow: '0 1px 1px rgba(0, 0, 0, 0.2)'
-    }
-  };
+  }, [data]);
 
   // Main container style to match app theme
   const containerStyle = {
@@ -161,35 +100,24 @@ const MarketHoursWidget = ({ ticker }) => {
     boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3), 0 0 1px rgba(92, 230, 207, 0.3)'
   };
 
-  // Loading state
-  if (loading && !marketStatus) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-          <div style={{ borderTop: `2px solid ${COLORS.ACCENT_PRIMARY}`, borderRadius: '50%', width: '20px', height: '20px', marginRight: '10px', animation: 'spin 1s linear infinite' }}></div>
-          <div style={{ color: COLORS.TEXT_PRIMARY }}>Loading market hours...</div>
-        </div>
-        <style jsx>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div style={containerStyle}>
-        <div style={{ color: COLORS.STATUS_CLOSED, width: '100%', textAlign: 'center' }}>{error}</div>
-      </div>
-    );
-  }
+  // Status indicator styles
+  const statusStyles = {
+    open: {
+      backgroundColor: COLORS.STATUS_OPEN,
+      color: COLORS.PRIMARY_DARK,
+      fontWeight: 'bold',
+      textShadow: '0 1px 1px rgba(0, 0, 0, 0.2)'
+    },
+    closed: {
+      backgroundColor: COLORS.STATUS_CLOSED,
+      color: COLORS.PRIMARY_DARK,
+      fontWeight: 'bold',
+      textShadow: '0 1px 1px rgba(0, 0, 0, 0.2)'
+    }
+  };
 
   // No data state
-  if (!marketStatus) {
+  if (!data) {
     return null;
   }
 
@@ -205,7 +133,7 @@ const MarketHoursWidget = ({ ticker }) => {
     >
       <div
         style={{
-          ...statusStyles[marketStatus.is_market_open ? 'open' : 'closed'],
+          ...statusStyles[data.is_market_open ? 'open' : 'closed'],
           padding: '10px 16px',
           borderRadius: '4px',
           marginRight: '16px',
@@ -220,7 +148,7 @@ const MarketHoursWidget = ({ ticker }) => {
           textTransform: 'uppercase'
         }}
       >
-        {marketStatus.is_market_open ? 'OPEN' : 'CLOSED'}
+        {data.is_market_open ? 'OPEN' : 'CLOSED'}
       </div>
       
       <div>
@@ -230,7 +158,7 @@ const MarketHoursWidget = ({ ticker }) => {
           color: COLORS.TEXT_SECONDARY,
           letterSpacing: '0.5px'
         }}>
-          <strong style={{ color: COLORS.ACCENT_PRIMARY }}>{marketStatus.exchange}</strong> market {marketStatus.is_market_open ? 'closes' : 'opens'} in:
+          <strong style={{ color: COLORS.ACCENT_PRIMARY }}>{data.exchange}</strong> market {data.is_market_open ? 'closes' : 'opens'} in:
         </div>
         <div style={{ 
           fontSize: '22px', 

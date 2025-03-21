@@ -2,13 +2,13 @@
  * KpiContainer component for integrating the KPI dashboard into the stock analysis page.
  * 
  * This component serves as the main integration point for the KPI functionality,
- * handling data fetching, state management, and UI coordination with the stock chart.
+ * handling UI state and preferences while receiving data from the parent component.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import KpiDashboard from './kpi/KpiDashboard';
 import KpiSettings from './kpi/KpiSettings';
-import { fetchStockKpis, checkKpiApiHealth } from '../../services/api/kpi';
+import { DEFAULT_KPI_CONFIG } from '../../services/api/stock';
 import { logger } from '../../utils/logger';
 
 // Fallback logger for development or if the main logger fails
@@ -34,8 +34,8 @@ const STORAGE_KEY = 'kpi_dashboard_preferences';
 
 // Default preferences
 const DEFAULT_PREFERENCES = {
-  visibleGroups: ['price', 'volume', 'volatility', 'fundamental'],
-  expandedGroups: ['price', 'volume', 'volatility', 'fundamental'],
+  visibleGroups: DEFAULT_KPI_CONFIG.groups,
+  expandedGroups: DEFAULT_KPI_CONFIG.groups,
   activeView: 'technical'
 };
 
@@ -45,35 +45,27 @@ const DEFAULT_PREFERENCES = {
  * @param {Object} props - Component properties
  * @param {string} props.ticker - The stock ticker symbol
  * @param {Function} props.onTickerChange - Function to call when ticker changes
- * @param {number} props.forceUpdate - Timestamp to force a refresh of KPI data
+ * @param {Object} props.dashboardData - KPI data from parent component
+ * @param {boolean} props.isLoading - Loading state from parent
+ * @param {string} props.error - Error state from parent
+ * @param {Object} props.preferences - Current preferences for the KPI dashboard
+ * @param {Function} props.onPreferencesChange - Callback when preferences change
  * @returns {JSX.Element} The rendered component
  */
-const KpiContainer = ({ ticker, onTickerChange, forceUpdate }) => {
-  // State for KPI data
-  const [kpiData, setKpiData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
+const KpiContainer = ({ 
+  ticker, 
+  onTickerChange, 
+  dashboardData,
+  isLoading,
+  error,
+  preferences,
+  onPreferencesChange
+}) => {
+  // Add logging to verify the ticker
+  console.log("KpiContainer: Data :", dashboardData);
   // State for UI
-  const [isApiAvailable, setIsApiAvailable] = useState(true);
   const [isVisible, setIsVisible] = useState(true);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
-  
-  // State for preferences
-  const [preferences, setPreferences] = useState(() => {
-    // Try to load from localStorage
-    try {
-      const savedPreferences = localStorage.getItem(STORAGE_KEY);
-      return savedPreferences ? JSON.parse(savedPreferences) : DEFAULT_PREFERENCES;
-    } catch (e) {
-      try {
-        log.error(`Error loading preferences from localStorage: ${e.message}`);
-      } catch (err) {
-        console.error(`Error loading preferences from localStorage: ${e.message}`);
-      }
-      return DEFAULT_PREFERENCES;
-    }
-  });
   
   // Generate a unique instance ID for logging
   const instanceId = React.useRef(`kpi-container-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`);
@@ -95,99 +87,6 @@ const KpiContainer = ({ ticker, onTickerChange, forceUpdate }) => {
     };
   }, []);
   
-  // Function to fetch KPI data
-  const fetchData = useCallback(async () => {
-    if (!ticker || !isApiAvailable) {
-      return;
-    }
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        log.info(`Fetching KPI data for ${ticker} (${instanceId.current})`);
-      } catch (e) {
-        console.log(`Fetching KPI data for ${ticker} (${instanceId.current})`);
-      }
-      
-      const data = await fetchStockKpis(
-        ticker, 
-        preferences?.visibleGroups || DEFAULT_PREFERENCES.visibleGroups
-      );
-      
-      setKpiData(data);
-      setIsLoading(false);
-    } catch (err) {
-      setError(err.message);
-      setIsLoading(false);
-      
-      try {
-        log.error(`Error fetching KPI data: ${err.message} (${instanceId.current})`);
-      } catch (e) {
-        console.error(`Error fetching KPI data: ${err.message} (${instanceId.current})`);
-      }
-    }
-  }, [ticker, preferences?.visibleGroups, isApiAvailable]);
-  
-  // Check API availability on mount
-  useEffect(() => {
-    const checkApiAvailability = async () => {
-      try {
-        const isAvailable = await checkKpiApiHealth();
-        setIsApiAvailable(isAvailable);
-        
-        if (!isAvailable) {
-          try {
-            log.warn(`KPI API is not available (${instanceId.current})`);
-          } catch (e) {
-            console.warn(`KPI API is not available (${instanceId.current})`);
-          }
-          setError('KPI API is currently unavailable');
-        }
-      } catch (err) {
-        setIsApiAvailable(false);
-        setError('Error checking KPI API availability');
-        
-        try {
-          log.error(`Error checking KPI API: ${err.message} (${instanceId.current})`);
-        } catch (e) {
-          console.error(`Error checking KPI API: ${err.message} (${instanceId.current})`);
-        }
-      }
-    };
-    
-    checkApiAvailability();
-  }, []);
-  
-  // Fetch data when ticker, preferences, or forceUpdate changes
-  useEffect(() => {
-    if (ticker) {
-      fetchData();
-    }
-  }, [ticker, fetchData, forceUpdate]);
-  
-  // Save preferences to localStorage when they change
-  useEffect(() => {
-    if (!preferences) return;
-    
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
-      
-      try {
-        log.debug(`Saved preferences to localStorage (${instanceId.current})`);
-      } catch (e) {
-        console.log(`Saved preferences to localStorage (${instanceId.current})`);
-      }
-    } catch (e) {
-      try {
-        log.error(`Error saving preferences to localStorage: ${e.message} (${instanceId.current})`);
-      } catch (err) {
-        console.error(`Error saving preferences to localStorage: ${e.message} (${instanceId.current})`);
-      }
-    }
-  }, [preferences]);
-  
   // Handle preference changes
   const handlePreferencesChange = (newPreferences) => {
     if (!newPreferences) return;
@@ -198,7 +97,7 @@ const KpiContainer = ({ ticker, onTickerChange, forceUpdate }) => {
       console.log(`Preferences updated (${instanceId.current})`);
     }
     
-    setPreferences(newPreferences);
+    onPreferencesChange(newPreferences);
   };
   
   // Handle KPI click events
@@ -210,8 +109,6 @@ const KpiContainer = ({ ticker, onTickerChange, forceUpdate }) => {
     } catch (e) {
       console.log(`KPI clicked: ${kpi.name} (${instanceId.current})`);
     }
-    
-    // Add any custom handling for KPI clicks here
   };
   
   // Toggle visibility of the entire dashboard
@@ -230,27 +127,29 @@ const KpiContainer = ({ ticker, onTickerChange, forceUpdate }) => {
     setIsSettingsVisible(!isSettingsVisible);
   };
   
-  // Get available KPI groups from the API response
+  // Get available KPI groups from the dashboard data
   const getAvailableGroups = () => {
-    if (kpiData?.data?.available_groups) {
-      return kpiData.data.available_groups;
+    if (dashboardData?.kpi_data?.available_groups) {
+      return dashboardData.kpi_data.available_groups;
     }
-    
-    // Default groups if not available from API
-    return ['price', 'volume', 'volatility', 'fundamental', 'sentiment'];
+    return DEFAULT_KPI_CONFIG.groups;
   };
   
-  // Prepare KPI data for display, including handling error states
+  // Prepare KPI data for display
   const prepareKpiDataForDisplay = () => {
     if (error) {
+      console.log("KpiContainer: prepareKpiDataForDisplay: Error state:", error);
       return { error };
     }
-    return kpiData;
+    useEffect(() => {
+      console.log("KpiContainer: Updated dashboardData:", dashboardData);
+    }, [dashboardData]);
+    
+    return dashboardData?.kpi_data || null;
   };
   
   return (
     <div className="kpi-container">
-      {/* Dashboard visibility toggle */}
       <div className="toggle-container">
         <button className="toggle-button" onClick={toggleVisibility}>
           {isVisible ? 'Hide KPIs' : 'Show KPIs'}
@@ -263,20 +162,17 @@ const KpiContainer = ({ ticker, onTickerChange, forceUpdate }) => {
         )}
       </div>
       
-      {/* KPI Dashboard */}
       {isVisible && (
         <div className="dashboard-wrapper">
           <KpiDashboard
             kpiData={prepareKpiDataForDisplay()}
             isLoading={isLoading}
-            onRefresh={fetchData}
             onKpiClick={handleKpiClick}
-            viewPreferences={preferences || DEFAULT_PREFERENCES}
+            viewPreferences={preferences}
           />
         </div>
       )}
       
-      {/* Settings modal */}
       <KpiSettings
         isVisible={isSettingsVisible}
         onClose={() => setIsSettingsVisible(false)}
@@ -285,7 +181,6 @@ const KpiContainer = ({ ticker, onTickerChange, forceUpdate }) => {
         onPreferencesChange={handlePreferencesChange}
       />
       
-      {/* Styled JSX */}
       <style jsx>{`
         .kpi-container {
           width: 100%;

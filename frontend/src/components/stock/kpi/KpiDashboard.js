@@ -47,6 +47,10 @@ const KpiDashboard = ({
   onKpiClick = null,
   viewPreferences = {}
 }) => {
+
+  console.log("Debug Console log: KpiDashboard: kpiData:", kpiData); // Will be deleted after testing
+
+
   // Add state to track the currently active tooltip
   const [activeKpi, setActiveKpi] = useState(null);
   
@@ -58,7 +62,7 @@ const KpiDashboard = ({
     try {
       log.debug(`KpiDashboard mounted (${instanceId.current})`);
       if (kpiData?.data) {
-        console.log("KPI Dashboard data:", kpiData.data);
+        console.log("KPIDashboard data:", kpiData.data);
       }
     } catch (e) {
       console.log(`KpiDashboard mounted (${instanceId.current})`);
@@ -80,9 +84,9 @@ const KpiDashboard = ({
     
     if (onRefresh) {
       try {
-        log.debug(`Refresh requested (${instanceId.current})`);
+        log.debug(`KpiDashboard: Refresh requested (${instanceId.current})`);
       } catch (e) {
-        console.log(`Refresh requested (${instanceId.current})`);
+        console.log(`KpiDashboard: Refresh requested (${instanceId.current})`);
       }
       onRefresh();
     }
@@ -93,18 +97,20 @@ const KpiDashboard = ({
   
   // Extract groups from the KPI data
   const getKpiGroups = () => {
+    console.log("KpiDashboard: getKpiGroups: kpiData:", kpiData); // Log kpiData
     if (isLoading || !kpiData || hasError) {
       return null;
     }
     
     // Extract groups from kpiData
-    return Object.values(kpiData.data?.kpi_groups || {});
+    return Object.values(kpiData.kpi_data?.kpi_groups || {});
   };
   
   // Determine which groups to display based on preferences
   const getVisibleGroups = () => {
     const groups = getKpiGroups();
-    
+    console.log("KpiDashboard: getVisibleGroups: groups:", groups); // Log groups
+
     if (!groups) {
       return [];
     }
@@ -121,7 +127,7 @@ const KpiDashboard = ({
   
   // Custom KPI click handler
   const handleKpiClick = (kpi) => {
-    console.log(`KPI clicked in dashboard: ${kpi?.name}`, kpi);
+    console.log(`KpiDashboard: KPI clicked in dashboard: ${kpi?.name}`, kpi);
     
     // Toggle the active KPI
     if (activeKpi === kpi.name) {
@@ -182,7 +188,7 @@ const KpiDashboard = ({
       );
     }
     
-    console.log(`Rendering ${visibleGroups.length} KPI groups`);
+    console.log(`KpiDashboard: Rendering ${visibleGroups.length} KPI groups`);
     
     // Render KPI groups
     return visibleGroups.map((group, index) => {

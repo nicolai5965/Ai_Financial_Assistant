@@ -117,10 +117,8 @@ const WARNING_COLOR = 'rgba(255, 165, 0, 0.7)';
  * @param {Object} props - Component props
  * @param {boolean} props.isOpen - Whether the sidebar is open
  * @param {Function} props.toggleSidebar - Function to toggle sidebar open/closed state
- * @param {Object} props.config - Current chart configuration
- * @param {Function} props.onInputChange - Handler for input field changes
- * @param {Function} props.onIndicatorChange - Handler for indicator selection changes
- * @param {Function} props.onSubmit - Handler for form submission
+ * @param {Object} props.settings - Current chart settings
+ * @param {Function} props.onSettingsChange - Handler for settings changes
  * @param {boolean} props.isLoading - Whether a chart update is in progress
  * @param {Object} props.indicatorConfigs - Configuration settings for each indicator
  * @param {Object} props.panelAssignments - Panel assignments for each indicator
@@ -131,10 +129,8 @@ const WARNING_COLOR = 'rgba(255, 165, 0, 0.7)';
 const StockSettingsSidebar = ({ 
   isOpen, 
   toggleSidebar, 
-  config, 
-  onInputChange, 
-  onIndicatorChange, 
-  onSubmit, 
+  settings,
+  onSettingsChange,
   isLoading,
   indicatorConfigs,
   panelAssignments,
@@ -175,25 +171,40 @@ const StockSettingsSidebar = ({
   const handleFormSubmit = (e) => {
     e.preventDefault();
     logger.debug('User submitted settings from sidebar');
-    onSubmit(e);
-    setHasUnsavedChanges(false); // Reset the unsaved changes flag
+    setHasUnsavedChanges(false);
   };
   
   // Wrapper for input change handler to track unsaved changes
   const handleInputChange = (e) => {
-    onInputChange(e);
+    const { name, value } = e.target;
+    onSettingsChange({ [name]: value });
     setHasUnsavedChanges(true);
   };
   
   // Wrapper for indicator change handler to track unsaved changes
   const handleIndicatorChange = (e) => {
-    onIndicatorChange(e);
+    const { value, checked } = e.target;
+    const currentIndicators = settings.selectedIndicators || [];
+    
+    const newIndicators = checked
+      ? [...currentIndicators, value]
+      : currentIndicators.filter(ind => ind !== value);
+    
+    onSettingsChange({ selectedIndicators: newIndicators });
     setHasUnsavedChanges(true);
   };
   
   // Wrapper for parameter change handler to track unsaved changes
   const handleParamChange = (indicatorName, paramName, value) => {
-    onParamChange(indicatorName, paramName, value);
+    const newConfigs = {
+      ...settings.indicatorConfigs,
+      [indicatorName]: {
+        ...(settings.indicatorConfigs[indicatorName] || {}),
+        [paramName]: value
+      }
+    };
+    
+    onSettingsChange({ indicatorConfigs: newConfigs });
     setHasUnsavedChanges(true);
   };
   
@@ -351,7 +362,7 @@ const StockSettingsSidebar = ({
         <h4 className="indicator-group-title">{PANEL_NAMES[panelType]}</h4>
         <div className="indicators-grid" style={{ gap: CHECKBOX_ROW_SPACING }}>
           {PANEL_GROUPS[panelType].map(indicator => {
-            const isSelected = config.indicators.some(ind => 
+            const isSelected = settings.selectedIndicators.some(ind => 
               typeof ind === 'string' ? ind === indicator.value : ind.name === indicator.value
             );
             return (
@@ -606,23 +617,22 @@ const StockSettingsSidebar = ({
             
             {/* Chart settings form */}
             <form onSubmit={handleFormSubmit} className="settings-form">
-              {/* Use renderFormGroup for consistency with other form inputs */}
               {renderFormGroup(
                 'ticker', 
                 'Ticker Symbol', 
                 'ticker', 
                 'text', 
-                config.ticker, 
+                settings.ticker, 
                 handleInputChange, 
                 { required: true }
               )}
               
               {renderFormGroup(
-                'days', 
+                'daysOfHistory', 
                 'Days of History', 
-                'days', 
+                'daysOfHistory', 
                 'number', 
-                config.days, 
+                settings.daysOfHistory, 
                 handleInputChange, 
                 { min: '1', max: '365' }
               )}
@@ -632,7 +642,7 @@ const StockSettingsSidebar = ({
                 'Interval', 
                 'interval', 
                 'select', 
-                config.interval, 
+                settings.interval, 
                 handleInputChange, 
                 { items: INTERVALS }
               )}
@@ -642,7 +652,7 @@ const StockSettingsSidebar = ({
                 'Chart Type', 
                 'chartType', 
                 'select', 
-                config.chartType, 
+                settings.chartType, 
                 handleInputChange, 
                 { items: CHART_TYPES }
               )}
@@ -671,10 +681,10 @@ const StockSettingsSidebar = ({
           </div>
           
           {/* Indicator Configuration Panel embedded in sidebar */}
-          {config.indicators.length > 0 && (
+          {settings.selectedIndicators.length > 0 && (
             <div className="section-container indicator-configuration-section">
               <h3 className="section-title">Indicator Settings</h3>
-              {config.indicators
+              {settings.selectedIndicators
                 .filter(isIndicatorConfigured)
                 .map(ind => {
                   const indicatorName = getIndicatorName(ind);

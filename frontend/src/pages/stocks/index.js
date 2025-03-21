@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { logger } from '../../utils/logger';
-import { checkApiHealth, DEFAULT_TICKER } from '../../services/api/stock';
+import { checkApiHealth, DEFAULT_TICKER, fetchDashboardData } from '../../services/api/stock';
+import useAutoRefresh from '../../hooks/useAutoRefresh';
 import MarketHoursWidget from '../../components/stock/MarketHoursWidget';
 import CompanyInfoWidget from '../../components/stock/CompanyInfoWidget';
+import KpiContainer from '../../components/stock/KpiContainer';
+import { debounce } from 'lodash';
 
 // Color constants for styling
 const COLORS = {
@@ -22,6 +25,49 @@ const API_MESSAGES = {
   CHECKING: 'Checking API status...',
   CONNECTED: 'API is connected and ready',
   FAILED: 'API connection failed. Please ensure the backend server is running.'
+};
+
+// Storage keys for preferences and settings
+const STORAGE_KEY = 'kpi_dashboard_preferences';
+const CHART_SETTINGS_KEY = 'stock_chart_settings';
+
+// Default preferences for KPI dashboard
+const DEFAULT_PREFERENCES = {
+  visibleGroups: ['price', 'volume', 'volatility', 'fundamental'],
+  expandedGroups: ['price', 'volume', 'volatility', 'fundamental'],
+  activeView: 'technical'
+};
+
+// Default settings for stock chart
+const DEFAULT_CHART_SETTINGS = {
+  ticker: DEFAULT_TICKER,
+  daysOfHistory: 10,
+  interval: '1d',
+  chartType: 'candlestick',
+  selectedIndicators: [],
+  indicatorConfigs: {}
+};
+
+// Utility function for safe localStorage operations
+const safeLocalStorage = {
+  get: (key, defaultValue) => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (e) {
+      logger.error(`Error reading from localStorage [${key}]: ${e.message}`);
+      return defaultValue;
+    }
+  },
+  set: (key, value) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      logger.error(`Error writing to localStorage [${key}]: ${e.message}`);
+      return false;
+    }
+  }
 };
 
 /**
@@ -53,11 +99,130 @@ const StocksPage = () => {
     message: API_MESSAGES.CHECKING
   });
 
-  // Using centralized default ticker from stock.js service
-  const [displayedTicker, setDisplayedTicker] = useState(DEFAULT_TICKER);
-  
+  // Chart settings state with localStorage persistence
+  const [chartSettings, setChartSettings] = useState(() => {
+    return safeLocalStorage.get(CHART_SETTINGS_KEY, DEFAULT_CHART_SETTINGS);
+  });
+
+  // Add state for KPI preferences
+  const [kpiPreferences, setKpiPreferences] = useState(() => {
+    return safeLocalStorage.get(STORAGE_KEY, DEFAULT_PREFERENCES);
+  });
+
+  // Add state for dashboard data
+  const [dashboardData, setDashboardData] = useState({
+    chartData: null,
+    kpi_data: null,
+    marketHours: null,
+    companyInfo: null,
+    loading: true,
+    error: null
+  });
+
   // Add a new state to track chart error status
   const [chartHasError, setChartHasError] = useState(false);
+
+  // Settings state for loading and error tracking
+  const [settingsState, setSettingsState] = useState({
+    isLoading: false,
+    error: null
+  });
+
+  // Debounced save function for chart settings
+  const debouncedSaveSettings = useCallback(
+    debounce((settings) => {
+      safeLocalStorage.set(CHART_SETTINGS_KEY, settings);
+    }, 500),
+    []
+  );
+
+  // Handler for chart settings changes
+  const handleChartSettingsChange = useCallback((newSettings) => {
+    logger.debug('Updating chart settings:', newSettings);
+    setChartSettings(prevSettings => {
+      const updatedSettings = { ...prevSettings, ...newSettings };
+      debouncedSaveSettings(updatedSettings);
+      return updatedSettings;
+    });
+  }, [debouncedSaveSettings]);
+
+  // Handler for ticker changes
+  const handleTickerChange = useCallback((newTicker) => {
+    logger.debug(`Updating ticker to: ${newTicker}`);
+    handleChartSettingsChange({ ticker: newTicker });
+    setChartHasError(false);
+  }, [handleChartSettingsChange]);
+
+  // Move fetchData outside useEffect but keep it inside component
+  const fetchData = async () => {
+    if (!chartSettings.ticker || !apiStatus.healthy) return;
+
+    setDashboardData(prev => ({ ...prev, loading: true, error: null }));
+
+    try {
+      const data = await fetchDashboardData({
+        ticker: chartSettings.ticker,
+        days: chartSettings.daysOfHistory,
+        interval: chartSettings.interval,
+        indicators: chartSettings.selectedIndicators,
+        chartType: chartSettings.chartType,
+        indicatorConfigs: chartSettings.indicatorConfigs,
+        kpiGroups: kpiPreferences.visibleGroups,
+        kpiTimeframe: '1d',
+        useCache: true
+      });
+
+      if (data.error) {
+        setDashboardData(prev => ({
+          ...prev,
+          loading: false,
+          error: data.message
+        }));
+        setChartHasError(true);
+      } else {
+        console.log("index.js: Raw data from API:", data);
+        setDashboardData(prev => ({
+          ...prev,
+          chartData: data.chart_data,
+          kpi_data: data.kpi_data,
+          marketHours: data.market_hours,
+          companyInfo: data.company_info,
+          loading: false,
+          error: null
+        }));
+        console.log("index.js: Updated dashboardData state:", {
+          chartData: data.chart_data,
+          kpi_data: data.kpi_data,
+          marketHours: data.market_hours,
+          companyInfo: data.company_info,
+        });
+        setChartHasError(false);
+      }
+    } catch (error) {
+      logger.error(`Error fetching dashboard data: ${error.message}`);
+      setDashboardData(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message
+      }));
+      setChartHasError(true);
+    }
+  };
+
+  const { showAutoRefreshNotif, manualRefresh } = useAutoRefresh(fetchData);
+
+  // Handle preference changes
+  const handlePreferencesChange = (newPreferences) => {
+    logger.debug(`Updating KPI preferences: ${JSON.stringify(newPreferences)}`);
+    setKpiPreferences(newPreferences);
+    
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newPreferences));
+      // No need to call fetchData explicitly - useEffect will handle it
+    } catch (e) {
+      logger.error(`Error saving KPI preferences: ${e.message}`);
+    }
+  };
 
   // Log when page component mounts and unmounts
   useEffect(() => {
@@ -103,6 +268,19 @@ const StocksPage = () => {
     performApiHealthCheck();
   }, []);
 
+  // Update useEffect dependencies to include all relevant chart settings
+  useEffect(() => {
+    fetchData();
+  }, [
+    chartSettings.ticker,
+    chartSettings.daysOfHistory,
+    chartSettings.interval,
+    chartSettings.selectedIndicators,
+    chartSettings.chartType,
+    apiStatus.healthy,
+    kpiPreferences.visibleGroups
+  ]);
+
   // Render the connection error component when API is unhealthy
   const renderConnectionError = () => (
     <div className="connection-error">
@@ -127,21 +305,6 @@ const StocksPage = () => {
     </div>
   );
 
-  // Callback to update the displayed ticker when the StockChart ticker changes
-  // This now only happens when the chart is actually updated
-  const handleTickerChange = (ticker) => {
-    logger.debug(`Displayed ticker changed to: ${ticker}`);
-    setDisplayedTicker(ticker);
-    // Reset chart error state when ticker successfully changes
-    setChartHasError(false);
-  };
-  
-  // Callback to handle chart error state
-  const handleChartError = (hasError) => {
-    logger.debug(`Chart error state changed to: ${hasError}`);
-    setChartHasError(hasError);
-  };
-
   return (
     <div className="stocks-page">
       {/* API Status Indicator positioned above the title */}
@@ -149,26 +312,54 @@ const StocksPage = () => {
       
       <h1>Stock Market Analysis</h1>
       
+      {/* Auto-refresh notification */}
+      {showAutoRefreshNotif && (
+        <div className="auto-refresh-notification">
+          <div className="notification-icon">🔄</div>
+          <div className="notification-text">
+            Data automatically refreshed at {new Date().toLocaleTimeString()}
+          </div>
+        </div>
+      )}
+
       {/* Info widgets container with both Market Hours and Company Info */}
-      {apiStatus.healthy && displayedTicker && !chartHasError && (
+      {apiStatus.healthy && chartSettings.ticker && !chartHasError && (
         <div className="info-widgets-container">
-          <MarketHoursWidget ticker={displayedTicker} />
-          <CompanyInfoWidget ticker={displayedTicker} />
+          {dashboardData.marketHours && !dashboardData.error && (
+            <MarketHoursWidget data={dashboardData.marketHours} />
+          )}
+          {dashboardData.companyInfo && !dashboardData.error && (
+            <CompanyInfoWidget data={dashboardData.companyInfo} />
+          )}
         </div>
       )}
       
       {/* Conditionally render StockChart or connection error based on API health */}
       {apiStatus.healthy ? (
-        <StockChart 
-          onTickerChange={handleTickerChange} 
-          onErrorChange={handleChartError}
-        />
+        <>
+          <StockChart 
+            settings={chartSettings}
+            onSettingsChange={handleChartSettingsChange}
+            onTickerChange={handleTickerChange}
+            onErrorChange={setChartHasError}
+            chartData={dashboardData.chartData}
+            loading={dashboardData.loading}
+            error={dashboardData.error}
+          />
+          <KpiContainer
+            ticker={chartSettings.ticker}
+            dashboardData={dashboardData}
+            isLoading={dashboardData.loading}
+            error={dashboardData.error}
+            preferences={kpiPreferences}
+            onPreferencesChange={handlePreferencesChange}
+          />
+        </>
       ) : (
         renderConnectionError()
       )}
       
-      <style jsx>{`
-        .stocks-page {
+      <style jsx>{`        .stocks-page {
           padding: 20px;
           color: ${COLORS.WHITE};
         }
@@ -256,6 +447,29 @@ const StocksPage = () => {
         
         button:hover {
           background-color: ${COLORS.BUTTON_HOVER};
+        }
+
+        .auto-refresh-notification {
+          display: flex;
+          align-items: center;
+          padding: 8px 16px;
+          background-color: rgba(92, 230, 207, 0.2);
+          border: 1px solid rgba(92, 230, 207, 0.7);
+          border-radius: 4px;
+          margin-bottom: 15px;
+          color: #fff;
+          animation: fadeInOut 3s;
+          font-size: 14px;
+        }
+        .notification-icon {
+          margin-right: 10px;
+          font-size: 16px;
+        }
+        @keyframes fadeInOut {
+          0% { opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { opacity: 0; }
         }
       `}</style>
     </div>

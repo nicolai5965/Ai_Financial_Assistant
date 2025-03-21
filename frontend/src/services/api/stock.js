@@ -7,20 +7,17 @@ import { logger } from '../../utils/logger';
 // Default API URL - adjust this based on your environment
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-/**
- * Stock Configuration Constants
- * Centralized configuration values for stock-related functionality
- */
-// Default ticker symbol used throughout the application
-export const DEFAULT_TICKER = 'AAPL';
+// Request configuration
+const REQUEST_TIMEOUT = 30000; // 30 seconds timeout
+const RETRY_COUNT = 2; // Number of retries for failed requests
 
-// Default chart configuration used for initial load and resets
-export const DEFAULT_CHART_CONFIG = {
-  ticker: DEFAULT_TICKER,
-  days: 10,
-  interval: '1h',
-  indicators: [],
-  chartType: 'candlestick'
+
+
+// Default KPI configuration
+export const DEFAULT_KPI_CONFIG = {
+  groups: ['price', 'volume', 'volatility', 'fundamental'],
+  timeframe: '1d',
+  useCache: true
 };
 
 // Auto-refresh interval in minutes
@@ -128,66 +125,125 @@ const processErrorResponse = async (response, ticker, requestId) => {
 };
 
 /**
- * Fetch stock data and generate a chart based on provided parameters.
+ * Perform a fetch request with timeout and retry logic
+ * @param {string} url - The URL to fetch from
+ * @param {Object} options - Fetch options
+ * @param {string} requestId - Request ID for logging
+ * @returns {Promise<Response>} The fetch response
+ */
+const performFetchWithRetry = async (url, options, requestId) => {
+  let attempt = 1;
+  
+  while (attempt <= RETRY_COUNT + 1) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        logger.error(`Request timeout (request: ${requestId})`);
+        throw new Error(`Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`);
+      }
+      
+      if (attempt <= RETRY_COUNT) {
+        const delay = 1000 * attempt;
+        logger.warn(`Fetch attempt ${attempt} failed, retrying in ${delay}ms... (request: ${requestId})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        attempt++;
+      } else {
+        throw error;
+      }
+    }
+  }
+};
+
+/**
+ * Fetch all dashboard data for a specific stock in a single request.
+ * This includes chart data, KPIs, market hours, and company information.
  * 
- * @param {Object} config - The configuration for the stock analysis
+ * @param {Object} config - The configuration for the dashboard data
  * @param {string} config.ticker - Stock ticker symbol (e.g., 'AAPL')
  * @param {number} [config.days=10] - Number of days to look back
  * @param {string} [config.interval='1d'] - Data interval ('1d', '1h', '5m', etc.)
- * @param {Array} [config.indicators=[]] - List of technical indicators to include. 
- *                                         Can be strings or objects with name and parameters.
+ * @param {Array} [config.indicators=[]] - List of technical indicators to include
  * @param {string} [config.chartType='candlestick'] - Chart type ('candlestick' or 'line')
- * @returns {Promise<Object>} - The chart data as a Plotly JSON object or an error object
+ * @param {Array} [config.kpiGroups=[]] - List of KPI groups to include
+ * @param {string} [config.kpiTimeframe='1d'] - Timeframe for KPI calculations
+ * @param {boolean} [config.useCache=true] - Whether to use cached data
+ * @returns {Promise<Object>} - The complete dashboard data or error object
  */
-export async function fetchStockChart(config) {
-  const { ticker, days = 10, interval = '1d', indicators = [], chartType = 'candlestick' } = config;
-  const requestId = generateRequestId(); // Generate unique ID for this request
+export async function fetchDashboardData(config) {
+  const requestId = generateRequestId();
+  const {
+    ticker,
+    days = 10,
+    interval = '1d',
+    indicators = [],
+    chartType = 'candlestick',
+    kpiGroups = DEFAULT_KPI_CONFIG.groups,
+    kpiTimeframe = DEFAULT_KPI_CONFIG.timeframe,
+    useCache = DEFAULT_KPI_CONFIG.useCache
+  } = config;
   
+
   try {
-    logger.info(`Fetching stock chart for ${ticker} with ${indicators.length} indicators (request: ${requestId})`);
-    
-    // Format all indicators using the helper function
+    logger.info(`Fetching dashboard data for ${ticker} (request: ${requestId})`);
+
+    // Format indicators using the helper function
     const formattedIndicators = indicators.map(formatIndicator);
-    
     logger.debug(`Formatted indicators for API request (request: ${requestId}):`, formattedIndicators);
-    
-    const response = await fetch(`${API_URL}/api/stocks/analyze`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+
+    const response = await performFetchWithRetry(
+      `${API_URL}/api/stocks/dashboard-data`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticker,
+          days,
+          interval,
+          indicators: formattedIndicators,
+          chart_type: chartType,
+          kpi_groups: kpiGroups,
+          kpi_timeframe: kpiTimeframe,
+          use_cache: useCache
+        }),
       },
-      body: JSON.stringify({
-        ticker,
-        days,
-        interval,
-        indicators: formattedIndicators,
-        chart_type: chartType
-      }),
-    });
+      requestId
+    );
+
+    // Log the raw response
+    console.log(`Raw API response (request: ${requestId}):`, response);
 
     if (!response.ok) {
-      // Extract error message using the helper function
       const errorMessage = await processErrorResponse(response, ticker, requestId);
-      
-      // Instead of throwing the error, return an error object
-      return { 
-        error: true, 
+      return {
+        error: true,
         message: errorMessage,
         ticker: ticker
       };
     }
 
     const data = await response.json();
-    logger.info(`Successfully fetched stock chart for ${ticker} (request: ${requestId})`);
+    // Log the parsed data
+    console.log(`Parsed API data (request: ${requestId}):`, data);
+
+    logger.info(`Successfully fetched dashboard data for ${ticker} (request: ${requestId})`);
     return data;
   } catch (error) {
-    // Safer error logging with consistent format
-    const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
-    logger.error(`Failed to fetch stock chart (request: ${requestId}): ${errorMessage}`);
-    
-    // Return an error object instead of re-throwing
-    return { 
-      error: true, 
+    const errorMessage = error?.message || 'Unknown error occurred';
+    logger.error(`Failed to fetch dashboard data (request: ${requestId}): ${errorMessage}`);
+    return {
+      error: true,
       message: errorMessage,
       ticker: ticker
     };
@@ -203,7 +259,14 @@ export async function checkApiHealth() {
   
   try {
     logger.debug(`Performing API health check (request: ${requestId})`);
-    const response = await fetch(`${API_URL}/api/health`);
+    const response = await performFetchWithRetry(
+      `${API_URL}/api/health`,
+      {
+        method: 'GET',
+        cache: 'no-store'
+      },
+      requestId
+    );
     
     if (response.ok) {
       try {
@@ -220,106 +283,8 @@ export async function checkApiHealth() {
     logger.warn(`API health check failed with status ${response.status} (request: ${requestId})`);
     return false;
   } catch (error) {
-    const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
+    const errorMessage = error?.message || 'Unknown error occurred';
     logger.error(`API health check failed (request: ${requestId}): ${errorMessage}`);
     return false;
-  }
-}
-
-/**
- * Fetch market hours data for a specific ticker.
- * 
- * @param {string} ticker - Stock ticker symbol (e.g., 'AAPL')
- * @returns {Promise<Object>} - Market hours status information or error object
- */
-export async function fetchMarketHours(ticker) {
-  const requestId = generateRequestId();
-  
-  try {
-    logger.info(`Fetching market hours for ${ticker} (request: ${requestId})`);
-    
-    const response = await fetch(`${API_URL}/api/stocks/market-hours`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ticker }),
-    });
-
-    if (!response.ok) {
-      // Extract error message using the helper function
-      const errorMessage = await processErrorResponse(response, ticker, requestId);
-      
-      // Return an error object instead of throwing
-      return {
-        error: true,
-        message: errorMessage,
-        ticker: ticker
-      };
-    }
-
-    const data = await response.json();
-    logger.info(`Successfully fetched market hours for ${ticker} (request: ${requestId})`);
-    return data;
-  } catch (error) {
-    // Safer error logging with consistent format
-    const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
-    logger.error(`Failed to fetch market hours (request: ${requestId}): ${errorMessage}`);
-    
-    // Return an error object instead of re-throwing
-    return {
-      error: true,
-      message: errorMessage,
-      ticker: ticker
-    };
-  }
-}
-
-/**
- * Fetch company information for a specific ticker.
- * 
- * @param {string} ticker - Stock ticker symbol (e.g., 'AAPL')
- * @returns {Promise<Object>} - Company information or error object
- */
-export async function fetchCompanyInfo(ticker) {
-  const requestId = generateRequestId();
-  
-  try {
-    logger.info(`Fetching company info for ${ticker} (request: ${requestId})`);
-    
-    const response = await fetch(`${API_URL}/api/stocks/company-info`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ticker }),
-    });
-
-    if (!response.ok) {
-      // Extract error message using the helper function
-      const errorMessage = await processErrorResponse(response, ticker, requestId);
-      
-      // Return an error object instead of throwing
-      return {
-        error: true,
-        message: errorMessage,
-        ticker: ticker
-      };
-    }
-
-    const data = await response.json();
-    logger.info(`Successfully fetched company info for ${ticker} (request: ${requestId})`);
-    return data;
-  } catch (error) {
-    // Safer error logging with consistent format
-    const errorMessage = error && error.message ? error.message : 'Unknown error occurred';
-    logger.error(`Failed to fetch company info (request: ${requestId}): ${errorMessage}`);
-    
-    // Return an error object instead of re-throwing
-    return { 
-      error: true, 
-      message: errorMessage,
-      ticker: ticker
-    };
   }
 } 

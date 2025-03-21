@@ -1,8 +1,8 @@
 {
   "dependencies": {
-    "eslint-config-next": "^15.2.1",
+    "eslint-config-next": "^15.2.3",
     "lodash": "^4.17.21",
-    "next": "^15.2.1",
+    "next": "^15.2.3",
     "plotly.js-dist-min": "^3.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

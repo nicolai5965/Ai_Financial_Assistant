@@ -9,7 +9,9 @@ import { logger } from '../../utils/logger';
  */
 const CompanyInfoWidget = ({ data }) => {
   // Color constants to match app theme
-  console.log("CompanyInfoWidget: data:", data);
+
+  console.log("Debug Console log:CompanyInfoWidget: data:", data); // Will be deleted after testing
+  
   const COLORS = {
     PRIMARY_DARK: 'rgba(13, 27, 42, 1)',      // Dark blue
     PRIMARY_LIGHT: 'rgba(26, 42, 58, 1)',     // Light blue

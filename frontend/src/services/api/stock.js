@@ -11,7 +11,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const REQUEST_TIMEOUT = 30000; // 30 seconds timeout
 const RETRY_COUNT = 2; // Number of retries for failed requests
 
-
+// Auto-refresh interval in minutes
+export const REFRESH_INTERVAL = 5;
 
 // Default KPI configuration
 export const DEFAULT_KPI_CONFIG = {
@@ -20,8 +21,6 @@ export const DEFAULT_KPI_CONFIG = {
   useCache: true
 };
 
-// Auto-refresh interval in minutes
-export const REFRESH_INTERVAL = 5;
 
 /**
  * Generate a simple unique ID for request tracking

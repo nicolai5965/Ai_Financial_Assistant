@@ -138,7 +138,7 @@ const StocksPage = () => {
 
   // Handler for chart settings changes
   const handleChartSettingsChange = useCallback((newSettings) => {
-    logger.debug('Updating chart settings:', newSettings);
+    logger.debug('index.js: Updating chart settings:', newSettings);
     setChartSettings(prevSettings => {
       const updatedSettings = { ...prevSettings, ...newSettings };
       debouncedSaveSettings(updatedSettings);
@@ -148,7 +148,7 @@ const StocksPage = () => {
 
   // Handler for ticker changes
   const handleTickerChange = useCallback((newTicker) => {
-    logger.debug(`Updating ticker to: ${newTicker}`);
+    logger.debug(`index.js: Updating ticker to: ${newTicker}`);
     handleChartSettingsChange({ ticker: newTicker });
     setChartHasError(false);
   }, [handleChartSettingsChange]);

@@ -31,13 +31,13 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
   const toggleFullScreen = () => {
     const newState = !isFullScreen;
     setIsFullScreen(newState);
-    logger.info(`Chart full-screen mode ${newState ? 'enabled' : 'disabled'}`);
+    logger.info(`ChartDisplay: Full-screen mode ${newState ? 'enabled' : 'disabled'}`);
   };
 
   // Handler for update button click
   const handleUpdate = () => {
     if (onUpdate) {
-      logger.info('Manual chart update requested');
+      logger.info('ChartDisplay: Manual chart update requested');
       onUpdate();
     }
   };
@@ -45,10 +45,17 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
   // Process chart data to ensure consistent layout settings.
   // This helper is used for both current and previous chart data.
   const processChartData = (data) => {
-    if (!data) return { data: [], layout: {}, originalTitle: "" };
+    logger.debug('ChartDisplay: Processing chart data:', { rawData: data });
+    
+    if (!data) {
+      logger.debug('ChartDisplay: No data provided to process');
+      return { data: [], layout: {}, originalTitle: "" };
+    }
+
     try {
       // Check if data is a string before parsing it
       const parsedData = typeof data === "string" ? JSON.parse(data) : data;
+      logger.debug('ChartDisplay: Successfully parsed data:', { parsedData });
       
       // Ensure layout exists and enforce autosize
       parsedData.layout = parsedData.layout || {};
@@ -66,13 +73,19 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
         }
       }
       
+      logger.debug('ChartDisplay: Processed chart data:', {
+        dataLength: parsedData.data?.length || 0,
+        hasLayout: !!parsedData.layout,
+        originalTitle
+      });
+
       return {
         data: parsedData.data || [],
         layout: parsedData.layout,
         originalTitle
       };
     } catch (error) {
-      logger.error("Error processing chart data:", error);
+      logger.error("ChartDisplay: Error processing chart data:", error);
       return { data: [], layout: {}, originalTitle: "" };
     }
   };
@@ -110,7 +123,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
       if (isMountedRef.current && plotDivRef.current) {
         // Use Plotly's resize method to recalculate layout
         Plotly.Plots.resize(plotDivRef.current);
-        logger.debug("Plotly resize triggered");
+        logger.debug("ChartDisplay: Plotly resize triggered");
       }
     }, 250);
   };
@@ -120,7 +133,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
   const handleRelayout = (layout) => {
     if (layout.height && layout.height !== fixedChartHeight) {
       Plotly.Plots.resize(plotDivRef.current);
-      logger.debug("Plotly resize triggered via relayout");
+      logger.debug("ChartDisplay: Plotly resize triggered via relayout");
     }
   };
 
@@ -129,7 +142,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape' && isFullScreen) {
         setIsFullScreen(false);
-        logger.info('Chart full-screen mode disabled via Escape key');
+        logger.info('ChartDisplay: full-screen mode disabled via Escape key');
       }
     };
     window.addEventListener('keydown', handleKeyDown);

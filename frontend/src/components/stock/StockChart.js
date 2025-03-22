@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { logger } from '../../utils/logger';
-import { DEFAULT_CHART_CONFIG, REFRESH_INTERVAL } from '../../services/api/stock'; // Keep REFRESH_INTERVAL import for stock.js
 
 // Import the new components
 import ChartDisplay from './ChartDisplay';
@@ -59,9 +58,40 @@ const generateInstanceId = () => {
  * @param {boolean} props.loading Whether the chart data is loading.
  * @param {string} props.error The error message, if any.
  */
+
+
 const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange, chartData, loading, error }) => {
   // Create a unique instance ID for this component
   const instanceId = useRef(generateInstanceId());
+
+  // Log initial props when component mounts
+  useEffect(() => {
+    logger.debug(`StockChart: component mounted (instance: ${instanceId.current})`);
+    logger.debug('StockChart: Initial props:', {
+      settings,
+      chartData,
+      loading,
+      error
+    });
+    return () => {
+      logger.debug(`StockChart: component unmounting (instance: ${instanceId.current})`);
+    };
+  }, []);
+
+  // Log when chartData changes
+  useEffect(() => {
+    logger.debug(`StockChart: ChartData updated (instance: ${instanceId.current}):`, chartData);
+  }, [chartData]);
+
+  // Log when loading state changes
+  useEffect(() => {
+    logger.debug(`StockChart: Loading state changed (instance: ${instanceId.current}):`, loading);
+  }, [loading]);
+
+  // Log when error state changes
+  useEffect(() => {
+    logger.debug(`StockChart: Error state changed (instance: ${instanceId.current}):`, error);
+  }, [error]);
 
   // State for indicator configurations
   const [indicatorConfigs, setIndicatorConfigs] = useState({});
@@ -77,7 +107,7 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
   // Initialize the ticker change callback with the default ticker
   useEffect(() => {
     if (onTickerChange && typeof onTickerChange === 'function') {
-      logger.debug(`StockChart ticker initialized to: ${settings.ticker}`);
+      logger.debug(`StockChart: ticker initialized to: ${settings.ticker}`);
     }
   }, [onTickerChange, settings.ticker]);
 
@@ -90,21 +120,23 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
 
   // Log when component mounts and unmounts
   useEffect(() => {
-    logger.debug(`StockChart component mounted (instance: ${instanceId.current})`);
+    logger.debug(`StockChart: component mounted (instance: ${instanceId.current})`);
     return () => {
-      logger.debug(`StockChart component unmounting (instance: ${instanceId.current})`);
+      logger.debug(`StockChart: component unmounting (instance: ${instanceId.current})`);
     };
   }, []);
 
   //useEffect to set previous chart ref.
   useEffect(() => {
     if (chartData) {
+      logger.debug(`StockChart: Updating prevChartRef with new chartData (instance: ${instanceId.current})`);
       prevChartRef.current = chartData;
     }
   }, [chartData]);
 
   //useEffect to set timestamp for the Kpi Container
   useEffect(() => {
+    logger.debug(`StockChart: Updating chart timestamp (instance: ${instanceId.current}): ${Date.now()}`);
     setChartUpdateTimestamp(Date.now());
   }, [chartData]);
 
@@ -164,7 +196,7 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
     setPanelAssignments(newPanelAssignments);
     onSettingsChange(prev => {
       const updatedConfig = { ...prev, indicators: newIndicators };
-      logger.debug(`Indicators updated: ${newIndicators.map(ind =>
+      logger.debug(`StockChart: Indicators updated: ${newIndicators.map(ind =>
         typeof ind === 'string' ? ind : ind.name).join(', ')}`);
       return updatedConfig;
     });
@@ -241,7 +273,7 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
       return ind;
     });
 
-    logger.debug(`Updated ${paramName} for ${indicatorName} to ${value}`);
+    logger.debug(`StockChart: Updated ${paramName} for ${indicatorName} to ${value}`);
 
     // Batch updates to minimize renders
     setIndicatorConfigs(newConfigs);
@@ -263,7 +295,7 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
       [indicatorName]: panelName
     };
 
-    logger.debug(`Updated panel for ${indicatorName} to ${panelName}`);
+    logger.debug(`StockChart: Updated panel for ${indicatorName} to ${panelName}`);
     setPanelAssignments(newAssignments);
   };
 
@@ -307,7 +339,7 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
     const handleSubmit = (e) => {
         e.preventDefault();
         const newTicker = settings.ticker;
-        logger.info(`Submitting new configuration with ticker: ${newTicker}`);
+        logger.info(`StockChart: Submitting new configuration with ticker: ${newTicker}`);
 
         // Call onTickerChange to notify the parent component
         if (onTickerChange && typeof onTickerChange === 'function') {
@@ -321,7 +353,7 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
   const toggleSettingsSidebar = () => {
     const newState = !isSettingsSidebarOpen;
     setIsSettingsSidebarOpen(newState);
-    logger.debug(`Settings sidebar toggled: ${newState ? 'open' : 'closed'}`);
+    logger.debug(`StockChart: Settings sidebar toggled: ${newState ? 'open' : 'closed'}`);
   };
 
   return (
@@ -339,10 +371,16 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
           </div>
         ) : (
           <>
+            {/* Log chart data being passed to ChartDisplay */}
+            {logger.debug(`StockChart: Rendering ChartDisplay with data (instance: ${instanceId.current}):`, {
+              chartData: chartData?.chart,
+              isLoading: loading,
+              prevChartData: prevChartRef.current?.chart
+            })}
             <ChartDisplay
-              chartData={chartData}
+              chartData={chartData?.chart}
               isLoading={loading}
-              prevChartData={prevChartRef.current}
+              prevChartData={prevChartRef.current?.chart}
             />
           </>
         )}

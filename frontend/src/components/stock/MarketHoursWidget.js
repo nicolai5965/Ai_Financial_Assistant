@@ -10,7 +10,7 @@ import { logger } from '../../utils/logger';
  */
 const MarketHoursWidget = ({ data }) => {
 
-  console.log("Debug Console log:MarketHoursWidget: data:", data); // Will be deleted after testing
+  // console.log("Debug Console log:MarketHoursWidget: data:", data); // Will be deleted after testing
   
   // Keep countdown state for timer functionality
   const [countdown, setCountdown] = useState({

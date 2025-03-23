@@ -1,4 +1,4 @@
-// useAutoRefresh.js
+// useAutoRefresh.js (Minor Changes)
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { REFRESH_INTERVAL } from '../services/api/stock'; // adjust the path as needed
 import { logger } from '../utils/logger';
@@ -42,8 +42,8 @@ export default function useAutoRefresh(fetchDataCallback) {
   // Optionally, return the notification state or a manual refresh trigger.
   const manualRefresh = useCallback(async () => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    await fetchDataCallback();
-    setupRefreshTimer();
+    await fetchDataCallback(); // Directly call fetchDataCallback
+    setupRefreshTimer(); // Reset the timer
   }, [fetchDataCallback, setupRefreshTimer]);
 
   return { showAutoRefreshNotif, manualRefresh };

@@ -1,3 +1,4 @@
+// StockSettingsSidebar.js (Complete, Refactored)
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { logger } from '../../utils/logger';
@@ -119,41 +120,41 @@ const WARNING_COLOR = 'rgba(255, 165, 0, 0.7)';
  * @param {Function} props.toggleSidebar - Function to toggle sidebar open/closed state
  * @param {Object} props.settings - Current chart settings
  * @param {Function} props.onSettingsChange - Handler for settings changes
- * @param {boolean} props.isLoading - Whether a chart update is in progress
  * @param {Object} props.indicatorConfigs - Configuration settings for each indicator
  * @param {Object} props.panelAssignments - Panel assignments for each indicator
  * @param {Function} props.onParamChange - Handler for indicator parameter changes
  * @param {Function} props.onPanelChange - Handler for indicator panel assignment changes
  * @param {number|null} props.lastAutoRefreshTime - Timestamp of the last auto-refresh (null if none)
+ * @param {Function} props.onUpdateClick - Callback function to trigger a data update.
  */
-const StockSettingsSidebar = ({ 
-  isOpen, 
-  toggleSidebar, 
+const StockSettingsSidebar = ({
+  isOpen,
+  toggleSidebar,
   settings,
   onSettingsChange,
-  isLoading,
   indicatorConfigs,
   panelAssignments,
   onParamChange,
   onPanelChange,
-  lastAutoRefreshTime
+  lastAutoRefreshTime,
+  onUpdateClick, // Added onUpdateClick
 }) => {
   // Add state to track if there are unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  
+
   // Keep track of the last auto-refresh time using a ref to compare in useEffect
   const lastAutoRefreshTimeRef = useRef(lastAutoRefreshTime);
-  
+
   // Log when sidebar state changes
   React.useEffect(() => {
     logger.info(`Stock settings sidebar ${isOpen ? 'opened' : 'closed'}`);
   }, [isOpen]);
-  
+
   // Reset unsaved changes when an auto-refresh occurs
   useEffect(() => {
     if (lastAutoRefreshTime !== null && lastAutoRefreshTime !== lastAutoRefreshTimeRef.current) {
       lastAutoRefreshTimeRef.current = lastAutoRefreshTime;
-      
+
       if (hasUnsavedChanges) {
         logger.debug('Auto-refresh occurred, clearing unsaved changes notification');
         setHasUnsavedChanges(false);
@@ -167,33 +168,26 @@ const StockSettingsSidebar = ({
     toggleSidebar();
   };
 
-  // Handle form submission
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-    logger.debug('User submitted settings from sidebar');
-    setHasUnsavedChanges(false);
-  };
-  
   // Wrapper for input change handler to track unsaved changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     onSettingsChange({ [name]: value });
     setHasUnsavedChanges(true);
   };
-  
+
   // Wrapper for indicator change handler to track unsaved changes
   const handleIndicatorChange = (e) => {
     const { value, checked } = e.target;
     const currentIndicators = settings.selectedIndicators || [];
-    
+
     const newIndicators = checked
       ? [...currentIndicators, value]
       : currentIndicators.filter(ind => ind !== value);
-    
+
     onSettingsChange({ selectedIndicators: newIndicators });
     setHasUnsavedChanges(true);
   };
-  
+
   // Wrapper for parameter change handler to track unsaved changes
   const handleParamChange = (indicatorName, paramName, value) => {
     const newConfigs = {
@@ -203,11 +197,11 @@ const StockSettingsSidebar = ({
         [paramName]: value
       }
     };
-    
+
     onSettingsChange({ indicatorConfigs: newConfigs });
     setHasUnsavedChanges(true);
   };
-  
+
   // Wrapper for panel change handler to track unsaved changes
   const handlePanelChange = (indicatorName, value) => {
     onPanelChange(indicatorName, value);
@@ -216,7 +210,7 @@ const StockSettingsSidebar = ({
 
   /**
    * Renders a form input group with label and input/select element
-   * 
+   *
    * @param {string} id - Input element ID
    * @param {string} label - Label text
    * @param {string} name - Input element name
@@ -232,15 +226,15 @@ const StockSettingsSidebar = ({
         <label htmlFor={id}>{label}</label>
         {type === 'select' ? (
           <div className="futuristic-select-wrapper">
-            <select 
-              id={id} 
-              name={name} 
-              value={value} 
+            <select
+              id={id}
+              name={name}
+              value={value}
               onChange={onChange}
               className="futuristic-select"
-              style={{ 
-                height: INPUT_HEIGHT, 
-                width: INPUT_WIDTH, 
+              style={{
+                height: INPUT_HEIGHT,
+                width: INPUT_WIDTH,
                 color: TEXT_PRIMARY,
                 backgroundColor: SELECT_BG_COLOR,
                 border: SELECT_BORDER,
@@ -252,8 +246,8 @@ const StockSettingsSidebar = ({
               }}
             >
               {options.items && options.items.map(item => (
-                <option 
-                  key={item.value} 
+                <option
+                  key={item.value}
                   value={item.value}
                   style={{
                     backgroundColor: SELECT_OPTION_BG,
@@ -303,7 +297,7 @@ const StockSettingsSidebar = ({
 
   /**
    * Renders a custom checkbox with SVG
-   * 
+   *
    * @param {boolean} checked - Whether the checkbox is checked
    * @param {string} value - Checkbox value
    * @param {Function} onChange - Change handler
@@ -315,34 +309,34 @@ const StockSettingsSidebar = ({
     };
 
     return (
-      <div 
-        className={`custom-checkbox-svg ${checked ? 'checked' : ''}`} 
+      <div
+        className={`custom-checkbox-svg ${checked ? 'checked' : ''}`}
         onClick={handleClick}
       >
-        <svg 
-          width={CHECKBOX_SIZE} 
-          height={CHECKBOX_SIZE} 
-          viewBox="0 0 20 20" 
+        <svg
+          width={CHECKBOX_SIZE}
+          height={CHECKBOX_SIZE}
+          viewBox="0 0 20 20"
           xmlns="http://www.w3.org/2000/svg"
         >
           {/* Background */}
-          <rect 
-            width="20" 
-            height="20" 
-            rx="3" 
-            fill={checked ? CHECKBOX_CHECKED_BG : CHECKBOX_BG} 
-            stroke={CHECKBOX_BORDER} 
-            strokeWidth="1.5" 
+          <rect
+            width="20"
+            height="20"
+            rx="3"
+            fill={checked ? CHECKBOX_CHECKED_BG : CHECKBOX_BG}
+            stroke={CHECKBOX_BORDER}
+            strokeWidth="1.5"
           />
-          
+
           {/* Checkmark */}
           {checked && (
-            <path 
-              d="M5 10L8 13L15 7" 
+            <path
+              d="M5 10L8 13L15 7"
               stroke={PRIMARY_DARK}
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
           )}
         </svg>
@@ -352,7 +346,7 @@ const StockSettingsSidebar = ({
 
   /**
    * Renders an indicator group with checkboxes
-   * 
+   *
    * @param {string} panelType - Type of panel (main, oscillator, etc)
    * @returns {JSX.Element} Indicator group element
    */
@@ -362,14 +356,14 @@ const StockSettingsSidebar = ({
         <h4 className="indicator-group-title">{PANEL_NAMES[panelType]}</h4>
         <div className="indicators-grid" style={{ gap: CHECKBOX_ROW_SPACING }}>
           {PANEL_GROUPS[panelType].map(indicator => {
-            const isSelected = settings.selectedIndicators.some(ind => 
+            const isSelected = settings.selectedIndicators.some(ind =>
               typeof ind === 'string' ? ind === indicator.value : ind.name === indicator.value
             );
             return (
-              <div 
-                key={indicator.value} 
+              <div
+                key={indicator.value}
                 className={`indicator-checkbox ${isSelected ? 'selected' : ''}`}
-                onClick={() => handleIndicatorChange({ target: { value: indicator.value, checked: !isSelected }})}
+                onClick={() => handleIndicatorChange({ target: { value: indicator.value, checked: !isSelected } })}
                 style={{ marginBottom: CHECKBOX_ROW_SPACING }}
               >
                 <table className="indicator-table" cellSpacing="0" cellPadding="0" style={{ width: '100%' }}>
@@ -377,27 +371,27 @@ const StockSettingsSidebar = ({
                     <tr>
                       <td className="checkbox-cell" style={{ width: '30px', verticalAlign: 'top', paddingTop: '2px' }}>
                         <div className={`table-checkbox ${isSelected ? 'checked' : ''}`}>
-                          <svg 
-                            width={CHECKBOX_SIZE} 
-                            height={CHECKBOX_SIZE} 
-                            viewBox="0 0 20 20" 
+                          <svg
+                            width={CHECKBOX_SIZE}
+                            height={CHECKBOX_SIZE}
+                            viewBox="0 0 20 20"
                             xmlns="http://www.w3.org/2000/svg"
                           >
-                            <rect 
-                              width="20" 
-                              height="20" 
-                              rx="3" 
+                            <rect
+                              width="20"
+                              height="20"
+                              rx="3"
                               fill={isSelected ? CHECKBOX_CHECKED_BG : CHECKBOX_BG}
                               stroke={CHECKBOX_BORDER}
                               strokeWidth="1.5"
                             />
                             {isSelected && (
-                              <path 
-                                d="M5 10L8 13L15 7" 
+                              <path
+                                d="M5 10L8 13L15 7"
                                 stroke={PRIMARY_DARK}
-                                strokeWidth="2" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               />
                             )}
                           </svg>
@@ -419,7 +413,7 @@ const StockSettingsSidebar = ({
 
   /**
    * Renders an indicator parameter configuration section
-   * 
+   *
    * @param {string} indicatorName - Name of the indicator
    * @param {Object} params - Parameter configuration object
    * @returns {JSX.Element} Parameter configuration element
@@ -440,9 +434,9 @@ const StockSettingsSidebar = ({
                   type="number"
                   value={paramValue}
                   onChange={(e) => handleParamChange(indicatorName, paramName, e.target.value)}
-                  style={{ 
-                    backgroundColor: INPUT_BG_COLOR, 
-                    border: INPUT_BORDER, 
+                  style={{
+                    backgroundColor: INPUT_BG_COLOR,
+                    border: INPUT_BORDER,
                     color: TEXT_PRIMARY,
                     height: '32px',
                     width: '100%'
@@ -451,7 +445,7 @@ const StockSettingsSidebar = ({
               </div>
             ))}
           </div>
-          
+
           <div className="panel-selection">
             <label htmlFor={`sidebar-panel-${indicatorName}`}>
               Display in
@@ -462,9 +456,9 @@ const StockSettingsSidebar = ({
                 value={panelAssignments[indicatorName] || 'main'}
                 onChange={(e) => handlePanelChange(indicatorName, e.target.value)}
                 className="futuristic-select"
-                style={{ 
-                  height: INPUT_HEIGHT, 
-                  width: INPUT_WIDTH, 
+                style={{
+                  height: INPUT_HEIGHT,
+                  width: INPUT_WIDTH,
                   color: TEXT_PRIMARY,
                   backgroundColor: SELECT_BG_COLOR,
                   border: SELECT_BORDER,
@@ -475,7 +469,7 @@ const StockSettingsSidebar = ({
                   boxShadow: SELECT_FOCUS_SHADOW
                 }}
               >
-                <option value="main" 
+                <option value="main"
                   style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
                   onMouseEnter={(e) => {
                     e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
@@ -496,7 +490,7 @@ const StockSettingsSidebar = ({
                     e.target.style.outline = 'none';
                   }}
                 >Main Price Chart</option>
-                <option value="oscillator" 
+                <option value="oscillator"
                   style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
                   onMouseEnter={(e) => {
                     e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
@@ -517,7 +511,7 @@ const StockSettingsSidebar = ({
                     e.target.style.outline = 'none';
                   }}
                 >Oscillator Panel</option>
-                <option value="macd" 
+                <option value="macd"
                   style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
                   onMouseEnter={(e) => {
                     e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
@@ -538,7 +532,7 @@ const StockSettingsSidebar = ({
                     e.target.style.outline = 'none';
                   }}
                 >MACD Panel</option>
-                <option value="volume" 
+                <option value="volume"
                   style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
                   onMouseEnter={(e) => {
                     e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
@@ -559,7 +553,7 @@ const StockSettingsSidebar = ({
                     e.target.style.outline = 'none';
                   }}
                 >Volume Panel</option>
-                <option value="volatility" 
+                <option value="volatility"
                   style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
                   onMouseEnter={(e) => {
                     e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
@@ -604,59 +598,60 @@ const StockSettingsSidebar = ({
         <div className="sidebar-content">
           {/* Close button in the upper right corner */}
           <div className="close-button" onClick={handleCloseClick}>
-            <Image 
+            <Image
               src="/assets/sidebar_close_arrow.png"
-              alt="Close Settings" 
+              alt="Close Settings"
               width={24}
               height={24}
             />
           </div>
-          
+
           <div className="section-container chart-settings-section">
             <h3 className="section-title">Chart Settings</h3>
-            
+
             {/* Chart settings form */}
-            <form onSubmit={handleFormSubmit} className="settings-form">
+            {/* Removed onSubmit, added type="button" to the button */}
+            <div className="settings-form">
               {renderFormGroup(
-                'ticker', 
-                'Ticker Symbol', 
-                'ticker', 
-                'text', 
-                settings.ticker, 
-                handleInputChange, 
+                'ticker',
+                'Ticker Symbol',
+                'ticker',
+                'text',
+                settings.ticker,
+                handleInputChange,
                 { required: true }
               )}
-              
+
               {renderFormGroup(
-                'daysOfHistory', 
-                'Days of History', 
-                'daysOfHistory', 
-                'number', 
-                settings.daysOfHistory, 
-                handleInputChange, 
+                'daysOfHistory',
+                'Days of History',
+                'daysOfHistory',
+                'number',
+                settings.daysOfHistory,
+                handleInputChange,
                 { min: '1', max: '365' }
               )}
-              
+
               {renderFormGroup(
-                'interval', 
-                'Interval', 
-                'interval', 
-                'select', 
-                settings.interval, 
-                handleInputChange, 
+                'interval',
+                'Interval',
+                'interval',
+                'select',
+                settings.interval,
+                handleInputChange,
                 { items: INTERVALS }
               )}
-              
+
               {renderFormGroup(
-                'chartType', 
-                'Chart Type', 
-                'chartType', 
-                'select', 
-                settings.chartType, 
-                handleInputChange, 
+                'chartType',
+                'Chart Type',
+                'chartType',
+                'select',
+                settings.chartType,
+                handleInputChange,
                 { items: CHART_TYPES }
               )}
-              
+
               {/* Unsaved changes indicator */}
               {hasUnsavedChanges && (
                 <div className="unsaved-changes-alert">
@@ -664,22 +659,26 @@ const StockSettingsSidebar = ({
                   <div className="alert-text">Changes not applied. Click "Update Chart" to apply.</div>
                 </div>
               )}
-              
-              <button type="submit" className={`update-button ${hasUnsavedChanges ? 'has-changes' : ''}`} disabled={isLoading}>
-                {isLoading ? 'Loading...' : 'Update Chart'}
+                {/* Changed button type and onClick */}
+              <button
+                type="button"
+                className={`update-button ${hasUnsavedChanges ? 'has-changes' : ''}`}
+                onClick={onUpdateClick} // Call onUpdateClick
+              >
+                Update Chart
               </button>
-            </form>
+            </div>
           </div>
-          
+
           <div className="section-container indicators-section">
             <h3 className="section-title">Technical Indicators</h3>
-            
+
             {/* Indicators grouped by panel type */}
-            {Object.keys(PANEL_GROUPS).map(panelType => 
+            {Object.keys(PANEL_GROUPS).map(panelType =>
               renderIndicatorGroup(panelType)
             )}
           </div>
-          
+
           {/* Indicator Configuration Panel embedded in sidebar */}
           {settings.selectedIndicators.length > 0 && (
             <div className="section-container indicator-configuration-section">
@@ -695,13 +694,13 @@ const StockSettingsSidebar = ({
           )}
         </div>
       </div>
-      
+
       {/* Open sidebar button - only visible when sidebar is closed */}
       {!isOpen && (
         <div className="settings-open-button" onClick={toggleSidebar}>
-          <Image 
+          <Image
             src="/assets/stock_settings_icon.png"
-            alt="Open Settings" 
+            alt="Open Settings"
             width={30}
             height={30}
           />

@@ -58,7 +58,7 @@ class Crawl4AIScraper:
                     if (document.readyState === 'complete') {
                         resolve();
                     } else {
-                        window.addEventListener('load', resolve);
+                        window.addEventListener('load', resolve, { passive: true });
                     }
                 });
                 """

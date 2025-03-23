@@ -95,7 +95,7 @@ const KpiTooltip = ({
       }
     };
     
-    document.addEventListener('keydown', handleEscKey);
+    document.addEventListener('keydown', handleEscKey, { passive: true });
     return () => {
       document.removeEventListener('keydown', handleEscKey);
     };
@@ -117,7 +117,7 @@ const KpiTooltip = ({
     };
     
     // Use mousedown instead of click for better responsiveness
-    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('mousedown', handleOutsideClick, { passive: true });
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
@@ -194,7 +194,7 @@ const KpiTooltip = ({
     const timer = setTimeout(calculatePosition, 10);
     
     // Recalculate on window resize
-    window.addEventListener('resize', calculatePosition);
+    window.addEventListener('resize', calculatePosition, { passive: true });
     
     return () => {
       clearTimeout(timer);

@@ -1,3 +1,4 @@
+// index.js (Major Changes)
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { logger } from '../../utils/logger';
@@ -91,7 +92,7 @@ const StockChart = dynamic(() => import('../../components/stock/StockChart'), {
 const StocksPage = () => {
   // Create a unique instance ID for this page component for reliable tracking
   const instanceId = useRef(generateInstanceId());
-  
+
   // API health status state
   const [apiStatus, setApiStatus] = useState({
     checked: false,
@@ -128,6 +129,9 @@ const StocksPage = () => {
     error: null
   });
 
+  // NEW:  Fetch trigger state
+  const [fetchTrigger, setFetchTrigger] = useState(0);
+
   // Debounced save function for chart settings
   const debouncedSaveSettings = useCallback(
     debounce((settings) => {
@@ -152,6 +156,11 @@ const StocksPage = () => {
     handleChartSettingsChange({ ticker: newTicker });
     setChartHasError(false);
   }, [handleChartSettingsChange]);
+
+  // NEW:  Handler for manual update
+  const handleUpdateClick = useCallback(() => {
+    setFetchTrigger(prev => prev + 1);
+  }, []);
 
   // Move fetchData outside useEffect but keep it inside component
   const fetchData = async () => {
@@ -215,7 +224,7 @@ const StocksPage = () => {
   const handlePreferencesChange = (newPreferences) => {
     logger.debug(`Updating KPI preferences: ${JSON.stringify(newPreferences)}`);
     setKpiPreferences(newPreferences);
-    
+
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newPreferences));
       // No need to call fetchData explicitly - useEffect will handle it
@@ -228,7 +237,7 @@ const StocksPage = () => {
   useEffect(() => {
     const id = instanceId.current;
     logger.debug(`StocksPage component mounted (instance: ${id})`);
-    
+
     return () => {
       logger.debug(`StocksPage component unmounting (instance: ${id})`);
     };
@@ -239,24 +248,24 @@ const StocksPage = () => {
     const performApiHealthCheck = async () => {
       const id = instanceId.current;
       logger.info(`Checking API health (instance: ${id})`);
-      
+
       try {
         // Attempt API health check
         const isHealthy = await checkApiHealth();
-        
+
         // Update API status based on health check result
         setApiStatus({
           checked: true,
           healthy: isHealthy,
           message: isHealthy ? API_MESSAGES.CONNECTED : API_MESSAGES.FAILED
         });
-        
+
         logger.info(`API health check complete (instance: ${id}). Status: ${isHealthy ? 'healthy' : 'unhealthy'}`);
       } catch (error) {
         // Handle any errors during health check
         const errorMessage = error?.message || 'Unknown error occurred';
         logger.error(`API health check error (instance: ${id}): ${errorMessage}`);
-        
+
         setApiStatus({
           checked: true,
           healthy: false,
@@ -264,22 +273,16 @@ const StocksPage = () => {
         });
       }
     };
-    
+
     performApiHealthCheck();
   }, []);
 
-  // Update useEffect dependencies to include all relevant chart settings
+  // CHANGED:  useEffect now only depends on fetchTrigger and apiStatus
   useEffect(() => {
-    fetchData();
-  }, [
-    chartSettings.ticker,
-    chartSettings.daysOfHistory,
-    chartSettings.interval,
-    chartSettings.selectedIndicators,
-    chartSettings.chartType,
-    apiStatus.healthy,
-    kpiPreferences.visibleGroups
-  ]);
+     if (apiStatus.healthy) {
+        fetchData();
+      }
+  }, [fetchTrigger, apiStatus.healthy]);
 
   // Render the connection error component when API is unhealthy
   const renderConnectionError = () => (
@@ -309,9 +312,9 @@ const StocksPage = () => {
     <div className="stocks-page">
       {/* API Status Indicator positioned above the title */}
       {renderApiStatusIndicator()}
-      
+
       <h1>Stock Market Analysis</h1>
-      
+        <button onClick={manualRefresh}>Refresh</button>
       {/* Auto-refresh notification */}
       {showAutoRefreshNotif && (
         <div className="auto-refresh-notification">
@@ -333,11 +336,11 @@ const StocksPage = () => {
           )}
         </div>
       )}
-      
+
       {/* Conditionally render StockChart or connection error based on API health */}
       {apiStatus.healthy ? (
         <>
-          <StockChart 
+          <StockChart
             settings={chartSettings}
             onSettingsChange={handleChartSettingsChange}
             onTickerChange={handleTickerChange}
@@ -345,6 +348,7 @@ const StocksPage = () => {
             chartData={dashboardData.chartData}
             loading={dashboardData.loading}
             error={dashboardData.error}
+            onUpdateClick={handleUpdateClick} // Pass the new handler
           />
           <KpiContainer
             ticker={chartSettings.ticker}
@@ -358,31 +362,32 @@ const StocksPage = () => {
       ) : (
         renderConnectionError()
       )}
-      
-      <style jsx>{`        .stocks-page {
+
+      <style jsx>{`
+        .stocks-page {
           padding: 20px;
           color: ${COLORS.WHITE};
         }
-        
+
         h1 {
           margin-bottom: 20px;
           color: ${COLORS.LIGHT_GRAY};
         }
-        
+
         .info-widgets-container {
           display: flex;
           flex-wrap: wrap;
           gap: 20px;
           margin-bottom: 20px;
         }
-        
+
         /* Responsive styling for smaller screens */
         @media (max-width: 768px) {
           .info-widgets-container {
             flex-direction: column;
           }
         }
-        
+
         .api-status {
           display: inline-flex;
           align-items: center;
@@ -392,39 +397,39 @@ const StocksPage = () => {
           background-color: ${COLORS.DARK_BLUE};
           width: auto;
         }
-        
+
         .api-status.healthy {
           border-left: 4px solid ${COLORS.HEALTHY};
         }
-        
+
         .api-status.unhealthy {
           border-left: 4px solid ${COLORS.UNHEALTHY};
         }
-        
+
         .status-indicator {
           width: 12px;
           height: 12px;
           border-radius: 50%;
           margin-right: 10px;
         }
-        
+
         .healthy .status-indicator {
           background-color: ${COLORS.HEALTHY};
           box-shadow: 0 0 8px ${COLORS.HEALTHY};
         }
-        
+
         .unhealthy .status-indicator {
           background-color: ${COLORS.UNHEALTHY};
           box-shadow: 0 0 8px ${COLORS.UNHEALTHY};
         }
-        
+
         .connection-error {
           background-color: ${COLORS.SHADOW_BLACK};
           border-radius: 8px;
           padding: 20px;
           margin-top: 20px;
         }
-        
+
         .connection-error code {
           display: block;
           background-color: ${COLORS.DARK_BLUE};
@@ -433,7 +438,7 @@ const StocksPage = () => {
           border-radius: 4px;
           font-family: monospace;
         }
-        
+
         button {
           padding: 10px 15px;
           background-color: ${COLORS.BUTTON_PRIMARY};
@@ -444,7 +449,7 @@ const StocksPage = () => {
           font-weight: bold;
           margin-top: 10px;
         }
-        
+
         button:hover {
           background-color: ${COLORS.BUTTON_HOVER};
         }
@@ -476,4 +481,4 @@ const StocksPage = () => {
   );
 };
 
-export default StocksPage; 
+export default StocksPage;

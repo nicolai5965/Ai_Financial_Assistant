@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+// StockChart.js (Minor Changes)
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { logger } from '../../utils/logger';
 
 // Import the new components
@@ -57,10 +58,11 @@ const generateInstanceId = () => {
  * @param {Object} props.chartData The chart data to display.
  * @param {boolean} props.loading Whether the chart data is loading.
  * @param {string} props.error The error message, if any.
+ * @param {Function} props.onUpdateClick Callback function to trigger a data update.
  */
 
 
-const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange, chartData, loading, error }) => {
+const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange, chartData, loading, error, onUpdateClick }) => {
   // Create a unique instance ID for this component
   const instanceId = useRef(generateInstanceId());
 
@@ -330,23 +332,6 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
     });
   };
 
-
-
-  /**
-   * Handle form submission for ticker/time period changes
-   * @param {Object} e - Event object
-   */
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        const newTicker = settings.ticker;
-        logger.info(`StockChart: Submitting new configuration with ticker: ${newTicker}`);
-
-        // Call onTickerChange to notify the parent component
-        if (onTickerChange && typeof onTickerChange === 'function') {
-            onTickerChange(newTicker);
-        }
-    };
-
   /**
    * Toggle settings sidebar visibility
    */
@@ -392,11 +377,11 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
         toggleSidebar={toggleSettingsSidebar}
         settings={settings}
         onSettingsChange={onSettingsChange}
-        isLoading={loading}
         indicatorConfigs={indicatorConfigs}
         panelAssignments={panelAssignments}
         onParamChange={handleParamChange}
         onPanelChange={handlePanelChange}
+        onUpdateClick={onUpdateClick} // Pass onUpdateClick
       />
 
       <style jsx>{`
@@ -429,4 +414,4 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
   );
 };
 
-export default StockChart;
+export default React.memo(StockChart);

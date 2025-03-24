@@ -184,8 +184,17 @@ const StockSettingsSidebar = ({
       ? [...currentIndicators, value]
       : currentIndicators.filter(ind => ind !== value);
 
+    console.log("DEBUG-SC: StockSettingsSidebar.handleIndicatorChange - newIndicators:", newIndicators);
+
     onSettingsChange({ selectedIndicators: newIndicators });
     setHasUnsavedChanges(true);
+  };
+
+  const handleUpdateClick = () => {
+    console.log('StockSettingsSidebar: handleUpdateClick: Update button clicked.');
+    onUpdateClick();
+    setHasUnsavedChanges(false);
+    console.log('StockSettingsSidebar: handleUpdateClick: hasUnsavedChanges set to false');
   };
 
   // Wrapper for parameter change handler to track unsaved changes
@@ -663,7 +672,7 @@ const StockSettingsSidebar = ({
               <button
                 type="button"
                 className={`update-button ${hasUnsavedChanges ? 'has-changes' : ''}`}
-                onClick={onUpdateClick} // Call onUpdateClick
+                onClick={handleUpdateClick}
               >
                 Update Chart
               </button>

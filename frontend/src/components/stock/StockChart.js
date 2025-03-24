@@ -366,6 +366,7 @@ const StockChart = ({ settings, onSettingsChange, onTickerChange, onErrorChange,
               chartData={chartData?.chart}
               isLoading={loading}
               prevChartData={prevChartRef.current?.chart}
+              onUpdateClick={onUpdateClick}
             />
           </>
         )}

@@ -314,7 +314,6 @@ const StocksPage = () => {
       {renderApiStatusIndicator()}
 
       <h1>Stock Market Analysis</h1>
-        <button onClick={manualRefresh}>Refresh</button>
       {/* Auto-refresh notification */}
       {showAutoRefreshNotif && (
         <div className="auto-refresh-notification">
@@ -390,9 +389,12 @@ const StocksPage = () => {
         }
 
         .api-status {
-          display: inline-flex;
+          display: flex;
           align-items: center;
           margin-bottom: 20px;
+          margin-left: 20px;
+          margin-right: 20px;
+          margin-top: 20px;
           padding: 10px 15px;
           border-radius: 4px;
           background-color: ${COLORS.DARK_BLUE};
@@ -401,6 +403,7 @@ const StocksPage = () => {
 
         .api-status.healthy {
           border-left: 4px solid ${COLORS.HEALTHY};
+
         }
 
         .api-status.unhealthy {

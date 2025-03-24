@@ -8,13 +8,12 @@ const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 const CHART_HEIGHT = '600px';
 const CHART_WIDTH = '100%';
 
-const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
+const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const resizeTimeoutRef = useRef(null);
   const isMountedRef = useRef(true);
   const plotDivRef = useRef(null);
-    // NEW: Ref to hold the previous chart's div
-    const prevChartDivRef = useRef(null);
+  const prevChartDivRef = useRef(null);
 
   const toggleFullScreen = () => {
     const newState = !isFullScreen;
@@ -23,9 +22,9 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdate }) => {
   };
 
   const handleUpdate = () => {
-    if (onUpdate) {
+    if (onUpdateClick) {
       logger.info('ChartDisplay: Manual chart update requested');
-      onUpdate();
+      onUpdateClick();
     }
   };
 

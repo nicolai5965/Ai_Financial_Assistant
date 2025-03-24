@@ -67,7 +67,8 @@ const KpiSettings = ({
   onClose, 
   availableGroups = [], 
   preferences = {}, 
-  onPreferencesChange 
+  onPreferencesChange,
+  onSaveClick
 }) => {
   // Current preferences state
   const [currentPreferences, setCurrentPreferences] = useState({
@@ -94,16 +95,16 @@ const KpiSettings = ({
   // Log component mount and unmount
   useEffect(() => {
     try {
-      log.debug(`KpiSettings mounted (${instanceId.current})`);
+      log.debug(`KpiSettings: KpiSettings mounted (${instanceId.current})`);
     } catch (e) {
-      console.log(`KpiSettings mounted (${instanceId.current})`);
+      console.log(`KpiSettings: KpiSettings mounted (${instanceId.current})`);
     }
     
     return () => {
       try {
-        log.debug(`KpiSettings unmounting (${instanceId.current})`);
+        log.debug(`KpiSettings: KpiSettings unmounting (${instanceId.current})`);
       } catch (e) {
-        console.log(`KpiSettings unmounting (${instanceId.current})`);
+        console.log(`KpiSettings: KpiSettings unmounting (${instanceId.current})`);
       }
     };
   }, []);
@@ -119,9 +120,9 @@ const KpiSettings = ({
     
     if (viewConfig) {
       try {
-        log.debug(`Selected view: ${viewConfig.name} (${instanceId.current})`);
+        log.debug(`KpiSettings: Selected view: ${viewConfig.name} (${instanceId.current})`);
       } catch (e) {
-        console.log(`Selected view: ${viewConfig.name} (${instanceId.current})`);
+        console.log(`KpiSettings: Selected view: ${viewConfig.name} (${instanceId.current})`);
       }
       
       // Update preferences
@@ -143,9 +144,9 @@ const KpiSettings = ({
   // Handle individual group visibility toggle
   const handleGroupToggle = (group) => {
     try {
-      log.debug(`Toggling group visibility: ${group} (${instanceId.current})`);
+      log.debug(`KpiSettings: Toggling group visibility: ${group} (${instanceId.current})`);
     } catch (e) {
-      console.log(`Toggling group visibility: ${group} (${instanceId.current})`);
+      console.log(`KpiSettings: Toggling group visibility: ${group} (${instanceId.current})`);
     }
     
     // Check if group is currently visible
@@ -180,9 +181,9 @@ const KpiSettings = ({
   // Close settings modal
   const handleClose = () => {
     try {
-      log.debug(`Closing settings modal (${instanceId.current})`);
+      log.debug(`KpiSettings: Closing settings modal (${instanceId.current})`);
     } catch (e) {
-      console.log(`Closing settings modal (${instanceId.current})`);
+      console.log(`KpiSettings: Closing settings modal (${instanceId.current})`);
     }
     
     if (onClose) {
@@ -193,13 +194,16 @@ const KpiSettings = ({
   // Save current preferences
   const handleSave = () => {
     try {
-      log.debug(`Saving preferences (${instanceId.current})`);
+      log.debug(`KpiSettings: Saving preferences (${instanceId.current})`);
     } catch (e) {
-      console.log(`Saving preferences (${instanceId.current})`);
+      console.log(`KpiSettings: Saving preferences (${instanceId.current})`);
     }
     
     if (onPreferencesChange) {
       onPreferencesChange(currentPreferences);
+    }
+    if (onSaveClick) {
+      onSaveClick();
     }
     handleClose();
   };

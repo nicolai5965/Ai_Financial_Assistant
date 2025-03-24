@@ -69,19 +69,19 @@ const KpiTooltip = ({
   useEffect(() => {
     if (open) {
       try {
-        log.debug(`KpiTooltip opened: ${kpi?.name || 'unknown'} (${instanceId.current})`);
+        log.debug(`KpiTooltip: KpiTooltip opened: ${kpi?.name || 'unknown'} (${instanceId.current})`);
         console.log(`KpiTooltip opened for: ${kpi?.name || 'unknown'}, kpi data:`, kpi);
       } catch (e) {
-        console.log(`KpiTooltip opened: ${kpi?.name || 'unknown'} (${instanceId.current})`);
+        console.log(`KpiTooltip: KpiTooltip opened: ${kpi?.name || 'unknown'} (${instanceId.current})`);
       }
     }
     
     return () => {
       if (open) {
         try {
-          log.debug(`KpiTooltip closing: ${kpi?.name || 'unknown'} (${instanceId.current})`);
+          log.debug(`KpiTooltip: KpiTooltip closing: ${kpi?.name || 'unknown'} (${instanceId.current})`);
         } catch (e) {
-          console.log(`KpiTooltip closing: ${kpi?.name || 'unknown'} (${instanceId.current})`);
+          console.log(`KpiTooltip: KpiTooltip closing: ${kpi?.name || 'unknown'} (${instanceId.current})`);
         }
       }
     };

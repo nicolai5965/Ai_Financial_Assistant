@@ -348,7 +348,7 @@ const StocksPage = () => {
             chartData={dashboardData.chartData}
             loading={dashboardData.loading}
             error={dashboardData.error}
-            onUpdateClick={handleUpdateClick} // Pass the new handler
+            onUpdateClick={handleUpdateClick}
           />
           <KpiContainer
             ticker={chartSettings.ticker}
@@ -357,6 +357,7 @@ const StocksPage = () => {
             error={dashboardData.error}
             preferences={kpiPreferences}
             onPreferencesChange={handlePreferencesChange}
+            onSaveClick={handleUpdateClick}
           />
         </>
       ) : (

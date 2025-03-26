@@ -3,14 +3,13 @@
 // ---------------------------------------------------------------------
 // Import Statements: Import React, Next.js Image component, and logging utility.
 // ---------------------------------------------------------------------
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react'; // Added useCallback
 import Image from 'next/image';
 import { logger } from '../../utils/logger';
 
 // ---------------------------------------------------------------------
-// Constants for Styling - Organized by Purpose
+// Constants for Styling - Organized by Purpose (KEEP AS IS)
 // ---------------------------------------------------------------------
-
 // LAYOUT - Dimensions and positioning
 const SIDEBAR_WIDTH = '350px';
 const SIDEBAR_Z_INDEX = 900;
@@ -69,7 +68,7 @@ const HIGHLIGHT_COLOR = 'rgba(92, 230, 207, 0.7)';
 const WARNING_COLOR = 'rgba(255, 165, 0, 0.7)';
 
 // ---------------------------------------------------------------------
-// Constants for Indicators and Panel Assignments
+// Constants for Indicators and Panel Assignments (KEEP AS IS)
 // ---------------------------------------------------------------------
 const AVAILABLE_INDICATORS = [
   { value: 'SMA', label: 'Simple Moving Average', panel: 'main' },
@@ -168,7 +167,7 @@ const DEFAULT_INDICATOR_PARAMS = {
 /**
  * StockSettingsSidebar component for displaying and configuring stock chart settings.
  * Organized by panel type for better usability.
- * 
+ *
  * Props:
  * - isOpen: Boolean indicating whether the sidebar is open.
  * - toggleSidebar: Function to toggle sidebar open/closed state.
@@ -192,12 +191,32 @@ const StockSettingsSidebar = ({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   // Keep track of the last auto-refresh time using a ref.
   const lastAutoRefreshTimeRef = useRef(lastAutoRefreshTime);
+  // Ref for the main sidebar container to check focus
+  const sidebarRef = useRef(null); // <<< Added Ref for sidebar container
 
   // ---------------------------------------------------------------------
   // Debug Logging: Output passed-down props for debugging purposes.
   // ---------------------------------------------------------------------
-  console.log("DEBUG-SC: StockSettingsSidebar - RENDER - START");
-  console.log("DEBUG-SC: StockSettingsSidebar - settings passed down from StockChart:", settings);
+  // console.log("DEBUG-SC: StockSettingsSidebar - RENDER - START");
+  // console.log("DEBUG-SC: StockSettingsSidebar - settings passed down from StockChart:", settings);
+
+  // ---------------------------------------------------------------------
+  // Event Handlers: Functions that handle user interactions.
+  // ---------------------------------------------------------------------
+
+  // Handle update click; triggers data update and resets unsaved changes.
+  // Wrap in useCallback for stable reference in useEffect dependency array.
+  const handleUpdateClick = useCallback(() => {
+    // Only proceed if there are actual changes to prevent unnecessary updates
+    if (hasUnsavedChanges) {
+        console.log('DEBUG-SC: StockSettingsSidebar: handleUpdateClick: Update triggered.');
+        onUpdateClick();
+        setHasUnsavedChanges(false);
+        console.log('DEBUG-SC: StockSettingsSidebar: handleUpdateClick: hasUnsavedChanges set to false');
+    } else {
+        console.log('DEBUG-SC: StockSettingsSidebar: handleUpdateClick: No unsaved changes, update skipped.');
+    }
+  }, [onUpdateClick, hasUnsavedChanges]); // <<< Added dependencies
 
   // ---------------------------------------------------------------------
   // useEffect Hooks: Lifecycle events and side effects.
@@ -219,8 +238,41 @@ const StockSettingsSidebar = ({
     }
   }, [lastAutoRefreshTime, hasUnsavedChanges]);
 
+  // --- >>> NEW useEffect for handling 'Enter' key press <<< ---
+  useEffect(() => {
+    const handleGlobalKeyDown = (event) => {
+      // Conditions:
+      // 1. Sidebar is open
+      // 2. Key pressed is 'Enter'
+      // 3. There are unsaved changes
+      // 4. The currently focused element is inside the sidebar container
+      if (
+        isOpen &&
+        event.key === 'Enter' &&
+        hasUnsavedChanges &&
+        sidebarRef.current &&
+        sidebarRef.current.contains(document.activeElement)
+      ) {
+        // Prevent default Enter behavior (like form submission or newline in textarea)
+        event.preventDefault();
+        console.log("DEBUG-SC: Enter pressed inside sidebar with unsaved changes. Triggering update.");
+        handleUpdateClick();
+      }
+    };
+
+    // Add event listener to the document
+    document.addEventListener('keydown', handleGlobalKeyDown);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [isOpen, hasUnsavedChanges, handleUpdateClick]); // Dependencies: listen changes on these states/functions
+  // --- >>> END NEW useEffect <<< ---
+
+
   // ---------------------------------------------------------------------
-  // Event Handlers: Functions that handle user interactions.
+  // Event Handlers (Continued): Functions that handle user interactions.
   // ---------------------------------------------------------------------
   // Handle close button click.
   const handleCloseClick = () => {
@@ -274,7 +326,7 @@ const handleIndicatorChange = (e) => {
       if (DEFAULT_INDICATOR_PARAMS[indicatorName]) {
           newIndicatorConfigs[indicatorName] = { ...DEFAULT_INDICATOR_PARAMS[indicatorName] };
       }
-      
+
       // Set default panel assignment
       newPanelAssignments[indicatorName] = DEFAULT_PANEL_PLACEMENT[indicatorName] || 'main';
 
@@ -288,7 +340,7 @@ const handleIndicatorChange = (e) => {
       newSelectedIndicators = [...currentIndicators, newIndicator];
   } else {
       // Remove indicator and its configurations
-      newSelectedIndicators = currentIndicators.filter(ind => 
+      newSelectedIndicators = currentIndicators.filter(ind =>
           (typeof ind === 'string' ? ind : ind.name) !== indicatorName
       );
       delete newIndicatorConfigs[indicatorName];
@@ -296,11 +348,11 @@ const handleIndicatorChange = (e) => {
   }
 
   // Log the new state for debugging
-  console.log('DEBUG-SC: handleIndicatorChange - New State:', {
-      selectedIndicators: newSelectedIndicators,
-      indicatorConfigs: newIndicatorConfigs,
-      panelAssignments: newPanelAssignments
-  });
+  // console.log('DEBUG-SC: handleIndicatorChange - New State:', {
+  //     selectedIndicators: newSelectedIndicators,
+  //     indicatorConfigs: newIndicatorConfigs,
+  //     panelAssignments: newPanelAssignments
+  // });
 
   // Update all related state pieces
   onSettingsChange({
@@ -340,10 +392,10 @@ const handleParamChange = (indicatorName, paramName, value) => {
       return indicator;
   });
 
-  console.log('DEBUG-SC: handleParamChange - New State:', {
-      selectedIndicators: updatedIndicators,
-      indicatorConfigs: newConfigs
-  });
+  // console.log('DEBUG-SC: handleParamChange - New State:', {
+  //     selectedIndicators: updatedIndicators,
+  //     indicatorConfigs: newConfigs
+  // });
 
   // Update both configs and selectedIndicators
   onSettingsChange({
@@ -373,10 +425,10 @@ const handlePanelChange = (indicatorName, panelName) => {
       return indicator;
   });
 
-  console.log('DEBUG-SC: handlePanelChange - New State:', {
-      selectedIndicators: updatedIndicators,
-      panelAssignments: newAssignments
-  });
+  // console.log('DEBUG-SC: handlePanelChange - New State:', {
+  //     selectedIndicators: updatedIndicators,
+  //     panelAssignments: newAssignments
+  // });
 
   // Update both assignments and selectedIndicators
   onSettingsChange({
@@ -386,15 +438,8 @@ const handlePanelChange = (indicatorName, panelName) => {
   setHasUnsavedChanges(true);
   };
 
-  // Handle update click; triggers data update and resets unsaved changes.
-  const handleUpdateClick = () => {
-    console.log('DEBUG-SC: StockSettingsSidebar: handleUpdateClick: Update button clicked.');
-    onUpdateClick();
-    setHasUnsavedChanges(false);
-    console.log('DEBUG-SC: StockSettingsSidebar: handleUpdateClick: hasUnsavedChanges set to false');
-  };
   // ---------------------------------------------------------------------
-  // Render Helpers: Functions to render sub-sections of the UI.
+  // Render Helpers: Functions to render sub-sections of the UI. (KEEP AS IS)
   // ---------------------------------------------------------------------
   /**
    * Renders a form input group with label and input/select element.
@@ -441,6 +486,7 @@ const handlePanelChange = (indicatorName, panelName) => {
                     backgroundColor: SELECT_OPTION_BG,
                     color: TEXT_PRIMARY
                   }}
+                  // Inline hover styles for options (keep as is)
                   onMouseEnter={(e) => {
                     e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
                     e.target.style.background = SELECT_OPTION_HOVER_BG;
@@ -559,12 +605,12 @@ const handlePanelChange = (indicatorName, panelName) => {
    */
   const renderParameterConfig = (indicatorName, params) => {
     // Debug logging for incoming data
-    console.log('DEBUG-SC: renderParameterConfig - START', {
-        indicatorName,
-        params,
-        currentConfigs: settings.indicatorConfigs,
-        currentPanelAssignments: settings.panelAssignments
-    });
+    // console.log('DEBUG-SC: renderParameterConfig - START', {
+    //     indicatorName,
+    //     params,
+    //     currentConfigs: settings.indicatorConfigs,
+    //     currentPanelAssignments: settings.panelAssignments
+    // });
 
     // Validate required data
     if (!indicatorName || !params) {
@@ -576,21 +622,21 @@ const handlePanelChange = (indicatorName, panelName) => {
     const indicatorParams = params[indicatorName] || {};
     const currentConfig = settings.indicatorConfigs?.[indicatorName] || {};
 
-    console.log('DEBUG-SC: Processing indicator:', {
-        indicatorName,
-        indicatorParams,
-        currentConfig
-    });
+    // console.log('DEBUG-SC: Processing indicator:', {
+    //     indicatorName,
+    //     indicatorParams,
+    //     currentConfig
+    // });
 
     // Process parameters to include display names and current values
     const parameters = Object.entries(indicatorParams).map(([paramName, defaultValue]) => {
         const currentValue = currentConfig[paramName] ?? defaultValue;
-        console.log('DEBUG-SC: Processing parameter:', {
-            paramName,
-            defaultValue,
-            currentValue
-        });
-        
+        // console.log('DEBUG-SC: Processing parameter:', {
+        //     paramName,
+        //     defaultValue,
+        //     currentValue
+        // });
+
         return {
             technicalName: paramName,
             displayName: PARAMETER_DISPLAY_NAMES[paramName] || paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase(),
@@ -598,7 +644,7 @@ const handlePanelChange = (indicatorName, panelName) => {
         };
     });
 
-    console.log('DEBUG-SC: Processed parameters:', parameters);
+    // console.log('DEBUG-SC: Processed parameters:', parameters);
 
     return (
         <div className="parameter-config" key={`params-${indicatorName}`}>
@@ -611,7 +657,7 @@ const handlePanelChange = (indicatorName, panelName) => {
                 {/* Parameters Input Section */}
                 <div className="parameter-inputs">
                     {parameters.map(({ technicalName, displayName, value }) => (
-                        <div className="param-input" 
+                        <div className="param-input"
                              key={`${indicatorName}-${technicalName}`}>
                             <label htmlFor={`sidebar-param-${indicatorName}-${technicalName}`}>
                                 {displayName}
@@ -660,153 +706,77 @@ const handlePanelChange = (indicatorName, panelName) => {
                                 appearance: 'none',
                                 boxShadow: SELECT_FOCUS_SHADOW
                             }}
-              >
-                <option value="main"
-                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
-                    e.target.style.background = SELECT_OPTION_HOVER_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'bold';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
-                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_BG;
-                    e.target.style.background = SELECT_OPTION_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'normal';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = 'none';
-                    e.target.style.outline = 'none';
-                  }}
-                >Main Price Chart</option>
-                <option value="oscillator"
-                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
-                    e.target.style.background = SELECT_OPTION_HOVER_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'bold';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
-                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_BG;
-                    e.target.style.background = SELECT_OPTION_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'normal';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = 'none';
-                    e.target.style.outline = 'none';
-                  }}
-                >Oscillator Panel</option>
-                <option value="macd"
-                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
-                    e.target.style.background = SELECT_OPTION_HOVER_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'bold';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
-                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_BG;
-                    e.target.style.background = SELECT_OPTION_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'normal';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = 'none';
-                    e.target.style.outline = 'none';
-                  }}
-                >MACD Panel</option>
-                <option value="volume"
-                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
-                    e.target.style.background = SELECT_OPTION_HOVER_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'bold';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
-                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_BG;
-                    e.target.style.background = SELECT_OPTION_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'normal';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = 'none';
-                    e.target.style.outline = 'none';
-                  }}
-                >Volume Panel</option>
-                <option value="volatility"
-                  style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG;
-                    e.target.style.background = SELECT_OPTION_HOVER_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'bold';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`;
-                    e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = SELECT_OPTION_BG;
-                    e.target.style.background = SELECT_OPTION_BG;
-                    e.target.style.color = TEXT_PRIMARY;
-                    e.target.style.fontWeight = 'normal';
-                    e.target.style.textDecoration = 'none';
-                    e.target.style.boxShadow = 'none';
-                    e.target.style.outline = 'none';
-                  }}
-                >Volatility Panel</option>
-              </select>
+                        >
+                            {/* Options with inline hover styles (keep as is) */}
+                            <option value="main"
+                              style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                              onMouseEnter={(e) => { e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG; e.target.style.background = SELECT_OPTION_HOVER_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'bold'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`; e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`; }}
+                              onMouseLeave={(e) => { e.target.style.backgroundColor = SELECT_OPTION_BG; e.target.style.background = SELECT_OPTION_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'normal'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = 'none'; e.target.style.outline = 'none'; }}
+                            >Main Price Chart</option>
+                            <option value="oscillator"
+                              style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                              onMouseEnter={(e) => { e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG; e.target.style.background = SELECT_OPTION_HOVER_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'bold'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`; e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`; }}
+                              onMouseLeave={(e) => { e.target.style.backgroundColor = SELECT_OPTION_BG; e.target.style.background = SELECT_OPTION_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'normal'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = 'none'; e.target.style.outline = 'none'; }}
+                            >Oscillator Panel</option>
+                            <option value="macd"
+                              style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                              onMouseEnter={(e) => { e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG; e.target.style.background = SELECT_OPTION_HOVER_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'bold'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`; e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`; }}
+                              onMouseLeave={(e) => { e.target.style.backgroundColor = SELECT_OPTION_BG; e.target.style.background = SELECT_OPTION_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'normal'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = 'none'; e.target.style.outline = 'none'; }}
+                            >MACD Panel</option>
+                            <option value="volume"
+                              style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                              onMouseEnter={(e) => { e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG; e.target.style.background = SELECT_OPTION_HOVER_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'bold'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`; e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`; }}
+                              onMouseLeave={(e) => { e.target.style.backgroundColor = SELECT_OPTION_BG; e.target.style.background = SELECT_OPTION_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'normal'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = 'none'; e.target.style.outline = 'none'; }}
+                            >Volume Panel</option>
+                            <option value="volatility"
+                              style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
+                              onMouseEnter={(e) => { e.target.style.backgroundColor = SELECT_OPTION_HOVER_BG; e.target.style.background = SELECT_OPTION_HOVER_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'bold'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = `0 0 5px rgba(92, 230, 207, 0.3)`; e.target.style.outline = `1px solid ${ACCENT_PRIMARY}`; }}
+                              onMouseLeave={(e) => { e.target.style.backgroundColor = SELECT_OPTION_BG; e.target.style.background = SELECT_OPTION_BG; e.target.style.color = TEXT_PRIMARY; e.target.style.fontWeight = 'normal'; e.target.style.textDecoration = 'none'; e.target.style.boxShadow = 'none'; e.target.style.outline = 'none'; }}
+                            >Volatility Panel</option>
+                        </select>
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
-      </div>
     );
   };
 
-  // Function to check if an indicator is configured.
+  // Function to check if an indicator is configured. (KEEP AS IS)
   const isIndicatorConfigured = (ind) => {
-    console.log("DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured - START");
-    console.log("DEBUG-SC: StockSettingsSidebar:   ind:", ind);
+    // console.log("DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured - START");
+    // console.log("DEBUG-SC: StockSettingsSidebar:   ind:", ind);
     const name = typeof ind === 'string' ? ind : ind.name;
-    console.log("DEBUG-SC: StockSettingsSidebar:   name:", name);
-    const isConfigured = settings.selectedIndicators.some(indicator => 
+    // console.log("DEBUG-SC: StockSettingsSidebar:   name:", name);
+    const isConfigured = settings.selectedIndicators.some(indicator =>
       (typeof indicator === 'string' ? indicator : indicator.name) === name
   );
-    console.log('DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured: indicator', name, 'is configured?', isConfigured, 'configs:', settings.selectedIndicators);
-    console.log("DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured - END, returning:", isConfigured);
+    // console.log('DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured: indicator', name, 'is configured?', isConfigured, 'configs:', settings.selectedIndicators);
+    // console.log("DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured - END, returning:", isConfigured);
     return isConfigured;
   };
 
-  // Function to get the indicator name from an indicator object or string.
+  // Function to get the indicator name from an indicator object or string. (KEEP AS IS)
   const getIndicatorName = (ind) => {
-    console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, START");
-    console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, ind", ind);
+    // console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, START");
+    // console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, ind", ind);
     const result = typeof ind === 'string' ? ind : ind.name;
-    console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, END, returning", result);
+    // console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, END, returning", result);
     return result;
   };
 
   // Debug log before rendering completes.
-  console.log("DEBUG-SC: StockSettingsSidebar - RENDER - END");
+  // console.log("DEBUG-SC: StockSettingsSidebar - RENDER - END");
 
   // ---------------------------------------------------------------------
   // Render / Return JSX: Define the component's UI structure.
   // ---------------------------------------------------------------------
   return (
     <>
-      {/* Settings sidebar component */}
-      <div className={`stock-settings-sidebar ${isOpen ? 'open' : 'closed'}`}>
+      {/* Settings sidebar component - Attach the ref here */}
+      <div
+        ref={sidebarRef} // <<< Attach ref to the main sidebar container
+        className={`stock-settings-sidebar ${isOpen ? 'open' : 'closed'}`}
+      >
         <div className="sidebar-content">
           {/* Close button in the upper right corner */}
           <div className="close-button" onClick={handleCloseClick}>
@@ -867,13 +837,14 @@ const handlePanelChange = (indicatorName, panelName) => {
               {hasUnsavedChanges && (
                 <div className="unsaved-changes-alert">
                   <div className="alert-icon">⚠️</div>
-                  <div className="alert-text">Changes not applied. Click "Update Chart" to apply.</div>
+                  <div className="alert-text">Changes not applied. Click "Update Chart" or press Enter to apply.</div> {/* Updated text */}
                 </div>
               )}
               <button
                 type="button"
                 className={`update-button ${hasUnsavedChanges ? 'has-changes' : ''}`}
                 onClick={handleUpdateClick}
+                disabled={!hasUnsavedChanges} // Optionally disable if no changes
               >
                 Update Chart
               </button>
@@ -893,15 +864,25 @@ const handlePanelChange = (indicatorName, panelName) => {
           {settings.selectedIndicators.length > 0 && (
             <div className="section-container indicator-configuration-section">
               <h3 className="section-title">Indicator Settings</h3>
-              {console.log('DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, settings.selectedIndicators:', settings.selectedIndicators)}
+              {/* console.log('DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, settings.selectedIndicators:', settings.selectedIndicators) */}
               {settings.selectedIndicators
                 .filter(isIndicatorConfigured)
                 .map(ind => {
                   const indicatorName = getIndicatorName(ind);
-                  const params = settings.indicatorConfigs || {};
-                  console.log("DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, params:", params);
-                  console.log("DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, indicatorName:", indicatorName);
-                  return renderParameterConfig(indicatorName, params);
+                  const params = settings.indicatorConfigs || {}; // Use settings.indicatorConfigs directly
+                  // console.log("DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, params:", params);
+                  // console.log("DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, indicatorName:", indicatorName);
+
+                  // Pass the correct configs for the specific indicator
+                  const indicatorSpecificParams = DEFAULT_INDICATOR_PARAMS[indicatorName]
+                                                      ? { [indicatorName]: DEFAULT_INDICATOR_PARAMS[indicatorName] }
+                                                      : {};
+
+                  // Only render config if parameters are defined for this indicator
+                  if (Object.keys(indicatorSpecificParams).length > 0) {
+                     return renderParameterConfig(indicatorName, indicatorSpecificParams);
+                  }
+                  return null; // Don't render config section if no params (like VWAP, OBV)
                 })}
             </div>
           )}
@@ -920,7 +901,7 @@ const handlePanelChange = (indicatorName, panelName) => {
         </div>
       )}
 
-      {/* Styles for the sidebar */}
+      {/* Styles for the sidebar (KEEP AS IS - No CSS changes needed for this feature) */}
       <style jsx>{`
         .stock-settings-sidebar {
           position: fixed;
@@ -937,30 +918,30 @@ const handlePanelChange = (indicatorName, panelName) => {
           scrollbar-color: ${ACCENT_PRIMARY} rgba(0, 0, 0, 0.2);
           border-left: ${SIDEBAR_BORDER};
         }
-        
+
         /* Scrollbar styling for WebKit browsers */
         .stock-settings-sidebar::-webkit-scrollbar {
           width: 8px;
         }
-        
+
         .stock-settings-sidebar::-webkit-scrollbar-track {
           background: rgba(0, 0, 0, 0.2);
         }
-        
+
         .stock-settings-sidebar::-webkit-scrollbar-thumb {
           background-color: ${ACCENT_PRIMARY};
           border-radius: 4px;
         }
-        
+
         .stock-settings-sidebar.closed {
           transform: translateX(100%);
           box-shadow: none;
         }
-        
+
         .stock-settings-sidebar.open {
           transform: translateX(0);
         }
-        
+
         .sidebar-content {
           padding: 1rem;
           height: 100%;
@@ -968,7 +949,7 @@ const handlePanelChange = (indicatorName, panelName) => {
           flex-direction: column;
           gap: 20px;
         }
-        
+
         .close-button {
           align-self: flex-end;
           cursor: pointer;
@@ -983,12 +964,12 @@ const handlePanelChange = (indicatorName, panelName) => {
           height: 36px;
           margin-bottom: 5px;
         }
-        
+
         .close-button:hover {
           opacity: 0.8;
           transform: rotate(90deg);
         }
-        
+
         .settings-open-button {
           position: fixed;
           top: 90px;
@@ -1004,12 +985,12 @@ const handlePanelChange = (indicatorName, panelName) => {
           align-items: center;
           box-shadow: 0 0 10px ${SHADOW_COLOR};
         }
-        
+
         .settings-open-button:hover {
           transform: scale(1.1);
           box-shadow: 0 0 15px rgba(0, 0, 0, 0.6), 0 0 5px ${ACCENT_PRIMARY};
         }
-        
+
         .section-container {
           background: ${SECTION_BG_COLOR};
           border-radius: ${SECTION_BORDER_RADIUS};
@@ -1018,11 +999,11 @@ const handlePanelChange = (indicatorName, panelName) => {
           box-shadow: ${SECTION_SHADOW};
           transition: box-shadow 0.3s ease;
         }
-        
+
         .section-container:hover {
           box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), 0 0 1px ${ACCENT_PRIMARY};
         }
-        
+
         .section-title {
           margin-top: 0;
           margin-bottom: 15px;
@@ -1034,18 +1015,18 @@ const handlePanelChange = (indicatorName, panelName) => {
           text-transform: uppercase;
           text-shadow: ${TEXT_GLOW};
         }
-        
+
         .settings-form {
           display: flex;
           flex-direction: column;
           gap: 15px;
         }
-        
+
         .form-group {
           margin-bottom: 12px;
           position: relative;
         }
-        
+
         .form-group label {
           display: block;
           margin-bottom: 6px;
@@ -1055,7 +1036,7 @@ const handlePanelChange = (indicatorName, panelName) => {
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
-        
+
         /* Futuristic input styling */
         .futuristic-input {
           width: ${INPUT_WIDTH} !important;
@@ -1072,13 +1053,13 @@ const handlePanelChange = (indicatorName, panelName) => {
           -moz-appearance: none !important;
           appearance: none !important;
         }
-        
+
         .futuristic-input:focus {
           outline: none;
           border-color: ${ACCENT_PRIMARY};
           box-shadow: ${INPUT_FOCUS_SHADOW};
         }
-        
+
         /* Futuristic select styling */
         .futuristic-select-wrapper {
           position: relative;
@@ -1092,12 +1073,12 @@ const handlePanelChange = (indicatorName, panelName) => {
           transition: none !important;
           z-index: 10 !important;
         }
-        
+
         .futuristic-select-wrapper:hover {
           border-color: ${ACCENT_PRIMARY};
           box-shadow: ${SELECT_FOCUS_SHADOW} !important;
         }
-        
+
         .futuristic-select {
           width: 100%;
           height: ${INPUT_HEIGHT};
@@ -1114,21 +1095,21 @@ const handlePanelChange = (indicatorName, panelName) => {
           position: relative;
           z-index: 1;
         }
-        
+
         .futuristic-select:focus {
           outline: none;
         }
-        
+
         /* Hide browser-specific dropdown arrows */
         .futuristic-select::-ms-expand {
           display: none;
         }
-        
+
         /* For webkit browsers */
         .futuristic-select-wrapper::after {
           content: none;
         }
-        
+
         .update-button {
           padding: 12px;
           background-color: ${ACCENT_PRIMARY};
@@ -1138,19 +1119,19 @@ const handlePanelChange = (indicatorName, panelName) => {
           cursor: pointer;
           font-weight: bold;
           margin-top: 5px;
-          transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+          transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s, opacity 0.2s;
           text-transform: uppercase;
           letter-spacing: 1px;
           box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
           height: ${BUTTON_HEIGHT};
         }
-        
+
         .update-button.has-changes {
           animation: pulse 2s infinite;
           background-color: ${HIGHLIGHT_COLOR};
           box-shadow: 0 2px 10px ${HIGHLIGHT_COLOR}, 0 0 15px rgba(92, 230, 207, 0.3);
         }
-        
+
         @keyframes pulse {
           0% {
             box-shadow: 0 2px 10px ${HIGHLIGHT_COLOR}, 0 0 5px rgba(92, 230, 207, 0.3);
@@ -1162,26 +1143,28 @@ const handlePanelChange = (indicatorName, panelName) => {
             box-shadow: 0 2px 10px ${HIGHLIGHT_COLOR}, 0 0 5px rgba(92, 230, 207, 0.3);
           }
         }
-        
-        .update-button:hover {
+
+        .update-button:not([disabled]):hover {
           background-color: ${ACCENT_HOVER};
           transform: translateY(-2px);
           box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), ${ACCENT_GLOW};
         }
-        
-        .update-button:active {
+
+        .update-button:not([disabled]):active {
           transform: translateY(0);
           box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
-        
+
         .update-button:disabled {
-          background-color: rgba(85, 85, 85, 0.7);
+          background-color: rgba(92, 230, 207, 0.4); /* Dimmed accent */
+          color: rgba(0, 0, 0, 0.5);
           cursor: not-allowed;
           transform: none;
           box-shadow: none;
           animation: none;
+          opacity: 0.6;
         }
-        
+
         .unsaved-changes-alert {
           display: flex;
           align-items: center;
@@ -1192,21 +1175,21 @@ const handlePanelChange = (indicatorName, panelName) => {
           margin: 10px 0;
           font-size: 13px;
         }
-        
+
         .alert-icon {
           margin-right: 8px;
           font-size: 16px;
         }
-        
+
         .alert-text {
           color: ${TEXT_PRIMARY};
           font-weight: 500;
         }
-        
+
         .indicators-section {
           margin-bottom: 5px;
         }
-        
+
         .indicator-group {
           margin-bottom: 15px;
           padding: 12px;
@@ -1215,11 +1198,11 @@ const handlePanelChange = (indicatorName, panelName) => {
           border: 1px solid rgba(92, 230, 207, 0.15);
           transition: box-shadow 0.3s;
         }
-        
+
         .indicator-group:hover {
           box-shadow: 0 0 8px rgba(92, 230, 207, 0.2);
         }
-        
+
         .indicator-group-title {
           margin-top: 0;
           margin-bottom: 10px;
@@ -1228,12 +1211,12 @@ const handlePanelChange = (indicatorName, panelName) => {
           padding-bottom: 5px;
           border-bottom: 1px dotted rgba(92, 230, 207, 0.3);
         }
-        
+
         .indicators-grid {
           display: grid;
           grid-template-columns: 1fr;
         }
-        
+
         .indicator-checkbox {
           padding: 8px 12px;
           border-radius: 3px;
@@ -1242,54 +1225,54 @@ const handlePanelChange = (indicatorName, panelName) => {
           border: 1px solid transparent;
           min-height: 38px;
         }
-        
+
         .indicator-checkbox:hover {
           background: rgba(92, 230, 207, 0.05);
         }
-        
+
         .indicator-checkbox.selected {
           background: rgba(92, 230, 207, 0.1);
           border: 1px solid rgba(92, 230, 207, 0.4);
         }
-        
+
         /* Table layout for guaranteed side-by-side arrangement */
         .indicator-table {
           border: none;
           border-collapse: collapse;
         }
-        
+
         .checkbox-cell {
           padding: 0;
         }
-        
+
         .label-cell {
           text-align: left;
         }
-        
+
         .table-checkbox {
           display: inline-block;
           cursor: pointer;
           transition: transform 0.2s;
         }
-        
+
         .table-checkbox:hover {
           transform: scale(1.1);
         }
-        
+
         .checkbox-text {
           font-size: 14px;
           color: ${TEXT_PRIMARY};
           transition: color 0.2s;
         }
-        
+
         .indicator-checkbox:hover .checkbox-text {
           color: ${TEXT_PRIMARY};
         }
-        
+
         .indicator-configuration-section {
           margin-top: 5px;
         }
-        
+
         .parameter-config {
           margin-bottom: 15px;
           padding: 12px;
@@ -1298,11 +1281,11 @@ const handlePanelChange = (indicatorName, panelName) => {
           border: 1px solid rgba(92, 230, 207, 0.15);
           transition: box-shadow 0.3s;
         }
-        
+
         .parameter-config:hover {
           box-shadow: 0 0 8px rgba(92, 230, 207, 0.2);
         }
-        
+
         .parameter-title {
           margin-top: 0;
           margin-bottom: 10px;
@@ -1311,31 +1294,31 @@ const handlePanelChange = (indicatorName, panelName) => {
           padding-bottom: 5px;
           border-bottom: 1px dotted rgba(92, 230, 207, 0.3);
         }
-        
+
         .parameter-config-container {
           display: flex;
           flex-direction: column;
           gap: 15px;
         }
-        
+
         .parameter-inputs {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
           gap: 10px;
         }
-        
+
         .param-input {
           display: flex;
           flex-direction: column;
           gap: 5px;
         }
-        
+
         .param-input label {
           font-size: 12px;
           text-transform: capitalize;
           color: ${TEXT_SECONDARY};
         }
-        
+
         .param-input input {
           width: 100% !important;
           padding: 6px 8px !important;
@@ -1350,34 +1333,34 @@ const handlePanelChange = (indicatorName, panelName) => {
           -moz-appearance: none !important;
           appearance: none !important;
         }
-        
+
         .param-input input:focus {
           outline: none;
           border-color: ${ACCENT_PRIMARY};
           box-shadow: ${INPUT_FOCUS_SHADOW};
         }
-        
+
         .panel-selection {
           margin-top: 5px;
           display: flex;
           flex-direction: column;
           gap: 5px;
         }
-        
+
         .panel-selection label {
           font-size: 12px;
           text-transform: uppercase;
           color: ${TEXT_SECONDARY};
         }
-        
+
         .panel-selection .futuristic-select-wrapper {
           height: 36px;
         }
-        
+
         .panel-selection .futuristic-select {
           height: 36px;
         }
-        
+
         /* Styling for dropdown options - using more aggressive browser styling */
         select.futuristic-select option {
           background: ${SELECT_OPTION_BG} !important;
@@ -1386,12 +1369,12 @@ const handlePanelChange = (indicatorName, panelName) => {
           padding: 8px !important;
           text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4) !important;
         }
-        
+
         /* Add this to ensure background color is enforced */
         select.futuristic-select option:not(:checked) {
           background: linear-gradient(${SELECT_OPTION_BG}, ${SELECT_OPTION_BG}) !important;
         }
-        
+
         /* Highlight effect on hover - more visible to user */
         select.futuristic-select option:hover,
         select.futuristic-select option:focus {

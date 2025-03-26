@@ -454,24 +454,6 @@ Nothing to see here yet.
 - **Purpose**: This file contains data models related to reports.
 - **Location**: `backend/app/models/report_models.py`
 
-### 18. `app/models/stock_models.py`
-- **Purpose**: This file contains data models specific to stock analysis and financial metrics.
-- **Location**: `backend/app/models/stock_models.py`
-- **Key Classes**:
-  - `KpiGroup`: Model representing a group of related KPIs with a title and metrics
-  - `KpiMetric`: Model representing an individual KPI with label, value, and trend
-  - `KpiResponse`: Model representing the complete KPI response with ticker and grouped metrics
-  - `FinancialData`: Model representing fundamental financial data for a company
-  - `AnalystRecommendation`: Model representing an analyst's recommendation
-  - `InsiderTrade`: Model representing an insider trading activity
-  - `EarningsData`: Model representing earnings report data
-- **Key Features**:
-  - Pydantic models with validation
-  - Type hints for all fields
-  - Default values for optional fields
-  - Methods for data conversion and formatting
-  - JSON serialization for API responses
-
 ### 19. `app/models/structured_report_nodes.py`
 - **Purpose**: This file contains node definitions for report generation.
 - **Location**: `backend/app/models/structured_report_nodes.py`

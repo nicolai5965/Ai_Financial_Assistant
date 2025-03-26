@@ -24,13 +24,13 @@ except ImportError:
     # Add mock/placeholder imports if needed for basic linting/testing
     class MarketHoursTracker:
         def get_market_status(self, ticker): return {"is_market_open": False, "exchange": "N/A", "next_state": "N/A", "next_state_change": datetime.now(), "seconds_until_change": 0, "current_time": datetime.now()}
-    def fetch_stock_data(*args, **kwargs): return {}
-    def get_company_name(ticker): return f"{ticker} Name Placeholder"
-    def get_company_info(ticker): return type('obj', (object,), {'Name': 'N/A', 'Sector': 'N/A', 'Industry': 'N/A', 'Country': 'N/A', 'Website': 'N/A'})()
-    def analyze_ticker(*args, **kwargs): return type('obj', (object,), {'to_json': lambda: '{}'})()
-    def get_logger(): return logging.getLogger(__name__)
-    def get_kpis(*args, **kwargs): return {}
-    AVAILABLE_KPI_GROUPS = []
+        def fetch_stock_data(*args, **kwargs): return {}
+        def get_company_name(ticker): return f"{ticker} Name Placeholder"
+        def get_company_info(ticker): return type('obj', (object,), {'Name': 'N/A', 'Sector': 'N/A', 'Industry': 'N/A', 'Country': 'N/A', 'Website': 'N/A'})()
+        def analyze_ticker(*args, **kwargs): return type('obj', (object,), {'to_json': lambda: '{}'})()
+        def get_logger(): return logging.getLogger(__name__)
+        def get_kpis(*args, **kwargs): return {}
+        AVAILABLE_KPI_GROUPS = []
 
 
 # Get the logger
@@ -152,7 +152,7 @@ def process_indicators(indicators: List[Union[str, IndicatorConfig]]) -> List[Di
     processed_indicators = []
 
     for indicator in indicators:
-        # Case 1 (Original Case 2): Pydantic v2 model check
+        # Case 1: Pydantic v2 model check
         if hasattr(indicator, 'model_dump') and callable(getattr(indicator, 'model_dump')):
             logger.debug(f"DEBUG-API: Indicator is a Pydantic v2 model: {indicator}")
             try:
@@ -174,7 +174,7 @@ def process_indicators(indicators: List[Union[str, IndicatorConfig]]) -> List[Di
                 else: # If no name, append original object to see what it was
                      processed_indicators.append(indicator)
 
-        # Case 2 (Original Case 3): Pydantic v1 model check
+        # Case 2: Pydantic v1 model check
         elif hasattr(indicator, 'dict') and callable(getattr(indicator, 'dict')):
             try:
                  # Ensure it's actually a Pydantic model (might catch v1 and maybe some v2 if 'dict' exists)
@@ -194,12 +194,12 @@ def process_indicators(indicators: List[Union[str, IndicatorConfig]]) -> List[Di
                 else: # If no name, append original object
                     processed_indicators.append(indicator)
 
-        # Case 3 (Original Case 1): Simple string indicator check
+        # Case 3: Simple string indicator check
         elif isinstance(indicator, str):
             logger.debug(f"Converting string indicator '{indicator}' to dict format")
             processed_indicators.append({"name": indicator})
 
-        # Case 4 (Original Case 4): Already a dict or other object (Fallback)
+        # Case 4: Already a dict or other object (Fallback)
         else:
             # Assuming it might be a dictionary already or some other type
             logger.debug(f"Indicator is not string or known Pydantic model type, appending as is: {type(indicator)}")
@@ -247,12 +247,10 @@ def calculate_date_range(days: int, interval: str) -> tuple:
     Returns:
         Tuple of (start_date, end_date) after validation
     """
-    # End date is today (yfinance includes end date for daily+, often exclusive for intraday)
-    # Let's keep end_date as today for simplicity, yfinance usually handles it okay.
-    # If data seems consistently missing for the last day, change end_date to tomorrow.
-    end_date = date.today()
+
+    logical_end_date = date.today()
     # Calculate start date based on requested days
-    start_date = end_date - timedelta(days=days)
+    start_date = logical_end_date  - timedelta(days=days)
 
     # Clamp start date based on interval limits (yfinance specific limits)
     # Note: Using days back from 'today'. Max periods are often counted differently.
@@ -278,16 +276,18 @@ def calculate_date_range(days: int, interval: str) -> tuple:
             original_days = days
             new_start_date = limit_start_date_date
             # Calculate the effective number of days
-            effective_days = (end_date - new_start_date).days
+            effective_days = (logical_end_date - new_start_date).days
             logger.warning(
                 f"Requested {original_days} days for interval {interval}, but provider limit "
                 f"restricts start date to {new_start_date}. Fetching approx {effective_days} days."
             )
             start_date = new_start_date
 
+    # Calculate the end_date to be passed to yfinance (+1 day for inclusivity)
+    adjusted_end_date = logical_end_date + timedelta(days=1)
     # Convert dates to string format 'YYYY-MM-DD' if needed by fetch_stock_data
     # Assuming fetch_stock_data accepts date objects based on original code context
-    return start_date, end_date # Return date objects
+    return start_date, adjusted_end_date # Return date objects
 
 
 @app.post("/api/stocks/dashboard-data")

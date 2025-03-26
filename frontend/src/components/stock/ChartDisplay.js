@@ -3,61 +3,125 @@ import dynamic from 'next/dynamic';
 import Plotly from 'plotly.js-dist-min'; // Import Plotly for the resize method
 import { logger } from '../../utils/logger'; // Import logger utility
 
-// Dynamically import Plot component with no SSR to avoid server-side rendering issues.
-// This ensures Plotly.js, which relies on browser APIs, only runs on the client-side.
+// --- Constants ---
+
+// Dynamically import Plot component with no SSR
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
-// Constants for default chart dimensions
+// Chart Dimensions & Behavior
 const CHART_HEIGHT = '600px';
 const CHART_WIDTH = '100%';
+const RESIZE_DEBOUNCE_MS = 250; // Debounce time for resize handling
+
+// --- Styling Constants (Imported/Adapted from StockSettingsSidebar) ---
+
+// COLORS - Primary palette
+const PRIMARY_DARK = 'rgba(13, 27, 42, 1)';      // Dark blue
+const PRIMARY_LIGHT = 'rgba(26, 42, 58, 1)';      // Light blue
+const ACCENT_PRIMARY = 'rgba(92, 230, 207, 1)';   // Cyan
+const ACCENT_HOVER = 'rgba(59, 205, 186, 1)';     // Darker cyan
+const TEXT_PRIMARY = 'rgba(248, 248, 248, 1)';    // White text
+const TEXT_SECONDARY = 'rgba(204, 204, 204, 1)';   // Light gray text
+const SHADOW_COLOR = 'rgba(0, 0, 0, 0.5)';         // Black shadow
+
+// COMPONENT STYLING - Adapted for ChartDisplay elements
+const CONTAINER_BG_COLOR = 'rgba(10, 20, 30, 0.6)'; // Use SECTION_BG_COLOR
+const CONTAINER_BORDER = `1px solid rgba(92, 230, 207, 0.2)`; // Use SECTION_BORDER
+const CONTAINER_BORDER_RADIUS = '4px'; // Use SECTION_BORDER_RADIUS
+const BANNER_BG_COLOR = PRIMARY_DARK; // Darker for banner
+const BUTTON_BORDER_RADIUS = '4px';
+const BUTTON_HEIGHT = '36px'; // Slightly smaller than sidebar's main button maybe
+
+// BUTTONS - Primary (Update) and Secondary (Fullscreen)
+const BUTTON_PRIMARY_BG = ACCENT_PRIMARY;
+const BUTTON_PRIMARY_TEXT = PRIMARY_DARK; // Use dark text on accent bg for contrast
+const BUTTON_PRIMARY_HOVER_BG = ACCENT_HOVER;
+const BUTTON_SECONDARY_BG = 'rgba(92, 230, 207, 0.2)'; // Semi-transparent accent
+const BUTTON_SECONDARY_HOVER_BG = 'rgba(92, 230, 207, 0.4)';
+const BUTTON_DISABLED_BG = 'rgba(85, 85, 85, 0.7)';
+const BUTTON_DISABLED_TEXT = '#aaa';
+
+// OVERLAYS & MODALS
+const LOADING_OVERLAY_BG = 'rgba(13, 27, 42, 0.7)'; // Semi-transparent dark blue
+const LOADING_SPINNER_BG = PRIMARY_DARK;
+const FULLSCREEN_MODAL_BG = 'rgba(13, 27, 42, 0.95)'; // Almost opaque dark blue
+const FULLSCREEN_CONTENT_BG = PRIMARY_DARK;
+const HINT_BG = 'rgba(13, 27, 42, 0.8)';
+
+// EFFECTS
+const TEXT_GLOW = `0 0 8px rgba(92, 230, 207, 0.3)`; // Subtle glow for titles
+
+
+// Configuration options for the Plotly chart (defined once)
+const PLOTLY_CONFIG = {
+  responsive: true,
+  displayModeBar: false,
+  modeBarButtonsToAdd: ['toImage'],
+  modeBarButtonsToRemove: ['sendDataToCloud'],
+  displaylogo: false,
+};
 
 /**
- * ChartDisplay component for rendering a Plotly chart.
- *
- * Features:
- * - Displays the chart based on `chartData`.
- * - Shows a loading state:
- *   - If loading initially (no `prevChartData`), displays "Loading chart...".
- *   - If updating (has `prevChartData`), displays the *previous* chart with a "Loading..." overlay.
- * - Handles full-screen mode toggling.
- * - Provides a manual update button.
- * - Includes resize handling with debouncing for performance.
- * - Cleans up event listeners on unmount.
+ * ChartDisplay component for rendering a Plotly chart using StockSettingsSidebar theme.
  */
 const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) => {
-  // Log incoming props on change for easier debugging
-  useEffect(() => {
-    logger.debug('ChartDisplay: Props update received:', {
-      hasChartData: !!chartData,
-      isLoading,
-      hasPrevChartData: !!prevChartData,
-      hasUpdateCallback: !!onUpdateClick,
-    });
-  }, [chartData, isLoading, prevChartData, onUpdateClick]);
 
-  // State to track if the chart is in full-screen mode
+  // --- State and Refs ---
   const [isFullScreen, setIsFullScreen] = useState(false);
-  // Ref to store the debounce timeout ID for resize handling
   const resizeTimeoutRef = useRef(null);
-  // Ref to track if the component is currently mounted (to prevent state updates/actions after unmount)
   const isMountedRef = useRef(true);
-  // Ref to the div containing the Plotly chart, used for resize operations
   const plotDivRef = useRef(null);
 
-  /**
-   * Toggles the full-screen state for the chart.
-   */
+  // --- Data Processing and Derived State ---
+  const processChartData = (data) => {
+    // ... (processing logic remains the same)
+     if (!data) {
+      return { data: [], layout: {}, originalTitle: "" };
+    }
+    try {
+      const parsedData = typeof data === "string" ? JSON.parse(data) : data;
+      parsedData.layout = parsedData.layout || {};
+      parsedData.layout.autosize = true;
+
+      let originalTitle = "";
+      if (parsedData.layout.title) {
+        if (typeof parsedData.layout.title === 'string') {
+          originalTitle = parsedData.layout.title;
+          parsedData.layout.title = "";
+        } else if (parsedData.layout.title.text) {
+          originalTitle = parsedData.layout.title.text;
+          parsedData.layout.title.text = "";
+        }
+      }
+      return {
+        data: parsedData.data || [],
+        layout: parsedData.layout,
+        originalTitle
+      };
+    } catch (error) {
+      logger.error("ChartDisplay: Error processing chart data:", error);
+      return { data: [], layout: {}, originalTitle: "" };
+    }
+  };
+
+  const processedChartData = useMemo(() => processChartData(chartData), [chartData]);
+  const processedPrevChartData = useMemo(() => processChartData(prevChartData), [prevChartData]);
+  const hasCurrentChartData = Boolean(processedChartData.data && processedChartData.data.length > 0);
+  const hasPreviousChartData = Boolean(processedPrevChartData.data && processedPrevChartData.data.length > 0);
+  const getChartTitle = () => processedChartData.originalTitle || "Chart";
+  const fixedChartHeight = parseInt(CHART_HEIGHT);
+  const displayData = processedChartData.data;
+  const displayLayout = processedChartData.layout;
+  const showLoadingOverlay = isLoading && hasPreviousChartData;
+  const showInitialLoadingMessage = isLoading && !hasCurrentChartData && !hasPreviousChartData;
+
+  // --- Event Handlers ---
   const toggleFullScreen = () => {
     const newState = !isFullScreen;
     setIsFullScreen(newState);
     logger.info(`ChartDisplay: Full-screen mode ${newState ? 'enabled' : 'disabled'}`);
-    // Note: Resizing might be needed after entering/exiting full screen,
-    // relying on the window resize listener or potentially triggering manually.
   };
 
-  /**
-   * Handler for the 'Update' button click. Calls the provided callback.
-   */
   const handleUpdate = () => {
     if (onUpdateClick) {
       logger.info('ChartDisplay: Manual chart update requested via button');
@@ -67,216 +131,87 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
     }
   };
 
-  /**
-   * Processes the raw chart data (string or object) into a format usable by Plotly.
-   * - Parses JSON string if necessary.
-   * - Ensures a layout object exists and sets autosize to true.
-   * - Extracts the original title and removes it from the layout (to be displayed in the banner).
-   * @param {string | object} data - The raw chart data.
-   * @returns {{data: Array, layout: object, originalTitle: string}} Processed data, layout, and title.
-   */
-  const processChartData = (data) => {
-    // logger.debug('ChartDisplay: Processing chart data:', { data }); // Optional: Log raw data if needed
-    if (!data) {
-      // logger.debug('ChartDisplay: No data provided to processChartData');
-      return { data: [], layout: {}, originalTitle: "" };
-    }
-    try {
-      // Handle both stringified JSON and already parsed objects
-      const parsedData = typeof data === "string" ? JSON.parse(data) : data;
-      // logger.debug('ChartDisplay: Successfully parsed/received data:', { parsedData }); // Optional: Log parsed data
-
-      // Ensure layout object exists and enable autosize for responsiveness
-      parsedData.layout = parsedData.layout || {};
-      parsedData.layout.autosize = true;
-
-      // Extract the original title to display in the banner, then remove from chart layout
-      let originalTitle = "";
-      if (parsedData.layout.title) {
-        if (typeof parsedData.layout.title === 'string') {
-          originalTitle = parsedData.layout.title;
-          // Remove the title directly from the chart layout
-          parsedData.layout.title = "";
-        } else if (parsedData.layout.title.text) {
-          originalTitle = parsedData.layout.title.text;
-          // Remove the title text but keep the title object structure if needed elsewhere
-          parsedData.layout.title.text = "";
-        }
-      }
-
-      // logger.debug('ChartDisplay: Finished processing chart data:', { // Optional: Log processing outcome
-      //   dataLength: parsedData.data?.length || 0,
-      //   hasLayout: !!parsedData.layout,
-      //   originalTitle
-      // });
-
-      return {
-        data: parsedData.data || [], // Ensure data is always an array
-        layout: parsedData.layout,
-        originalTitle
-      };
-    } catch (error) {
-      logger.error("ChartDisplay: Error processing chart data:", error);
-      // Return default structure on error to prevent crashing
-      return { data: [], layout: {}, originalTitle: "" };
-    }
-  };
-
-  // Memoize processed chart data to avoid redundant parsing on re-renders unless the raw data changes.
-  const processedChartData = useMemo(() => {
-    logger.debug('ChartDisplay: Memoizing processedChartData...');
-    return processChartData(chartData);
-  }, [chartData]); // Dependency: Re-run only if chartData changes
-
-  // Memoize processed *previous* chart data.
-  const processedPrevChartData = useMemo(() => {
-    logger.debug('ChartDisplay: Memoizing processedPrevChartData...');
-    return processChartData(prevChartData);
-  }, [prevChartData]); // Dependency: Re-run only if prevChartData changes
-
-
-  // Determine if there is current chart data to display
-  const hasCurrentChartData = Boolean(processedChartData.data && processedChartData.data.length > 0);
-  // Determine if there was previous chart data (used for showing overlay during update)
-  const hasPreviousChartData = Boolean(processedPrevChartData.data && processedPrevChartData.data.length > 0);
-
-  /**
-   * Gets the title to display in the chart banner. Uses the extracted original title or a default.
-   * @returns {string} The chart title.
-   */
-  const getChartTitle = () => {
-    return processedChartData.originalTitle || "Chart"; // Fallback title
-  };
-
-  // Store fixed chart height as a number for comparison in relayout handler
-  const fixedChartHeight = parseInt(CHART_HEIGHT);
-
-  /**
-   * Handles window resize events with debouncing to avoid excessive Plotly resize calls.
-   */
-  const handleResize = () => {
-    // Don't attempt resize if the plot div isn't mounted/referenced
+  const handleResize = React.useCallback(() => {
+    // ... (resize logic remains the same)
     if (!plotDivRef.current) return;
-
-    // Clear any existing pending resize timeout
     if (resizeTimeoutRef.current) {
       clearTimeout(resizeTimeoutRef.current);
     }
-
-    // Set a new timeout to trigger resize after a delay (e.g., 250ms)
     resizeTimeoutRef.current = setTimeout(() => {
-      // Check if component is still mounted and ref exists before resizing
       if (isMountedRef.current && plotDivRef.current) {
         try {
-          // Use Plotly's resize method on the container div
           Plotly.Plots.resize(plotDivRef.current);
           logger.debug("ChartDisplay: Plotly resize triggered by window resize (debounced)");
         } catch (error) {
           logger.error("ChartDisplay: Error during Plotly resize:", error);
         }
       }
-    }, 250); // Debounce time
-  };
+    }, RESIZE_DEBOUNCE_MS);
+  }, []);
 
-  /**
-   * Handler for Plotly's 'relayout' event.
-   * This can be triggered by user interactions like zooming/panning.
-   * We check if the height significantly changed and force a resize if needed,
-   * sometimes Plotly's internal adjustments might slightly alter height.
-   * @param {object} eventData - Data about the relayout event.
-   */
   const handleRelayout = (eventData) => {
-    // Define a small threshold to ignore minor floating point differences
+    // ... (relayout logic remains the same)
     const heightChangeThreshold = 1;
-    // Check if the layout event includes height information and if it differs significantly from our target
     if (eventData && eventData.height && Math.abs(eventData.height - fixedChartHeight) > heightChangeThreshold) {
       if (plotDivRef.current) {
-        // Force resize to potentially correct layout issues
         Plotly.Plots.resize(plotDivRef.current);
         logger.debug("ChartDisplay: Plotly resize triggered via relayout event (height changed significantly)");
       }
-    } else {
-       // logger.debug("ChartDisplay: Relayout event occurred, but height change was negligible or height not present."); // Optional: Log minor events
     }
   };
 
-  // Effect hook for setting up and cleaning up global event listeners (resize, Escape key)
+  // --- Side Effects ---
   useEffect(() => {
-    // Handler for keydown events (specifically listening for Escape key to exit full-screen)
-    const handleKeyDown = (event) => {
+    // ... (prop logging effect remains the same)
+     logger.debug('ChartDisplay: Props update received:', {
+      hasChartData: !!chartData,
+      isLoading,
+      hasPrevChartData: !!prevChartData,
+      hasUpdateCallback: !!onUpdateClick,
+    });
+  }, [chartData, isLoading, prevChartData, onUpdateClick]);
+
+  useEffect(() => {
+    // ... (event listener setup/cleanup remains the same)
+     const handleKeyDown = (event) => {
       if (event.key === 'Escape' && isFullScreen) {
         setIsFullScreen(false);
         logger.info('ChartDisplay: Full-screen mode disabled via Escape key');
       }
     };
-
-    // Add event listeners when component mounts
-    window.addEventListener('keydown', handleKeyDown, { passive: true }); // Use passive for potentially better scroll performance
-    window.addEventListener('resize', handleResize, { passive: true }); // Use passive for potentially better scroll performance
-
-    // Set mounted ref to true
+    window.addEventListener('keydown', handleKeyDown, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
     isMountedRef.current = true;
-
-    // Cleanup function: Remove event listeners and clear any pending timeouts when the component unmounts
     return () => {
-      isMountedRef.current = false; // Mark as unmounted
+      isMountedRef.current = false;
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('resize', handleResize);
-      // Clear any pending resize timeout to prevent resize calls after unmount
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current);
       }
       logger.debug("ChartDisplay: Cleaned up event listeners and resize timeout.");
     };
-  }, [isFullScreen, handleResize]); // Re-run effect if isFullScreen changes (handleKeyDown depends on it), or if handleResize function identity changes (though it's stable here)
+  }, [isFullScreen, handleResize]);
 
-  // Configuration options for the Plotly chart
-  const plotlyConfig = {
-    responsive: true,          // Makes the chart responsive to container size changes
-    displayModeBar: false,     // Hide the default Plotly mode bar initially
-    modeBarButtonsToAdd: ['toImage'], // Add specific buttons (like download as image)
-    modeBarButtonsToRemove: ['sendDataToCloud'], // Remove unwanted buttons
-    displaylogo: false,        // Hide the Plotly logo
-  };
-
-  // --- Determine what to render ---
-
-  // Choose the data and layout to display.
-  // IMPORTANT: We *always* render the <Plot> component with the *current* `processedChartData`
-  // if `hasCurrentChartData` is true. Plotly internally handles updates efficiently when
-  // the `data` or `layout` props change. We do NOT unmount the Plot component during loading.
-  const displayData = processedChartData.data;
-  const displayLayout = processedChartData.layout;
-
-  // Determine if the loading overlay should be shown.
-  // This happens when `isLoading` is true AND we have `hasPreviousChartData`.
-  // This ensures the overlay only appears during *updates*, not initial loads without prior data.
-  const showLoadingOverlay = isLoading && hasPreviousChartData;
-
-  // Determine if the initial "Loading chart..." text should be shown.
-  // This happens when `isLoading` is true, but we DON'T have *any* chart data yet (neither current nor previous).
-  const showInitialLoadingMessage = isLoading && !hasCurrentChartData && !hasPreviousChartData;
-
-
+  // --- Rendering ---
   return (
     <div className="chart-display">
-      {/* --- Chart Banner (Title and Buttons) --- */}
-      {/* Render banner only in normal view and if there's chart data */}
+      {/* --- Chart Banner (Normal View) --- */}
       {!isFullScreen && hasCurrentChartData && (
         <div className="chart-banner">
           <h3 className="chart-title" title={getChartTitle()}>{getChartTitle()}</h3>
           <div className="banner-buttons">
             <button
               onClick={handleUpdate}
-              className="update-button"
+              className="update-button chart-button" // Added chart-button base class
               title="Update chart and associated KPIs"
-              disabled={isLoading} // Disable button while loading
+              disabled={isLoading}
             >
               {isLoading ? 'Updating...' : 'Update'}
             </button>
             <button
               onClick={toggleFullScreen}
-              className="full-screen-toggle"
+              className="full-screen-toggle chart-button" // Added chart-button base class
               title="Toggle full-screen mode"
             >
               Full Screen
@@ -287,41 +222,31 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
 
       {/* --- Chart Area (Normal View) --- */}
       {!isFullScreen && (
-        // Container needs relative positioning for the absolute overlay
         <div style={{ position: 'relative' }}>
-          {/* Render the Plotly chart IF there is data */}
           {hasCurrentChartData && (
             <div ref={plotDivRef} style={{ width: CHART_WIDTH, height: CHART_HEIGHT }}>
               <Plot
-                data={displayData}         // Pass the current data
-                layout={displayLayout}     // Pass the current layout
+                data={displayData}
+                layout={displayLayout}
                 style={{ width: "100%", height: "100%" }}
-                useResizeHandler={true}    // Use react-plotly.js's internal resize handler
-                config={plotlyConfig}      // Pass the defined configuration
-                onRelayout={handleRelayout} // Attach the relayout handler
-                // Optionally add a key if you encounter issues where Plotly doesn't update correctly
-                // e.g., key={JSON.stringify(processedChartData.layout?.uirevision || 'defaultKey')}
+                useResizeHandler={true}
+                config={PLOTLY_CONFIG}
+                onRelayout={handleRelayout}
               />
             </div>
           )}
-
-          {/* Loading Overlay: Rendered ON TOP of the chart if updating */}
           {showLoadingOverlay && (
             <div className="loading-overlay">
               <div className="loading-spinner">Loading...</div>
             </div>
           )}
-
-          {/* Initial Loading Message: Rendered when loading for the first time */}
           {showInitialLoadingMessage && (
-            // Style this appropriately, perhaps centered within the chart area height
-            <div style={{ height: CHART_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ height: CHART_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_PRIMARY }}>
               <p>Loading chart...</p>
             </div>
           )}
         </div>
       )}
-
 
       {/* --- Full-Screen Modal View --- */}
       {isFullScreen && (
@@ -331,59 +256,51 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
             <div className="chart-banner fullscreen">
               <h3 className="chart-title" title={getChartTitle()}>{getChartTitle()}</h3>
               <div className="banner-buttons">
-                <button
-                  onClick={handleUpdate}
-                  className="update-button"
-                  title="Update chart and associated KPIs"
-                  disabled={isLoading}
+                 <button
+                    onClick={handleUpdate}
+                    className="update-button chart-button" // Added chart-button base class
+                    title="Update chart and associated KPIs"
+                    disabled={isLoading}
                 >
-                  {isLoading ? 'Updating...' : 'Update'}
+                    {isLoading ? 'Updating...' : 'Update'}
                 </button>
                 <button
-                  onClick={toggleFullScreen} // Same function toggles back
-                  className="full-screen-toggle"
-                  title="Exit full-screen mode"
+                    onClick={toggleFullScreen}
+                    className="full-screen-toggle chart-button" // Added chart-button base class
+                    title="Exit full-screen mode"
                 >
-                  Exit Full Screen
+                    Exit Full Screen
                 </button>
               </div>
             </div>
 
-            {/* Chart Area in Full Screen - Needs relative position for overlay */}
+            {/* Chart Area (Full Screen) */}
             <div style={{ position: 'relative', width: "100%", height: "calc(100% - 50px)" }}>
-              {/* Render the Plotly chart IF there is data */}
               {hasCurrentChartData && (
-                 // Assign ref here too if resize needed in fullscreen independently,
-                 // but usually the window resize handles it. If issues, consider a separate ref or logic.
                 <div ref={plotDivRef} style={{ width: "100%", height: "100%" }}>
                   <Plot
                     data={displayData}
                     layout={displayLayout}
                     style={{ width: "100%", height: "100%" }}
                     useResizeHandler={true}
-                    config={plotlyConfig}
-                    onRelayout={handleRelayout} // Can use the same handler
+                    config={PLOTLY_CONFIG}
+                    onRelayout={handleRelayout}
                   />
                 </div>
               )}
-
-               {/* Loading Overlay in Full Screen */}
-               {showLoadingOverlay && (
-                  // The overlay needs to cover the chart area within the modal
-                  <div className="loading-overlay" style={{ height: "100%" /* Ensure it covers the chart area */ }}>
-                     <div className="loading-spinner">Loading...</div>
-                  </div>
-               )}
-
-               {/* Initial Loading Message in Full Screen */}
-               {showInitialLoadingMessage && (
-                 <div style={{ height: "100%", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                   <p>Loading chart...</p>
-                 </div>
-               )}
+              {showLoadingOverlay && (
+                <div className="loading-overlay" style={{ height: "100%" }}>
+                  <div className="loading-spinner">Loading...</div>
+                </div>
+              )}
+              {showInitialLoadingMessage && (
+                <div style={{ height: "100%", display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_PRIMARY }}>
+                  <p>Loading chart...</p>
+                </div>
+              )}
             </div>
 
-            {/* Hint for exiting full-screen */}
+            {/* Keyboard Hint */}
             <div className="keyboard-hint">
               Press ESC to exit full-screen
             </div>
@@ -393,156 +310,167 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
 
       {/* --- Styles --- */}
       <style jsx>{`
+        /* Base container styling */
         .chart-display {
-          position: relative; /* Ensure positioning context if needed */
-          /* Adjust min-height based on chart + banner, or remove if layout handles it */
-          min-height: calc(${CHART_HEIGHT} + 50px + 5px); /* chart + banner + margin */
+          position: relative;
+          min-height: calc(${CHART_HEIGHT} + 50px + 5px);
           margin-top: 5px;
-          border: 1px solid #444; /* Optional: border for visual separation */
-          border-radius: 4px;     /* Match banner radius */
-          overflow: hidden;       /* Contain banner radius */
-          background-color: #222; /* Optional: background for the container */
+          border: ${CONTAINER_BORDER};
+          border-radius: ${CONTAINER_BORDER_RADIUS};
+          overflow: hidden;
+          background-color: ${CONTAINER_BG_COLOR};
         }
 
-        /* Overlay for loading state, shown on top of the chart */
+        /* Loading overlay and spinner */
         .loading-overlay {
           position: absolute;
           top: 0;
           left: 0;
           width: 100%;
-          height: 100%; /* Cover the entire parent div (which contains the chart) */
+          height: 100%;
           display: flex;
           justify-content: center;
           align-items: center;
-          background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
-          z-index: 10; /* Ensure it's above the Plotly chart */
-          pointer-events: none; /* Allow interaction with elements behind if needed, though likely not for the chart */
+          background-color: ${LOADING_OVERLAY_BG};
+          z-index: 10;
+          pointer-events: none;
         }
-
         .loading-spinner {
-          background-color: rgba(0, 0, 0, 0.8); /* Darker background for spinner text */
+          background-color: ${LOADING_SPINNER_BG};
           padding: 15px 30px;
-          border-radius: 4px;
-          color: #fff;
+          border-radius: ${CONTAINER_BORDER_RADIUS};
+          color: ${TEXT_PRIMARY};
           font-size: 16px;
+          box-shadow: 0 2px 10px ${SHADOW_COLOR};
         }
 
-        /* Chart banner styles */
+        /* Chart banner */
         .chart-banner {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          background-color: #333333;
-          color: white;
+          background-color: ${BANNER_BG_COLOR};
+          color: ${TEXT_PRIMARY};
           padding: 8px 16px;
-          /* Don't need top radius if border-radius is on chart-display */
-          /* border-top-left-radius: 4px; */
-          /* border-top-right-radius: 4px; */
-          height: 50px; /* Fixed height for the banner */
+          height: 50px;
           box-sizing: border-box;
-          /* position: relative; // Not needed unless stacking within banner */
-          /* z-index: 5; // Only needed if overlapping with chart content, but shouldn't */
         }
-
         .chart-banner.fullscreen {
-          /* Fullscreen banner might not need rounded corners */
-          border-radius: 0;
+          border-radius: 0; /* No radius inside modal */
           width: 100%;
         }
-
         .chart-title {
           margin: 0;
-          font-size: 18px; /* Slightly smaller */
+          font-size: 18px;
           font-weight: 500;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          max-width: calc(100% - 200px); /* Adjust based on button widths */
+          max-width: calc(100% - 220px); /* Adjust based on button widths + gap */
+          color: ${TEXT_PRIMARY};
+          text-shadow: ${TEXT_GLOW};
         }
-
         .banner-buttons {
           display: flex;
           align-items: center;
-          gap: 10px; /* Add space between buttons */
+          gap: 10px;
         }
 
-        /* Update button styles */
-        .update-button, .full-screen-toggle {
-          background-color: #4CAF50; /* Example Green */
-          color: white;
+        /* Base button styles */
+        .chart-button {
+          color: ${TEXT_PRIMARY};
           border: none;
-          padding: 8px 16px; /* Consistent padding */
-          border-radius: 4px;
+          padding: 0 16px; /* Horizontal padding */
+          height: ${BUTTON_HEIGHT};
+          border-radius: ${BUTTON_BORDER_RADIUS};
           cursor: pointer;
           font-size: 14px;
-          transition: background-color 0.2s ease;
-          white-space: nowrap; /* Prevent wrapping */
+          font-weight: bold;
+          transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+          white-space: nowrap;
+          display: flex; /* Center text vertically */
+          align-items: center;
+          justify-content: center;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
         }
+        .chart-button:hover {
+           transform: translateY(-1px);
+           box-shadow: 0 3px 6px ${SHADOW_COLOR};
+        }
+         .chart-button:active {
+           transform: translateY(0px);
+           box-shadow: 0 1px 3px ${SHADOW_COLOR};
+        }
+
+        /* Primary button (Update) */
         .update-button {
-             background-color:rgb(35, 37, 175); /* Specific color for update */
+          background-color: ${BUTTON_PRIMARY_BG};
+          color: ${BUTTON_PRIMARY_TEXT}; /* Dark text on light accent */
         }
-
-
         .update-button:hover {
-           background-color:rgb(24, 26, 122);
+          background-color: ${BUTTON_PRIMARY_HOVER_BG};
         }
-         .full-screen-toggle {
-             background-color: rgba(255, 255, 255, 0.2); /* Lighter background for toggle */
-         }
+
+        /* Secondary button (Fullscreen) */
+        .full-screen-toggle {
+          background-color: ${BUTTON_SECONDARY_BG};
+          color: ${TEXT_PRIMARY}; /* Light text on darkish background */
+        }
         .full-screen-toggle:hover {
-          background-color: rgba(255, 255, 255, 0.3);
+          background-color: ${BUTTON_SECONDARY_HOVER_BG};
         }
 
-        .update-button:disabled {
-          background-color: #555; /* Grey out when disabled */
-          color: #aaa;
+        /* Disabled state for buttons */
+        .chart-button:disabled {
+          background-color: ${BUTTON_DISABLED_BG};
+          color: ${BUTTON_DISABLED_TEXT};
           cursor: not-allowed;
+          transform: none;
+          box-shadow: none;
         }
 
-        /* Full-screen modal styles */
+        /* Full-screen modal */
         .full-screen-modal {
-          position: fixed; /* Cover viewport */
+          position: fixed;
           top: 0;
           left: 0;
           right: 0;
           bottom: 0;
-          background-color: rgba(0, 0, 0, 0.95); /* Darker overlay */
-          z-index: 1000; /* High z-index to be on top */
+          background-color: ${FULLSCREEN_MODAL_BG};
+          z-index: 1000;
           display: flex;
           justify-content: center;
           align-items: center;
-          padding: 20px; /* Add some padding around the content */
+          padding: 20px;
           box-sizing: border-box;
         }
-
         .full-screen-content {
-          position: relative; /* For positioning hint */
-          width: 100%; /* Take full width of padded modal */
-          height: 100%; /* Take full height of padded modal */
-          background-color: #1B1610; /* Dark background for chart contrast */
-          border-radius: 8px; /* Optional rounded corners */
-          overflow: hidden; /* Clip content */
+          position: relative;
+          width: 100%;
+          height: 100%;
+          background-color: ${FULLSCREEN_CONTENT_BG};
+          border-radius: ${CONTAINER_BORDER_RADIUS};
+          overflow: hidden;
           display: flex;
-          flex-direction: column; /* Stack banner and chart vertically */
+          flex-direction: column;
+          box-shadow: 0 5px 25px ${SHADOW_COLOR};
         }
-
         .keyboard-hint {
           position: absolute;
           bottom: 10px;
           right: 15px;
-          background-color: rgba(0, 0, 0, 0.7);
-          color: white;
+          background-color: ${HINT_BG};
+          color: ${TEXT_SECONDARY};
           padding: 5px 10px;
-          border-radius: 4px;
+          border-radius: ${CONTAINER_BORDER_RADIUS};
           font-size: 12px;
-          opacity: 0.8; /* Slightly more visible */
-          z-index: 20; /* Above chart content */
+          opacity: 0.8;
+          z-index: 20;
         }
       `}</style>
     </div>
   );
 };
 
-// Memoize the component to prevent re-renders if props haven't changed.
-// Useful if the parent component re-renders frequently for other reasons.
 export default React.memo(ChartDisplay);

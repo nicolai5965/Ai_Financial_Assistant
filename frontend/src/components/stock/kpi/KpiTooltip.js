@@ -1,670 +1,585 @@
-/**
- * KpiTooltip component for displaying detailed explanations and contextual information
- * about Key Performance Indicators (KPIs).
- * 
- * This component provides enhanced tooltips with rich content including descriptions,
- * trend indicators, and context-specific information based on KPI type.
- */
+// KpiTooltip.js
 
+// ---------------------------------------------------------------------
+// Import Statements
+// ---------------------------------------------------------------------
 import React, { useState, useEffect, useRef } from 'react';
-import { logger } from '../../../utils/logger';
+import { logger } from '../../../utils/logger'; // Assuming path is correct
 
-// Fallback logger for development or if the main logger fails
+// --- Fallback Logger ---
 const safeLogger = {
   debug: (message) => console.log(`[DEBUG] ${message}`),
   info: (message) => console.log(`[INFO] ${message}`),
   warn: (message) => console.warn(`[WARN] ${message}`),
-  error: (message) => console.error(`[ERROR] ${message}`)
+  error: (message) => console.error(`[ERROR] ${message}`),
 };
-
-// Use the imported logger if available, otherwise use the fallback
 const log = typeof logger !== 'undefined' ? logger : safeLogger;
 
-// Constants for styling and layout
-const TOOLTIP_BG_COLOR = 'rgba(18, 18, 18, 0.98)';
-const TOOLTIP_BORDER_COLOR = '#444';
-const TOOLTIP_TEXT_COLOR = '#ffffff';
-const TOOLTIP_SECONDARY_COLOR = '#aaaaaa';
-const TOOLTIP_WIDTH = '280px';
-const TOOLTIP_BORDER_RADIUS = '6px';
-const TOOLTIP_SHADOW = '0 4px 16px rgba(0, 0, 0, 0.5)';
-const TOOLTIP_PADDING = '12px';
-const TOOLTIP_Z_INDEX = 2000;
+// ---------------------------------------------------------------------
+// Styling Constants (Adapted from StockSettingsSidebar Theme)
+// ---------------------------------------------------------------------
 
-// Constants for positioning
+// COLORS - Primary palette
+const PRIMARY_DARK = 'rgba(13, 27, 42, 1)';      // Dark blue
+// const PRIMARY_LIGHT = 'rgba(26, 42, 58, 1)';      // Light blue (Not directly used here)
+const ACCENT_PRIMARY = 'rgba(92, 230, 207, 1)';   // Cyan
+// const ACCENT_HOVER = 'rgba(59, 205, 186, 1)';     // Darker cyan (Not used directly here)
+const TEXT_PRIMARY = 'rgba(248, 248, 248, 1)';    // White text
+const TEXT_SECONDARY = 'rgba(204, 204, 204, 1)';   // Light gray text
+const SHADOW_COLOR = 'rgba(0, 0, 0, 0.6)';         // Slightly darker shadow for tooltip
+
+// TOOLTIP STYLING
+const TOOLTIP_BG_COLOR = `rgba(13, 27, 42, 0.97)`; // Use PRIMARY_DARK with high opacity
+const TOOLTIP_BORDER = `1px solid rgba(92, 230, 207, 0.3)`; // Use theme accent border
+const TOOLTIP_BORDER_COLOR_VAL = 'rgba(92, 230, 207, 0.3)'; // Border color value for arrows
+const TOOLTIP_BORDER_RADIUS = '6px'; // Consistent radius
+const TOOLTIP_SHADOW = `0 5px 20px ${SHADOW_COLOR}`;
+const TOOLTIP_PADDING = '14px'; // Slightly more padding
+const TOOLTIP_WIDTH = '290px'; // Slightly wider
+const TOOLTIP_Z_INDEX = 1100; // Ensure above modal overlays if needed
+
+// TEXT & CONTENT
+const TOOLTIP_TEXT_COLOR = TEXT_PRIMARY;
+const TOOLTIP_SECONDARY_COLOR = TEXT_SECONDARY;
+const TOOLTIP_TITLE_COLOR = ACCENT_PRIMARY; // Use accent for title
+const SECTION_BORDER_COLOR = 'rgba(92, 230, 207, 0.15)'; // Fainter border for internal sections
+
+// TREND COLORS
+const POSITIVE_COLOR = '#4caf50'; // Keep standard green
+const NEGATIVE_COLOR = '#f44336'; // Keep standard red
+const NEUTRAL_COLOR = TEXT_SECONDARY; // Use secondary text color for neutral
+const POSITIVE_BG = `rgba(76, 175, 80, 0.15)`;
+const NEGATIVE_BG = `rgba(244, 67, 54, 0.15)`;
+const NEUTRAL_BG = `rgba(204, 204, 204, 0.1)`;
+
+// CLOSE BUTTON
+const CLOSE_BUTTON_BG = 'rgba(0, 0, 0, 0.3)';
+const CLOSE_BUTTON_HOVER_BG = 'rgba(92, 230, 207, 0.2)';
+const CLOSE_BUTTON_COLOR = TEXT_SECONDARY;
+const CLOSE_BUTTON_HOVER_COLOR = TEXT_PRIMARY;
+
+// POSITIONING CONSTANTS (Keep as is)
 const POSITION_ABOVE = 'above';
 const POSITION_BELOW = 'below';
 const POSITION_LEFT = 'left';
 const POSITION_RIGHT = 'right';
+const TOOLTIP_OFFSET = 10; // Distance from anchor
+const VIEWPORT_MARGIN = 10; // Minimum distance from viewport edge
+
 
 /**
- * Component to display enhanced tooltips for KPIs.
- * 
- * @param {Object} props - Component properties
- * @param {Object} props.kpi - The KPI data object to display information about
- * @param {HTMLElement} props.anchorEl - The element to anchor the tooltip to
- * @param {boolean} props.open - Whether the tooltip is visible
- * @param {function} props.onClose - Function to call when tooltip should close
- * @param {string} props.position - Preferred position of tooltip (above, below, left, right)
- * @param {string} props.className - Additional CSS class names
- * @returns {JSX.Element|null} The rendered component or null if not open
+ * KpiTooltip component for displaying detailed explanations and contextual information
+ * about Key Performance Indicators (KPIs), styled with the application theme.
  */
-const KpiTooltip = ({ 
-  kpi, 
-  anchorEl, 
-  open, 
-  onClose,
-  position = POSITION_ABOVE,
-  className = '' 
+const KpiTooltip = ({
+  kpi,
+  anchorEl, // The element the tooltip is anchored to
+  open,     // Boolean controlling visibility
+  onClose,  // Callback function to close the tooltip
+  position = POSITION_ABOVE, // Preferred position ('above', 'below', 'left', 'right')
+  className = '',          // Optional additional class names
 }) => {
-  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
-  const [computedPosition, setComputedPosition] = useState(position);
-  const [isPositioned, setIsPositioned] = useState(false);
-  const tooltipRef = useRef(null);
-  
-  // Generate a unique instance ID for logging
-  const instanceId = useRef(`kpi-tooltip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`);
-  
-  // Log component mount and unmount
+  // --- State and Refs ---
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 }); // Calculated {top, left} in pixels
+  const [computedPosition, setComputedPosition] = useState(position); // Actual position used after collision detection
+  const [isPositioned, setIsPositioned] = useState(false); // Flag to trigger fade-in after position calculation
+  const tooltipRef = useRef(null); // Ref to the tooltip's root element
+  const instanceId = useRef(`kpi-tooltip-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`); // Unique ID for logging
+
+  // --- Effects ---
+
+  // Log opening/closing
   useEffect(() => {
     if (open) {
-      try {
-        log.debug(`KpiTooltip: KpiTooltip opened: ${kpi?.name || 'unknown'} (${instanceId.current})`);
-        console.log(`KpiTooltip opened for: ${kpi?.name || 'unknown'}, kpi data:`, kpi);
-      } catch (e) {
-        console.log(`KpiTooltip: KpiTooltip opened: ${kpi?.name || 'unknown'} (${instanceId.current})`);
-      }
+      log.debug(`KpiTooltip: Opened: ${kpi?.name || 'unknown'} (${instanceId.current})`);
+      // console.log(`KpiTooltip opened for: ${kpi?.name || 'unknown'}, kpi data:`, kpi); // Verbose log if needed
     }
-    
-    return () => {
-      if (open) {
-        try {
-          log.debug(`KpiTooltip: KpiTooltip closing: ${kpi?.name || 'unknown'} (${instanceId.current})`);
-        } catch (e) {
-          console.log(`KpiTooltip: KpiTooltip closing: ${kpi?.name || 'unknown'} (${instanceId.current})`);
-        }
-      }
-    };
+    // No cleanup log needed here as it's tied to 'open' state
   }, [open, kpi?.name]);
-  
-  // Close on escape key
+
+  // Close tooltip on Escape key press
   useEffect(() => {
     const handleEscKey = (event) => {
       if (event.key === 'Escape' && open && onClose) {
+        log.debug(`KpiTooltip: Closing via Escape key (${instanceId.current})`);
         onClose();
       }
     };
-    
-    document.addEventListener('keydown', handleEscKey, { passive: true });
+    if (open) {
+      document.addEventListener('keydown', handleEscKey, { passive: true });
+    }
     return () => {
       document.removeEventListener('keydown', handleEscKey);
     };
   }, [open, onClose]);
-  
-  // Close on outside click - but not when clicking on the tooltip itself
+
+  // Close tooltip on click outside the tooltip and its anchor element
   useEffect(() => {
     const handleOutsideClick = (event) => {
+      // Check if the click is outside the tooltip AND outside the anchor element
       if (
-        open && 
-        tooltipRef.current && 
-        !tooltipRef.current.contains(event.target) && 
-        anchorEl && 
-        !anchorEl.contains(event.target) &&
+        open &&
+        tooltipRef.current && !tooltipRef.current.contains(event.target) &&
+        anchorEl && !anchorEl.contains(event.target) &&
         onClose
       ) {
+        log.debug(`KpiTooltip: Closing via outside click (${instanceId.current})`);
         onClose();
       }
     };
-    
-    // Use mousedown instead of click for better responsiveness
-    document.addEventListener('mousedown', handleOutsideClick, { passive: true });
+    if (open) {
+      // Use mousedown for better responsiveness, especially on touch devices
+      document.addEventListener('mousedown', handleOutsideClick, { passive: true });
+    }
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
   }, [open, anchorEl, onClose]);
-  
-  // Calculate position when anchor element or preferred position changes
+
+  // Calculate and update tooltip position when relevant props/state change
   useEffect(() => {
-    if (!open || !anchorEl) return;
-    
-    const calculatePosition = () => {
-      const anchorRect = anchorEl.getBoundingClientRect();
-      const tooltipRect = tooltipRef.current?.getBoundingClientRect();
-      
-      if (!tooltipRect) {
-        console.log("Tooltip element not available for positioning", tooltipRef.current);
+    // Only calculate if open and anchor element exists
+    if (!open || !anchorEl) {
+        setIsPositioned(false); // Reset positioned state if closed or no anchor
         return;
-      }
-      
-      console.log(`Positioning tooltip - anchor rect:`, anchorRect);
-      
+    }
+
+    let isMounted = true; // Flag to prevent state updates on unmounted component
+
+    const calculatePosition = () => {
+      if (!isMounted || !tooltipRef.current || !anchorEl) return; // Exit if unmounted or refs invalid
+
+      const anchorRect = anchorEl.getBoundingClientRect();
+      const tooltipRect = tooltipRef.current.getBoundingClientRect();
       const windowWidth = window.innerWidth;
       const windowHeight = window.innerHeight;
-      
+
       // Default to preferred position
       let bestPosition = position;
-      
-      // Check if tooltip fits in preferred position
-      const fitsAbove = anchorRect.top > tooltipRect.height + 10;
-      const fitsBelow = windowHeight - anchorRect.bottom > tooltipRect.height + 10;
-      const fitsLeft = anchorRect.left > tooltipRect.width + 10;
-      const fitsRight = windowWidth - anchorRect.right > tooltipRect.width + 10;
-      
-      // Find best position if preferred doesn't fit
+
+      // --- Collision Detection and Position Adjustment ---
+      const fitsAbove = anchorRect.top > tooltipRect.height + TOOLTIP_OFFSET + VIEWPORT_MARGIN;
+      const fitsBelow = windowHeight - anchorRect.bottom > tooltipRect.height + TOOLTIP_OFFSET + VIEWPORT_MARGIN;
+      const spaceLeft = anchorRect.left;
+      const spaceRight = windowWidth - anchorRect.right;
+      const centeredLeftFits = spaceLeft > (tooltipRect.width / 2) + VIEWPORT_MARGIN && spaceRight > (tooltipRect.width / 2) + VIEWPORT_MARGIN;
+      const fitsLeftAligned = spaceLeft > VIEWPORT_MARGIN && spaceRight > tooltipRect.width - anchorRect.width + VIEWPORT_MARGIN;
+      const fitsRightAligned = spaceLeft > tooltipRect.width - anchorRect.width + VIEWPORT_MARGIN && spaceRight > VIEWPORT_MARGIN;
+
+      // Try to find a better position if the preferred one doesn't fit well
       if (bestPosition === POSITION_ABOVE && !fitsAbove) {
-        bestPosition = fitsBelow ? POSITION_BELOW : (fitsRight ? POSITION_RIGHT : POSITION_LEFT);
+        bestPosition = fitsBelow ? POSITION_BELOW : (fitsRightAligned ? POSITION_RIGHT : POSITION_LEFT);
       } else if (bestPosition === POSITION_BELOW && !fitsBelow) {
-        bestPosition = fitsAbove ? POSITION_ABOVE : (fitsRight ? POSITION_RIGHT : POSITION_LEFT);
-      } else if (bestPosition === POSITION_LEFT && !fitsLeft) {
-        bestPosition = fitsRight ? POSITION_RIGHT : (fitsAbove ? POSITION_ABOVE : POSITION_BELOW);
-      } else if (bestPosition === POSITION_RIGHT && !fitsRight) {
-        bestPosition = fitsLeft ? POSITION_LEFT : (fitsAbove ? POSITION_ABOVE : POSITION_BELOW);
+        bestPosition = fitsAbove ? POSITION_ABOVE : (fitsRightAligned ? POSITION_RIGHT : POSITION_LEFT);
+      } else if (bestPosition === POSITION_LEFT && spaceLeft < tooltipRect.width + TOOLTIP_OFFSET + VIEWPORT_MARGIN) {
+          bestPosition = (spaceRight > tooltipRect.width + TOOLTIP_OFFSET + VIEWPORT_MARGIN) ? POSITION_RIGHT : (fitsAbove ? POSITION_ABOVE : POSITION_BELOW);
+      } else if (bestPosition === POSITION_RIGHT && spaceRight < tooltipRect.width + TOOLTIP_OFFSET + VIEWPORT_MARGIN) {
+          bestPosition = (spaceLeft > tooltipRect.width + TOOLTIP_OFFSET + VIEWPORT_MARGIN) ? POSITION_LEFT : (fitsAbove ? POSITION_ABOVE : POSITION_BELOW);
       }
-      
-      // Calculate position based on best fit
-      let top, left;
-      
-      if (bestPosition === POSITION_ABOVE) {
-        top = anchorRect.top - tooltipRect.height - 10;
-        left = anchorRect.left + (anchorRect.width / 2) - (tooltipRect.width / 2);
-      } else if (bestPosition === POSITION_BELOW) {
-        top = anchorRect.bottom + 10;
-        left = anchorRect.left + (anchorRect.width / 2) - (tooltipRect.width / 2);
-      } else if (bestPosition === POSITION_LEFT) {
-        top = anchorRect.top + (anchorRect.height / 2) - (tooltipRect.height / 2);
-        left = anchorRect.left - tooltipRect.width - 10;
-      } else if (bestPosition === POSITION_RIGHT) {
-        top = anchorRect.top + (anchorRect.height / 2) - (tooltipRect.height / 2);
-        left = anchorRect.right + 10;
+      // Add specific check for centered horizontal positioning if possible
+      const canCenterHorizontally = (bestPosition === POSITION_ABOVE || bestPosition === POSITION_BELOW) && centeredLeftFits;
+
+      // --- Calculate Coordinates ---
+      let top = 0, left = 0;
+
+      switch (bestPosition) {
+        case POSITION_ABOVE:
+          top = anchorRect.top - tooltipRect.height - TOOLTIP_OFFSET;
+          left = canCenterHorizontally
+                ? anchorRect.left + (anchorRect.width / 2) - (tooltipRect.width / 2)
+                : (fitsLeftAligned ? anchorRect.left : anchorRect.right - tooltipRect.width); // Align left or right edge
+          break;
+        case POSITION_BELOW:
+          top = anchorRect.bottom + TOOLTIP_OFFSET;
+           left = canCenterHorizontally
+                ? anchorRect.left + (anchorRect.width / 2) - (tooltipRect.width / 2)
+                : (fitsLeftAligned ? anchorRect.left : anchorRect.right - tooltipRect.width); // Align left or right edge
+          break;
+        case POSITION_LEFT:
+          top = anchorRect.top + (anchorRect.height / 2) - (tooltipRect.height / 2);
+          left = anchorRect.left - tooltipRect.width - TOOLTIP_OFFSET;
+          break;
+        case POSITION_RIGHT:
+          top = anchorRect.top + (anchorRect.height / 2) - (tooltipRect.height / 2);
+          left = anchorRect.right + TOOLTIP_OFFSET;
+          break;
+        default: // Fallback to above if position is invalid
+           top = anchorRect.top - tooltipRect.height - TOOLTIP_OFFSET;
+           left = anchorRect.left + (anchorRect.width / 2) - (tooltipRect.width / 2);
+           bestPosition = POSITION_ABOVE;
+           break;
       }
-      
-      // Ensure tooltip stays within viewport
-      left = Math.max(10, Math.min(windowWidth - tooltipRect.width - 10, left));
-      top = Math.max(10, Math.min(windowHeight - tooltipRect.height - 10, top));
-      
-      // Log final positioning
-      console.log(`Tooltip final position: ${bestPosition}, top: ${top}px, left: ${left}px`);
-      
-      setTooltipPosition({ top, left });
-      setComputedPosition(bestPosition);
-      setIsPositioned(true);
+
+      // --- Viewport Boundary Correction ---
+      left = Math.max(VIEWPORT_MARGIN, Math.min(windowWidth - tooltipRect.width - VIEWPORT_MARGIN, left));
+      top = Math.max(VIEWPORT_MARGIN, Math.min(windowHeight - tooltipRect.height - VIEWPORT_MARGIN, top));
+
+      // --- Update State ---
+       if (isMounted) {
+            setTooltipPosition({ top, left });
+            setComputedPosition(bestPosition);
+            setIsPositioned(true); // Allow fade-in
+            // log.debug(`KpiTooltip: Position calculated - ${bestPosition}, top: ${top}, left: ${left} (${instanceId.current})`); // Verbose log if needed
+       }
     };
-    
-    // Calculate position after a short delay to ensure tooltip is rendered
-    const timer = setTimeout(calculatePosition, 10);
-    
-    // Recalculate on window resize
+
+    // Recalculate position immediately and on window resize
+    // Use requestAnimationFrame to ensure layout is stable before first calculation
+    let rafId = requestAnimationFrame(() => {
+        calculatePosition();
+    });
     window.addEventListener('resize', calculatePosition, { passive: true });
-    
+    window.addEventListener('scroll', calculatePosition, { passive: true, capture: true }); // Recalculate on scroll too
+
+    // Cleanup function
     return () => {
-      clearTimeout(timer);
+      isMounted = false;
+      cancelAnimationFrame(rafId);
       window.removeEventListener('resize', calculatePosition);
+      window.removeEventListener('scroll', calculatePosition, { capture: true });
     };
-  }, [open, anchorEl, position]);
-  
-  // Render nothing if not open
-  if (!open || !kpi) {
-    return null;
-  }
-  
-  /**
-   * Renders the tooltip content based on KPI type
-   * 
-   * @returns {JSX.Element} The rendered tooltip content
-   */
+  }, [open, anchorEl, position]); // Dependencies for position calculation
+
+  // --- Content Rendering ---
+
+  // Renders specific content sections based on KPI group/name
   const renderTooltipContent = () => {
-    // Get KPI group to determine content style
-    const kpiGroup = kpi.group || '';
-    
+    const kpiGroup = kpi.group || ''; // Get group name safely
+
     return (
       <div className="tooltip-content">
+        {/* Header: Title and Formatted Value */}
         <div className="tooltip-header">
-          <h3 className="tooltip-title">{kpi.name}</h3>
+          <h3 className="tooltip-title">{kpi.name || 'Unknown KPI'}</h3>
+          {/* Display formatted value if available */}
           {kpi.value && (
             <div className="tooltip-value">
-              {typeof kpi.value === 'object' && kpi.value.formatted_value 
-                ? kpi.value.formatted_value 
+              {typeof kpi.value === 'object' && kpi.value.formatted_value
+                ? kpi.value.formatted_value
                 : typeof kpi.value === 'object'
-                  ? JSON.stringify(kpi.value)
-                  : kpi.value}
+                  ? JSON.stringify(kpi.value) // Fallback for unformatted objects
+                  : String(kpi.value)}
             </div>
           )}
         </div>
-        
+
+        {/* Description */}
         {kpi.description && (
           <div className="tooltip-description">
             {kpi.description}
           </div>
         )}
-        
-        {/* Render trend information if available */}
-        {kpi.trend !== undefined && (
+
+        {/* Trend Indicator */}
+        {kpi.trend !== undefined && kpi.trend !== null && (
           <div className={`tooltip-trend ${kpi.trend > 0 ? 'positive' : kpi.trend < 0 ? 'negative' : 'neutral'}`}>
             <span className="trend-icon">
-              {kpi.trend > 0 ? '↑' : kpi.trend < 0 ? '↓' : '→'}
+              {kpi.trend > 0 ? '▲' : kpi.trend < 0 ? '▼' : '–'} {/* Use different arrows */}
             </span>
             <span className="trend-label">
-              {kpi.trend_label || `${Math.abs(kpi.trend * 100).toFixed(2)}%`}
+              {/* Display trend_label if provided, otherwise format the trend value */}
+              {kpi.trend_label || `${Math.abs(kpi.trend * 100).toFixed(1)}%`}
             </span>
           </div>
         )}
-        
-        {/* Group-specific additional information */}
+
+        {/* Contextual Information Sections */}
         {kpiGroup === 'price' && renderPriceInfo()}
         {kpiGroup === 'volume' && renderVolumeInfo()}
         {kpiGroup === 'volatility' && renderVolatilityInfo()}
         {kpiGroup === 'fundamental' && renderFundamentalInfo()}
         {kpiGroup === 'sentiment' && renderSentimentInfo()}
-        
-        {/* Secondary value if available */}
+
+        {/* Secondary Value Display */}
         {kpi.secondary_value && (
           <div className="tooltip-secondary">
-            <span className="secondary-label">{kpi.secondary_label || 'Additional Info'}: </span>
+            <span className="secondary-label">{kpi.secondary_label || 'Info'}: </span>
             <span className="secondary-value">
-              {typeof kpi.secondary_value === 'object' 
-                ? (kpi.secondary_value.formatted_value || JSON.stringify(kpi.secondary_value)) 
-                : kpi.secondary_value}
+              {/* Format secondary value similar to primary value */}
+              {typeof kpi.secondary_value === 'object'
+                ? (kpi.secondary_value.formatted_value || JSON.stringify(kpi.secondary_value))
+                : String(kpi.secondary_value)}
             </span>
           </div>
         )}
       </div>
     );
   };
-  
-  /**
-   * Renders additional information for price-related KPIs
-   * 
-   * @returns {JSX.Element|null} The rendered price info or null
-   */
-  const renderPriceInfo = () => {
-    if (!kpi.name) return null;
-    
-    // Add specific info based on price metric name
-    if (kpi.name.includes('Change')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Price change reflects movement since the previous day's close.</p>
-        </div>
-      );
-    }
-    
-    return null;
+
+  // --- Helper Render Functions for Contextual Info ---
+  // (These functions remain largely the same, just ensure class names match style block)
+  const renderPriceInfo = () => { /* ... content ... */
+     if (!kpi.name) return null;
+     if (kpi.name.includes('Change')) {
+      return <div className="tooltip-info-section"><p>Price change since previous close.</p></div>;
+     }
+     return null;
   };
-  
-  /**
-   * Renders additional information for volume-related KPIs
-   * 
-   * @returns {JSX.Element|null} The rendered volume info or null
-   */
-  const renderVolumeInfo = () => {
-    if (!kpi.name) return null;
-    
-    if (kpi.name.includes('Volume Ratio')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Volume ratio greater than 1.0 indicates higher than average trading activity.</p>
-          <ul className="tooltip-scale">
-            <li className="positive">{'>'} 2.0: Extremely high volume</li>
-            <li className="positive">1.5 - 2.0: High volume</li>
-            <li className="neutral">0.8 - 1.5: Normal volume</li>
-            <li className="negative">{'<'} 0.8: Low volume</li>
-          </ul>
-        </div>
-      );
-    }
-    
-    return null;
+  const renderVolumeInfo = () => { /* ... content ... */
+      if (!kpi.name) return null;
+      if (kpi.name.includes('Volume Ratio')) {
+        return <div className="tooltip-info-section"><p>Volume Ratio: Current volume vs average.</p><ul className="tooltip-scale"><li className="positive">{'>'}2: High</li><li className="neutral">0.8-2: Normal</li><li className="negative">{'<'}0.8: Low</li></ul></div>;
+      }
+      return null;
   };
-  
-  /**
-   * Renders additional information for volatility-related KPIs
-   * 
-   * @returns {JSX.Element|null} The rendered volatility info or null
-   */
-  const renderVolatilityInfo = () => {
-    if (!kpi.name) return null;
-    
-    if (kpi.name.includes('Beta')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Beta measures stock's volatility relative to the market.</p>
-          <ul className="tooltip-scale">
-            <li className="negative">{'>'} 1.5: Significantly more volatile</li>
-            <li className="neutral">1.0 - 1.5: More volatile than market</li>
-            <li className="neutral">0.5 - 1.0: Less volatile than market</li>
-            <li className="positive">{'<'} 0.5: Much less volatile</li>
-          </ul>
-        </div>
-      );
-    }
-    
-    if (kpi.name.includes('Volatility')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Historical volatility represents the annualized standard deviation of daily returns.</p>
-          <p>Higher values indicate greater price fluctuations.</p>
-        </div>
-      );
-    }
-    
-    return null;
+  const renderVolatilityInfo = () => { /* ... content ... */
+     if (!kpi.name) return null;
+     if (kpi.name.includes('Beta')) {
+       return <div className="tooltip-info-section"><p>Beta: Volatility vs market.</p><ul className="tooltip-scale"><li className="negative">{'>'}1.5: High</li><li className="neutral">0.5-1.5: Moderate</li><li className="positive">{'<'}0.5: Low</li></ul></div>;
+     }
+     if (kpi.name.includes('Volatility')) {
+       return <div className="tooltip-info-section"><p>Historical Volatility (annualized).</p></div>;
+     }
+     return null;
   };
-  
-  /**
-   * Renders additional information for fundamental-related KPIs
-   * 
-   * @returns {JSX.Element|null} The rendered fundamental info or null
-   */
-  const renderFundamentalInfo = () => {
-    if (!kpi.name) return null;
-    
-    if (kpi.name.includes('P/E')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Price-to-Earnings ratio reflects how much investors are willing to pay per dollar of earnings.</p>
-          <p>Lower P/E may indicate undervaluation, but also consider industry averages and growth prospects.</p>
-        </div>
-      );
-    }
-    
-    if (kpi.name.includes('Debt-to-Equity')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Debt-to-Equity measures the relative proportion of shareholder equity and debt used to finance assets.</p>
-          <ul className="tooltip-scale">
-            <li className="positive">{'<'} 0.5: Low leverage</li>
-            <li className="neutral">0.5 - 1.0: Moderate leverage</li>
-            <li className="neutral">1.0 - 2.0: High leverage</li>
-            <li className="negative">{'>'} 2.0: Very high leverage</li>
-          </ul>
-        </div>
-      );
-    }
-    
-    if (kpi.name.includes('ROE')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Return on Equity measures a company's profitability relative to shareholders' equity.</p>
-          <p>Higher values indicate more efficient use of equity capital.</p>
-        </div>
-      );
-    }
-    
-    if (kpi.name.includes('Dividend Yield')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Dividend Yield represents annual dividend payments relative to share price.</p>
-          <p>Higher yields provide more income, but may indicate limited growth prospects or unsustainable payouts.</p>
-        </div>
-      );
-    }
-    
-    return null;
+  const renderFundamentalInfo = () => { /* ... content ... */
+     if (!kpi.name) return null;
+     if (kpi.name.includes('P/E')) { return <div className="tooltip-info-section"><p>Price-to-Earnings Ratio.</p></div>; }
+     if (kpi.name.includes('Debt-to-Equity')) { return <div className="tooltip-info-section"><p>Debt vs Equity financing.</p><ul className="tooltip-scale"><li className="positive">{'<'}0.5: Low Debt</li><li className="neutral">0.5-2: Moderate</li><li className="negative">{'>'}2: High Debt</li></ul></div>;}
+     if (kpi.name.includes('ROE')) { return <div className="tooltip-info-section"><p>Return on Equity (profitability).</p></div>;}
+     if (kpi.name.includes('Dividend Yield')) { return <div className="tooltip-info-section"><p>Annual dividend vs share price.</p></div>;}
+     return null;
   };
-  
-  /**
-   * Renders additional information for sentiment-related KPIs
-   * 
-   * @returns {JSX.Element|null} The rendered sentiment info or null
-   */
-  const renderSentimentInfo = () => {
-    if (!kpi.name) return null;
-    
-    if (kpi.name.includes('Sentiment')) {
-      return (
-        <div className="tooltip-info-section">
-          <p>Sentiment scores reflect market perception based on news, social media, and analyst reports.</p>
-          <p>These should be considered alongside fundamental and technical indicators.</p>
-        </div>
-      );
-    }
-    
-    return null;
+  const renderSentimentInfo = () => { /* ... content ... */
+     if (!kpi.name) return null;
+     if (kpi.name.includes('Sentiment')) {
+       return <div className="tooltip-info-section"><p>Market perception score.</p></div>;
+     }
+     return null;
   };
-  
-  // Tooltip arrow direction based on position
+
+  // Determine the CSS class for the arrow based on the computed position
   const getArrowClass = () => {
     switch (computedPosition) {
       case POSITION_ABOVE: return 'arrow-bottom';
       case POSITION_BELOW: return 'arrow-top';
       case POSITION_LEFT: return 'arrow-right';
       case POSITION_RIGHT: return 'arrow-left';
-      default: return '';
+      default: return ''; // Should not happen
     }
   };
-  
-  // Show tooltip with animation only after position is calculated
+
+  // CSS class to control visibility and fade-in animation
   const visibilityClass = isPositioned ? 'visible' : '';
-  
+
+  // --- Render Tooltip ---
+  // Render null if not open or no KPI data
+  if (!open || !kpi) {
+    return null;
+  }
+
   return (
-    <div 
+    <div
       className={`kpi-tooltip ${className} ${getArrowClass()} ${visibilityClass}`}
-      style={{ 
-        top: `${tooltipPosition.top}px`, 
+      style={{
+        top: `${tooltipPosition.top}px`, // Apply calculated position
         left: `${tooltipPosition.left}px`,
-        zIndex: TOOLTIP_Z_INDEX
+        zIndex: TOOLTIP_Z_INDEX, // Ensure it's above most other elements
       }}
       ref={tooltipRef}
-      onClick={(e) => e.stopPropagation()} // Prevent click from closing the tooltip
+      // Prevent clicks inside the tooltip from triggering the outside click handler
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()} // Also stop mousedown propagation
+      role="tooltip" // Accessibility role
+      aria-hidden={!open}
     >
+      {/* Render the main content */}
       {renderTooltipContent()}
-      
+
       {/* Close button */}
-      <button className="close-button" onClick={onClose}>×</button>
-      
-      {/* Styled JSX */}
+      <button
+        className="close-button"
+        onClick={onClose}
+        aria-label="Close tooltip"
+        title="Close"
+      >×</button>
+
+      {/* --- Styles (using theme constants) --- */}
       <style jsx>{`
         .kpi-tooltip {
-          position: fixed;
+          position: fixed; /* Use fixed positioning */
           width: ${TOOLTIP_WIDTH};
           background-color: ${TOOLTIP_BG_COLOR};
           color: ${TOOLTIP_TEXT_COLOR};
-          border: 1px solid ${TOOLTIP_BORDER_COLOR};
+          border: ${TOOLTIP_BORDER};
           border-radius: ${TOOLTIP_BORDER_RADIUS};
           box-shadow: ${TOOLTIP_SHADOW};
           padding: ${TOOLTIP_PADDING};
           z-index: ${TOOLTIP_Z_INDEX};
-          font-size: 14px;
+          font-size: 14px; /* Base font size */
+          line-height: 1.5; /* Improve readability */
+
+          /* Visibility and Animation */
           opacity: 0;
           visibility: hidden;
-          transition: opacity 0.2s ease, transform 0.2s ease;
-          pointer-events: auto;
+          transform: translateY(5px); /* Start slightly lower for fade-up */
+          transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s 0.2s; /* Delay visibility change */
+          pointer-events: none; /* Prevent interaction when hidden */
         }
-        
+
         .kpi-tooltip.visible {
           opacity: 1;
           visibility: visible;
           transform: translateY(0);
+          transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s 0s; /* Show immediately */
+          pointer-events: auto; /* Allow interaction when visible */
         }
-        
+
         .close-button {
           position: absolute;
-          top: 6px;
-          right: 6px;
-          width: 20px;
-          height: 20px;
+          top: 8px; /* Adjust position */
+          right: 8px;
+          width: 24px; /* Slightly larger hit area */
+          height: 24px;
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(0, 0, 0, 0.3);
+          background: ${CLOSE_BUTTON_BG};
           border: none;
           border-radius: 50%;
-          color: #aaa;
-          font-size: 18px;
+          color: ${CLOSE_BUTTON_COLOR};
+          font-size: 20px; /* Adjust icon size */
           line-height: 1;
           cursor: pointer;
           padding: 0;
-          transition: background-color 0.2s, color 0.2s;
+          transition: background-color 0.2s, color 0.2s, transform 0.1s;
         }
-        
+
         .close-button:hover {
-          background: rgba(255, 255, 255, 0.2);
-          color: #fff;
+          background: ${CLOSE_BUTTON_HOVER_BG};
+          color: ${CLOSE_BUTTON_HOVER_COLOR};
+          transform: scale(1.1);
         }
-        
-        /* Arrow styles */
+
+        /* Arrow Styles */
+        .kpi-tooltip::before { /* Common arrow base */
+          content: '';
+          position: absolute;
+          border-style: solid;
+          border-color: transparent; /* Fallback */
+        }
         .arrow-top::before {
-          content: '';
-          position: absolute;
-          top: -10px;
+          top: -${TOOLTIP_OFFSET}px; /* Position above tooltip */
           left: 50%;
           transform: translateX(-50%);
-          border-width: 0 10px 10px;
-          border-style: solid;
-          border-color: transparent transparent ${TOOLTIP_BORDER_COLOR};
+          border-width: 0 ${TOOLTIP_OFFSET}px ${TOOLTIP_OFFSET}px; /* Pointing down */
+          border-bottom-color: ${TOOLTIP_BORDER_COLOR_VAL}; /* Match border */
         }
-        
         .arrow-bottom::before {
-          content: '';
-          position: absolute;
-          bottom: -10px;
+          bottom: -${TOOLTIP_OFFSET}px; /* Position below tooltip */
           left: 50%;
           transform: translateX(-50%);
-          border-width: 10px 10px 0;
-          border-style: solid;
-          border-color: ${TOOLTIP_BORDER_COLOR} transparent transparent;
+          border-width: ${TOOLTIP_OFFSET}px ${TOOLTIP_OFFSET}px 0; /* Pointing up */
+          border-top-color: ${TOOLTIP_BORDER_COLOR_VAL}; /* Match border */
         }
-        
         .arrow-left::before {
-          content: '';
-          position: absolute;
-          left: -10px;
+          left: -${TOOLTIP_OFFSET}px; /* Position left of tooltip */
           top: 50%;
           transform: translateY(-50%);
-          border-width: 10px 10px 10px 0;
-          border-style: solid;
-          border-color: transparent ${TOOLTIP_BORDER_COLOR} transparent transparent;
+          border-width: ${TOOLTIP_OFFSET}px ${TOOLTIP_OFFSET}px ${TOOLTIP_OFFSET}px 0; /* Pointing right */
+          border-right-color: ${TOOLTIP_BORDER_COLOR_VAL}; /* Match border */
         }
-        
         .arrow-right::before {
-          content: '';
-          position: absolute;
-          right: -10px;
+          right: -${TOOLTIP_OFFSET}px; /* Position right of tooltip */
           top: 50%;
           transform: translateY(-50%);
-          border-width: 10px 0 10px 10px;
-          border-style: solid;
-          border-color: transparent transparent transparent ${TOOLTIP_BORDER_COLOR};
+          border-width: ${TOOLTIP_OFFSET}px 0 ${TOOLTIP_OFFSET}px ${TOOLTIP_OFFSET}px; /* Pointing left */
+          border-left-color: ${TOOLTIP_BORDER_COLOR_VAL}; /* Match border */
         }
-        
-        /* Content styles */
+
+        /* Content Styles */
         .tooltip-content {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 10px; /* Space between elements */
         }
-        
+
         .tooltip-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
-          margin-bottom: 4px;
-          padding-right: 16px; /* Make room for close button */
+          align-items: baseline; /* Align baseline of title and value */
+          padding-right: 30px; /* Ensure space for close button */
+          border-bottom: 1px solid ${SECTION_BORDER_COLOR};
+          padding-bottom: 8px;
+          margin-bottom: 4px; /* Space below header */
         }
-        
+
         .tooltip-title {
           margin: 0;
           font-size: 16px;
           font-weight: 600;
+          color: ${TOOLTIP_TITLE_COLOR}; /* Use accent for title */
+          letter-spacing: 0.3px;
         }
-        
+
         .tooltip-value {
           font-weight: 700;
           font-size: 16px;
+          color: ${TOOLTIP_TEXT_COLOR}; /* Use primary text color */
+          white-space: nowrap; /* Prevent wrapping */
         }
-        
+
         .tooltip-description {
-          margin: 0 0 8px;
+          margin: 0;
           font-size: 14px;
           color: ${TOOLTIP_SECONDARY_COLOR};
-          line-height: 1.4;
         }
-        
+
         .tooltip-trend {
-          display: flex;
+          display: inline-flex; /* Use inline-flex */
           align-items: center;
           gap: 6px;
           padding: 4px 8px;
           border-radius: 4px;
           font-size: 13px;
-          width: fit-content;
+          font-weight: 500;
+          width: fit-content; /* Only as wide as needed */
         }
-        
-        .tooltip-trend.positive {
-          background-color: rgba(76, 175, 80, 0.2);
-          color: #4caf50;
-        }
-        
-        .tooltip-trend.negative {
-          background-color: rgba(244, 67, 54, 0.2);
-          color: #f44336;
-        }
-        
-        .tooltip-trend.neutral {
-          background-color: rgba(120, 144, 156, 0.2);
-          color: #78909c;
-        }
-        
+        .tooltip-trend.positive { background-color: ${POSITIVE_BG}; color: ${POSITIVE_COLOR}; }
+        .tooltip-trend.negative { background-color: ${NEGATIVE_BG}; color: ${NEGATIVE_COLOR}; }
+        .tooltip-trend.neutral { background-color: ${NEUTRAL_BG}; color: ${NEUTRAL_COLOR}; }
+        .trend-icon { font-size: 14px; }
+
+        /* Contextual Info Sections */
         .tooltip-info-section {
           margin-top: 8px;
           padding-top: 8px;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: 1px solid ${SECTION_BORDER_COLOR};
           font-size: 13px;
+          color: ${TOOLTIP_SECONDARY_COLOR};
         }
-        
-        .tooltip-info-section p {
-          margin: 0 0 8px;
-          line-height: 1.4;
-        }
-        
+        .tooltip-info-section p { margin: 0 0 8px; }
+
         .tooltip-scale {
           margin: 8px 0 0;
           padding: 0;
           list-style: none;
           font-size: 12px;
         }
-        
-        .tooltip-scale li {
-          margin-bottom: 4px;
-          padding-left: 16px;
-          position: relative;
-        }
-        
-        .tooltip-scale li::before {
-          content: '•';
-          position: absolute;
-          left: 4px;
-        }
-        
-        .tooltip-scale li.positive {
-          color: #4caf50;
-        }
-        
-        .tooltip-scale li.negative {
-          color: #f44336;
-        }
-        
-        .tooltip-scale li.neutral {
-          color: #78909c;
-        }
-        
+        .tooltip-scale li { margin-bottom: 4px; padding-left: 16px; position: relative; }
+        .tooltip-scale li::before { content: '•'; position: absolute; left: 4px; font-size: 14px; line-height: 1; }
+        .tooltip-scale li.positive { color: ${POSITIVE_COLOR}; }
+        .tooltip-scale li.negative { color: ${NEGATIVE_COLOR}; }
+        .tooltip-scale li.neutral { color: ${NEUTRAL_COLOR}; }
+        .tooltip-scale li.positive::before { color: ${POSITIVE_COLOR};}
+        .tooltip-scale li.negative::before { color: ${NEGATIVE_COLOR};}
+        .tooltip-scale li.neutral::before { color: ${NEUTRAL_COLOR};}
+
         .tooltip-secondary {
           margin-top: 8px;
           padding-top: 8px;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: 1px solid ${SECTION_BORDER_COLOR};
           font-size: 13px;
         }
-        
-        .secondary-label {
-          color: ${TOOLTIP_SECONDARY_COLOR};
-        }
-        
-        .secondary-value {
-          font-weight: 600;
-        }
+        .secondary-label { color: ${TOOLTIP_SECONDARY_COLOR}; font-weight: 500; }
+        .secondary-value { font-weight: 600; color: ${TOOLTIP_TEXT_COLOR}; margin-left: 4px; }
+
       `}</style>
     </div>
   );
 };
+
+// Ensure display name for easier debugging
+KpiTooltip.displayName = 'KpiTooltip';
 
 export default KpiTooltip;

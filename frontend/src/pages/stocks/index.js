@@ -46,7 +46,6 @@ const DEFAULT_CHART_SETTINGS = {
   interval: '1d',
   chartType: 'candlestick',
   selectedIndicators: [],
-  indicatorConfigs: {}
 };
 
 // Utility function for safe localStorage operations
@@ -165,22 +164,30 @@ const StocksPage = () => {
   // Move fetchData outside useEffect but keep it inside component
   const fetchData = async () => {
     if (!chartSettings.ticker || !apiStatus.healthy) return;
-
+  
+    // Build the request payload for fetching dashboard data.
+    const requestPayload = {
+      ticker: chartSettings.ticker,
+      days: chartSettings.daysOfHistory,
+      interval: chartSettings.interval,
+      indicators: chartSettings.selectedIndicators,
+      chartType: chartSettings.chartType,
+      kpiGroups: kpiPreferences.visibleGroups,
+      kpiTimeframe: '1d',
+      useCache: true
+    };
+  
+    // NEW: Log the payload being sent to the backend.
+    logger.debug('[SEARCH-FILTER] Sending request payload to backend:', requestPayload);
+  
     setDashboardData(prev => ({ ...prev, loading: true, error: null }));
-
+  
     try {
-      const data = await fetchDashboardData({
-        ticker: chartSettings.ticker,
-        days: chartSettings.daysOfHistory,
-        interval: chartSettings.interval,
-        indicators: chartSettings.selectedIndicators,
-        chartType: chartSettings.chartType,
-        indicatorConfigs: chartSettings.indicatorConfigs,
-        kpiGroups: kpiPreferences.visibleGroups,
-        kpiTimeframe: '1d',
-        useCache: true
-      });
-
+      const data = await fetchDashboardData(requestPayload);
+  
+      // NEW: Log the raw data received from the backend.
+      logger.debug('[SEARCH-FILTER] Fetched data from backend:', data);
+  
       if (data.error) {
         setDashboardData(prev => ({
           ...prev,
@@ -189,7 +196,6 @@ const StocksPage = () => {
         }));
         setChartHasError(true);
       } else {
-        console.log("index.js: Raw data from API:", data);
         setDashboardData(prev => ({
           ...prev,
           chartData: data.chart_data,
@@ -199,7 +205,7 @@ const StocksPage = () => {
           loading: false,
           error: null
         }));
-        console.log("index.js: Updated dashboardData state:", {
+        logger.debug('[SEARCH-FILTER] Updated dashboardData state:', {
           chartData: data.chart_data,
           kpi_data: data.kpi_data,
           marketHours: data.market_hours,
@@ -208,7 +214,7 @@ const StocksPage = () => {
         setChartHasError(false);
       }
     } catch (error) {
-      logger.error(`Error fetching dashboard data: ${error.message}`);
+      logger.error(`[SEARCH-FILTER] Error fetching dashboard data: ${error.message}`);
       setDashboardData(prev => ({
         ...prev,
         loading: false,
@@ -217,6 +223,8 @@ const StocksPage = () => {
       setChartHasError(true);
     }
   };
+  
+
 
   const { showAutoRefreshNotif, manualRefresh } = useAutoRefresh(fetchData);
 
@@ -347,6 +355,7 @@ const StocksPage = () => {
             chartData={dashboardData.chartData}
             loading={dashboardData.loading}
             error={dashboardData.error}
+            dashboardData={dashboardData}
             onUpdateClick={handleUpdateClick}
           />
           <KpiContainer

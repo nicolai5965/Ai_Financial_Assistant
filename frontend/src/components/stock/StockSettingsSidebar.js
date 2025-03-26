@@ -1,10 +1,15 @@
-// StockSettingsSidebar.js (Complete, Refactored)
+// StockSettingsSidebar.js
+
+// ---------------------------------------------------------------------
+// Import Statements: Import React, Next.js Image component, and logging utility.
+// ---------------------------------------------------------------------
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { logger } from '../../utils/logger';
 
-// Constants for styling - Organized by purpose
-// ---------------------------------------------
+// ---------------------------------------------------------------------
+// Constants for Styling - Organized by Purpose
+// ---------------------------------------------------------------------
 
 // LAYOUT - Dimensions and positioning
 const SIDEBAR_WIDTH = '350px';
@@ -13,12 +18,12 @@ const HEADER_HEIGHT = '80px';
 
 // COLORS - Primary palette
 const PRIMARY_DARK = 'rgba(13, 27, 42, 1)';      // Dark blue
-const PRIMARY_LIGHT = 'rgba(26, 42, 58, 1)';     // Light blue
-const ACCENT_PRIMARY = 'rgba(92, 230, 207, 1)';  // Cyan
-const ACCENT_HOVER = 'rgba(59, 205, 186, 1)';    // Darker cyan
-const TEXT_PRIMARY = 'rgba(248, 248, 248, 1)';   // White text
-const TEXT_SECONDARY = 'rgba(204, 204, 204, 1)'; // Light gray text
-const SHADOW_COLOR = 'rgba(0, 0, 0, 0.5)';       // Black shadow
+const PRIMARY_LIGHT = 'rgba(26, 42, 58, 1)';      // Light blue
+const ACCENT_PRIMARY = 'rgba(92, 230, 207, 1)';   // Cyan
+const ACCENT_HOVER = 'rgba(59, 205, 186, 1)';     // Darker cyan
+const TEXT_PRIMARY = 'rgba(248, 248, 248, 1)';    // White text
+const TEXT_SECONDARY = 'rgba(204, 204, 204, 1)';   // Light gray text
+const SHADOW_COLOR = 'rgba(0, 0, 0, 0.5)';         // Black shadow
 
 // SIDEBAR - General sidebar styling
 const SIDEBAR_BG_COLOR = `linear-gradient(to bottom, ${PRIMARY_DARK}, ${PRIMARY_LIGHT})`;
@@ -54,12 +59,18 @@ const TEXT_GLOW = `0 0 10px rgba(92, 230, 207, 0.4)`; // Changed to match accent
 // CHECKBOX - Checkbox specific styling
 const CHECKBOX_SIZE = '20px'; // Larger checkbox size for better visibility
 const CHECKBOX_BG = 'rgba(10, 20, 30, 0.7)';      // Dark blue background (unchecked)
-const CHECKBOX_BORDER = 'rgba(92, 230, 207, 0.7)'; // Cyan border
+const CHECKBOX_BORDER = 'rgba(92, 230, 207, 0.7)';  // Cyan border
 const CHECKBOX_CHECKED_BG = 'rgba(59, 205, 186, 0.8)'; // Changed to match ACCENT_HOVER
 const CHECKBOX_MARGIN_RIGHT = '1px'; // Space between checkbox and label
 const CHECKBOX_ROW_SPACING = '10px'; // Vertical spacing between checkbox rows
 
-// Constants for indicators and their panel assignments
+// Some constants for the new UI elements
+const HIGHLIGHT_COLOR = 'rgba(92, 230, 207, 0.7)';
+const WARNING_COLOR = 'rgba(255, 165, 0, 0.7)';
+
+// ---------------------------------------------------------------------
+// Constants for Indicators and Panel Assignments
+// ---------------------------------------------------------------------
 const AVAILABLE_INDICATORS = [
   { value: 'SMA', label: 'Simple Moving Average', panel: 'main' },
   { value: 'EMA', label: 'Exponential Moving Average', panel: 'main' },
@@ -91,6 +102,7 @@ const PANEL_NAMES = {
   volatility: 'Volatility Indicators'
 };
 
+// INTERVALS - Date intervals for dropdown
 const INTERVALS = [
   { value: '1mo', label: 'Monthly' },
   { value: '1wk', label: 'Weekly' },
@@ -102,132 +114,299 @@ const INTERVALS = [
   { value: '1m', label: '1 Minute' },
 ];
 
+// CHART_TYPES - Chart types for dropdown
 const CHART_TYPES = [
   { value: 'candlestick', label: 'Candlestick' },
   { value: 'line', label: 'Line' },
 ];
 
-// Some constants for the new UI elements
-const HIGHLIGHT_COLOR = 'rgba(92, 230, 207, 0.7)';
-const WARNING_COLOR = 'rgba(255, 165, 0, 0.7)';
+// DEFAULT_PANEL_PLACEMENT - Default panel placement for indicators
+const DEFAULT_PANEL_PLACEMENT = {
+  'SMA': 'main',
+  'EMA': 'main',
+  'Bollinger Bands': 'main',
+  'VWAP': 'main',
+  'Ichimoku Cloud': 'main',
+  'RSI': 'oscillator',
+  'Stochastic Oscillator': 'oscillator',
+  'MACD': 'macd',
+  'ATR': 'volatility',
+  'OBV': 'volume'
+};
 
+// DEFAULT_INDICATOR_PARAMS - Default indicator parameters
+const DEFAULT_INDICATOR_PARAMS = {
+  'SMA': { window: 20 },
+  'EMA': { window: 20 },
+  'Bollinger Bands': { window: 20, std_dev: 2 },
+  'RSI': { window: 14 },
+  'MACD': { fast_window: 12, slow_window: 26, signal_window: 9 },
+  'ATR': { window: 14 },
+  'Stochastic Oscillator': { k_window: 14, d_window: 3 },
+  'Ichimoku Cloud': { conversion_period: 9, base_period: 26, lagging_span_b_period: 52 }
+  // VWAP and OBV don't have configurable parameters
+ };
+
+  // PARAMETER_DISPLAY_NAMES - Display names for indicator parameters
+  const PARAMETER_DISPLAY_NAMES = {
+    window: "Window Period",
+    fast_window: "Fast Period",
+    slow_window: "Slow Period",
+    signal_window: "Signal Period",
+    std_dev: "Standard Deviation",
+    k_window: "K Period",
+    d_window: "D Period",
+    conversion_period: "Conversion Line Period",
+    base_period: "Base Line Period",
+    lagging_span_b_period: "Lagging Span B Period"
+  };
+
+
+// ---------------------------------------------------------------------
+// StockSettingsSidebar Component: Displays and configures stock chart settings.
+// ---------------------------------------------------------------------
 /**
- * StockSettingsSidebar component for displaying and configuring stock chart settings
- * Organized by panel type for better usability
+ * StockSettingsSidebar component for displaying and configuring stock chart settings.
+ * Organized by panel type for better usability.
  * 
- * @param {Object} props - Component props
- * @param {boolean} props.isOpen - Whether the sidebar is open
- * @param {Function} props.toggleSidebar - Function to toggle sidebar open/closed state
- * @param {Object} props.settings - Current chart settings
- * @param {Function} props.onSettingsChange - Handler for settings changes
- * @param {Object} props.indicatorConfigs - Configuration settings for each indicator
- * @param {Object} props.panelAssignments - Panel assignments for each indicator
- * @param {Function} props.onParamChange - Handler for indicator parameter changes
- * @param {Function} props.onPanelChange - Handler for indicator panel assignment changes
- * @param {number|null} props.lastAutoRefreshTime - Timestamp of the last auto-refresh (null if none)
- * @param {Function} props.onUpdateClick - Callback function to trigger a data update.
+ * Props:
+ * - isOpen: Boolean indicating whether the sidebar is open.
+ * - toggleSidebar: Function to toggle sidebar open/closed state.
+ * - settings: Current chart settings.
+ * - onSettingsChange: Handler for settings changes.
+ * - lastAutoRefreshTime: Timestamp of the last auto-refresh (null if none).
+ * - onUpdateClick: Callback function to trigger a data update.
  */
 const StockSettingsSidebar = ({
   isOpen,
   toggleSidebar,
   settings,
   onSettingsChange,
-  indicatorConfigs,
-  panelAssignments,
-  onParamChange,
-  onPanelChange,
   lastAutoRefreshTime,
   onUpdateClick, // Added onUpdateClick
 }) => {
-  // Add state to track if there are unsaved changes
+  // ---------------------------------------------------------------------
+  // State and Refs: Local state and references used within the component.
+  // ---------------------------------------------------------------------
+  // Track if there are unsaved changes.
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  // Keep track of the last auto-refresh time using a ref to compare in useEffect
+  // Keep track of the last auto-refresh time using a ref.
   const lastAutoRefreshTimeRef = useRef(lastAutoRefreshTime);
 
-  // Log when sidebar state changes
-  React.useEffect(() => {
-    logger.info(`Stock settings sidebar ${isOpen ? 'opened' : 'closed'}`);
+  // ---------------------------------------------------------------------
+  // Debug Logging: Output passed-down props for debugging purposes.
+  // ---------------------------------------------------------------------
+  console.log("DEBUG-SC: StockSettingsSidebar - RENDER - START");
+  console.log("DEBUG-SC: StockSettingsSidebar - settings passed down from StockChart:", settings);
+
+  // ---------------------------------------------------------------------
+  // useEffect Hooks: Lifecycle events and side effects.
+  // ---------------------------------------------------------------------
+  // Log when sidebar state changes.
+  useEffect(() => {
+    logger.info(`StockSettingsSidebar: Stock settings sidebar ${isOpen ? 'opened' : 'closed'}`);
   }, [isOpen]);
 
-  // Reset unsaved changes when an auto-refresh occurs
+  // Reset unsaved changes when an auto-refresh occurs.
   useEffect(() => {
     if (lastAutoRefreshTime !== null && lastAutoRefreshTime !== lastAutoRefreshTimeRef.current) {
       lastAutoRefreshTimeRef.current = lastAutoRefreshTime;
 
       if (hasUnsavedChanges) {
-        logger.debug('Auto-refresh occurred, clearing unsaved changes notification');
+        logger.debug('StockSettingsSidebar: Auto-refresh occurred, clearing unsaved changes notification');
         setHasUnsavedChanges(false);
       }
     }
   }, [lastAutoRefreshTime, hasUnsavedChanges]);
 
-  // Handle close button click
+  // ---------------------------------------------------------------------
+  // Event Handlers: Functions that handle user interactions.
+  // ---------------------------------------------------------------------
+  // Handle close button click.
   const handleCloseClick = () => {
-    logger.debug('User clicked stock settings sidebar close button');
+    logger.debug('StockSettingsSidebar: User clicked stock settings sidebar close button');
     toggleSidebar();
   };
 
-  // Wrapper for input change handler to track unsaved changes
+  // Wrapper for input change handler to track unsaved changes.
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     onSettingsChange({ [name]: value });
     setHasUnsavedChanges(true);
   };
 
-  // Wrapper for indicator change handler to track unsaved changes
-  const handleIndicatorChange = (e) => {
-    const { value, checked } = e.target;
-    const currentIndicators = settings.selectedIndicators || [];
+// Helper function to create a complete indicator object
+const createIndicatorObject = (indicatorName, configs, panelAssignments) => {
+  // Get the current config and panel assignment for this indicator
+  const config = configs?.[indicatorName] || {};
+  const panel = panelAssignments?.[indicatorName] || 'main';
 
-    const newIndicators = checked
-      ? [...currentIndicators, value]
-      : currentIndicators.filter(ind => ind !== value);
+  return {
+      name: indicatorName,
+      panel: panel,
+      window: config.window || null,
+      fast_window: config.fast_window || null,
+      slow_window: config.slow_window || null,
+      signal_window: config.signal_window || null,
+      std_dev: config.std_dev || null,
+      k_window: config.k_window || null,
+      d_window: config.d_window || null,
+      conversion_period: config.conversion_period || null,
+      base_period: config.base_period || null,
+      lagging_span_b_period: config.lagging_span_b_period || null
+  };
+};
 
-    console.log("DEBUG-SC: StockSettingsSidebar.handleIndicatorChange - newIndicators:", newIndicators);
+// Modified handler for indicator selection changes
+const handleIndicatorChange = (e) => {
+  const { value: indicatorName, checked } = e.target;
+  const currentIndicators = settings.selectedIndicators || [];
+  const currentConfigs = settings.indicatorConfigs || {};
+  const currentPanels = settings.panelAssignments || {};
 
-    onSettingsChange({ selectedIndicators: newIndicators });
-    setHasUnsavedChanges(true);
+  let newSelectedIndicators;
+  let newIndicatorConfigs = { ...currentConfigs };
+  let newPanelAssignments = { ...currentPanels };
+
+  if (checked) {
+      // Add indicator with complete configuration
+      // First, set up default config if available
+      if (DEFAULT_INDICATOR_PARAMS[indicatorName]) {
+          newIndicatorConfigs[indicatorName] = { ...DEFAULT_INDICATOR_PARAMS[indicatorName] };
+      }
+      
+      // Set default panel assignment
+      newPanelAssignments[indicatorName] = DEFAULT_PANEL_PLACEMENT[indicatorName] || 'main';
+
+      // Create complete indicator object
+      const newIndicator = createIndicatorObject(
+          indicatorName,
+          newIndicatorConfigs,
+          newPanelAssignments
+      );
+
+      newSelectedIndicators = [...currentIndicators, newIndicator];
+  } else {
+      // Remove indicator and its configurations
+      newSelectedIndicators = currentIndicators.filter(ind => 
+          (typeof ind === 'string' ? ind : ind.name) !== indicatorName
+      );
+      delete newIndicatorConfigs[indicatorName];
+      delete newPanelAssignments[indicatorName];
+  }
+
+  // Log the new state for debugging
+  console.log('DEBUG-SC: handleIndicatorChange - New State:', {
+      selectedIndicators: newSelectedIndicators,
+      indicatorConfigs: newIndicatorConfigs,
+      panelAssignments: newPanelAssignments
+  });
+
+  // Update all related state pieces
+  onSettingsChange({
+      selectedIndicators: newSelectedIndicators,
+      indicatorConfigs: newIndicatorConfigs,
+      panelAssignments: newPanelAssignments
+  });
+  setHasUnsavedChanges(true);
+};
+
+// Modified handler for parameter changes
+const handleParamChange = (indicatorName, paramName, value) => {
+  const numericValue = Number(value);
+  if (isNaN(numericValue)) {
+      console.warn('Invalid numeric value:', value);
+      return;
+  }
+
+  const currentConfigs = settings.indicatorConfigs || {};
+  const newConfigs = {
+      ...currentConfigs,
+      [indicatorName]: {
+          ...(currentConfigs[indicatorName] || {}),
+          [paramName]: numericValue
+      }
   };
 
+  // Update the selectedIndicators array with new parameter values
+  const updatedIndicators = (settings.selectedIndicators || []).map(indicator => {
+      if ((typeof indicator === 'string' ? indicator : indicator.name) === indicatorName) {
+          return createIndicatorObject(
+              indicatorName,
+              newConfigs,
+              settings.panelAssignments
+          );
+      }
+      return indicator;
+  });
+
+  console.log('DEBUG-SC: handleParamChange - New State:', {
+      selectedIndicators: updatedIndicators,
+      indicatorConfigs: newConfigs
+  });
+
+  // Update both configs and selectedIndicators
+  onSettingsChange({
+      selectedIndicators: updatedIndicators,
+      indicatorConfigs: newConfigs
+  });
+  setHasUnsavedChanges(true);
+};
+
+// Modified handler for panel changes
+const handlePanelChange = (indicatorName, panelName) => {
+  const currentPanels = settings.panelAssignments || {};
+  const newAssignments = {
+      ...currentPanels,
+      [indicatorName]: panelName
+  };
+
+  // Update the selectedIndicators array with new panel assignment
+  const updatedIndicators = (settings.selectedIndicators || []).map(indicator => {
+      if ((typeof indicator === 'string' ? indicator : indicator.name) === indicatorName) {
+          return createIndicatorObject(
+              indicatorName,
+              settings.indicatorConfigs,
+              newAssignments
+          );
+      }
+      return indicator;
+  });
+
+  console.log('DEBUG-SC: handlePanelChange - New State:', {
+      selectedIndicators: updatedIndicators,
+      panelAssignments: newAssignments
+  });
+
+  // Update both assignments and selectedIndicators
+  onSettingsChange({
+      selectedIndicators: updatedIndicators,
+      panelAssignments: newAssignments
+  });
+  setHasUnsavedChanges(true);
+  };
+
+  // Handle update click; triggers data update and resets unsaved changes.
   const handleUpdateClick = () => {
-    console.log('StockSettingsSidebar: handleUpdateClick: Update button clicked.');
+    console.log('DEBUG-SC: StockSettingsSidebar: handleUpdateClick: Update button clicked.');
     onUpdateClick();
     setHasUnsavedChanges(false);
-    console.log('StockSettingsSidebar: handleUpdateClick: hasUnsavedChanges set to false');
+    console.log('DEBUG-SC: StockSettingsSidebar: handleUpdateClick: hasUnsavedChanges set to false');
   };
-
-  // Wrapper for parameter change handler to track unsaved changes
-  const handleParamChange = (indicatorName, paramName, value) => {
-    const newConfigs = {
-      ...settings.indicatorConfigs,
-      [indicatorName]: {
-        ...(settings.indicatorConfigs[indicatorName] || {}),
-        [paramName]: value
-      }
-    };
-
-    onSettingsChange({ indicatorConfigs: newConfigs });
-    setHasUnsavedChanges(true);
-  };
-
-  // Wrapper for panel change handler to track unsaved changes
-  const handlePanelChange = (indicatorName, value) => {
-    onPanelChange(indicatorName, value);
-    setHasUnsavedChanges(true);
-  };
-
+  // ---------------------------------------------------------------------
+  // Render Helpers: Functions to render sub-sections of the UI.
+  // ---------------------------------------------------------------------
   /**
-   * Renders a form input group with label and input/select element
+   * Renders a form input group with label and input/select element.
    *
-   * @param {string} id - Input element ID
-   * @param {string} label - Label text
-   * @param {string} name - Input element name
-   * @param {string} type - Input element type (number, select, etc)
-   * @param {any} value - Current input value
-   * @param {Function} onChange - Change handler
-   * @param {Object} options - Additional options (min, max, options array for select)
-   * @returns {JSX.Element} Form group element
+   * @param {string} id - Input element ID.
+   * @param {string} label - Label text.
+   * @param {string} name - Input element name.
+   * @param {string} type - Input element type (number, select, etc).
+   * @param {any} value - Current input value.
+   * @param {Function} onChange - Change handler.
+   * @param {Object} options - Additional options (min, max, options array for select).
+   * @returns {JSX.Element} Form group element.
    */
   const renderFormGroup = (id, label, name, type, value, onChange, options = {}) => {
     return (
@@ -305,59 +484,10 @@ const StockSettingsSidebar = ({
   };
 
   /**
-   * Renders a custom checkbox with SVG
+   * Renders an indicator group with checkboxes.
    *
-   * @param {boolean} checked - Whether the checkbox is checked
-   * @param {string} value - Checkbox value
-   * @param {Function} onChange - Change handler
-   * @returns {JSX.Element} Custom checkbox element
-   */
-  const CustomCheckbox = ({ checked, value, onChange }) => {
-    const handleClick = () => {
-      onChange({ target: { value, checked: !checked } });
-    };
-
-    return (
-      <div
-        className={`custom-checkbox-svg ${checked ? 'checked' : ''}`}
-        onClick={handleClick}
-      >
-        <svg
-          width={CHECKBOX_SIZE}
-          height={CHECKBOX_SIZE}
-          viewBox="0 0 20 20"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          {/* Background */}
-          <rect
-            width="20"
-            height="20"
-            rx="3"
-            fill={checked ? CHECKBOX_CHECKED_BG : CHECKBOX_BG}
-            stroke={CHECKBOX_BORDER}
-            strokeWidth="1.5"
-          />
-
-          {/* Checkmark */}
-          {checked && (
-            <path
-              d="M5 10L8 13L15 7"
-              stroke={PRIMARY_DARK}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-        </svg>
-      </div>
-    );
-  };
-
-  /**
-   * Renders an indicator group with checkboxes
-   *
-   * @param {string} panelType - Type of panel (main, oscillator, etc)
-   * @returns {JSX.Element} Indicator group element
+   * @param {string} panelType - Type of panel (main, oscillator, etc).
+   * @returns {JSX.Element} Indicator group element.
    */
   const renderIndicatorGroup = (panelType) => {
     return (
@@ -421,62 +551,115 @@ const StockSettingsSidebar = ({
   };
 
   /**
-   * Renders an indicator parameter configuration section
+   * Renders an indicator parameter configuration section.
    *
-   * @param {string} indicatorName - Name of the indicator
-   * @param {Object} params - Parameter configuration object
-   * @returns {JSX.Element} Parameter configuration element
+   * @param {string} indicatorName - Name of the indicator.
+   * @param {Object} params - Parameter configuration object.
+   * @returns {JSX.Element} Parameter configuration element.
    */
   const renderParameterConfig = (indicatorName, params) => {
-    return (
-      <div className="parameter-config" key={`params-${indicatorName}`}>
-        <h4 className="parameter-title">{indicatorName} Parameters</h4>
-        <div className="parameter-config-container">
-          <div className="parameter-inputs">
-            {Object.entries(params).map(([paramName, paramValue]) => (
-              <div className="param-input" key={`${indicatorName}-${paramName}`}>
-                <label htmlFor={`sidebar-param-${indicatorName}-${paramName}`}>
-                  {paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase()}
-                </label>
-                <input
-                  id={`sidebar-param-${indicatorName}-${paramName}`}
-                  type="number"
-                  value={paramValue}
-                  onChange={(e) => handleParamChange(indicatorName, paramName, e.target.value)}
-                  style={{
-                    backgroundColor: INPUT_BG_COLOR,
-                    border: INPUT_BORDER,
-                    color: TEXT_PRIMARY,
-                    height: '32px',
-                    width: '100%'
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+    // Debug logging for incoming data
+    console.log('DEBUG-SC: renderParameterConfig - START', {
+        indicatorName,
+        params,
+        currentConfigs: settings.indicatorConfigs,
+        currentPanelAssignments: settings.panelAssignments
+    });
 
-          <div className="panel-selection">
-            <label htmlFor={`sidebar-panel-${indicatorName}`}>
-              Display in
-            </label>
-            <div className="futuristic-select-wrapper">
-              <select
-                id={`sidebar-panel-${indicatorName}`}
-                value={panelAssignments[indicatorName] || 'main'}
-                onChange={(e) => handlePanelChange(indicatorName, e.target.value)}
-                className="futuristic-select"
-                style={{
-                  height: INPUT_HEIGHT,
-                  width: INPUT_WIDTH,
-                  color: TEXT_PRIMARY,
-                  backgroundColor: SELECT_BG_COLOR,
-                  border: SELECT_BORDER,
-                  WebkitTextFillColor: TEXT_PRIMARY,
-                  WebkitAppearance: 'none',
-                  MozAppearance: 'none',
-                  appearance: 'none',
-                  boxShadow: SELECT_FOCUS_SHADOW
-                }}
+    // Validate required data
+    if (!indicatorName || !params) {
+        console.warn('DEBUG-SC: Missing required data for parameter config:', { indicatorName, params });
+        return null;
+    }
+
+    // Get the specific indicator's parameters and current config
+    const indicatorParams = params[indicatorName] || {};
+    const currentConfig = settings.indicatorConfigs?.[indicatorName] || {};
+
+    console.log('DEBUG-SC: Processing indicator:', {
+        indicatorName,
+        indicatorParams,
+        currentConfig
+    });
+
+    // Process parameters to include display names and current values
+    const parameters = Object.entries(indicatorParams).map(([paramName, defaultValue]) => {
+        const currentValue = currentConfig[paramName] ?? defaultValue;
+        console.log('DEBUG-SC: Processing parameter:', {
+            paramName,
+            defaultValue,
+            currentValue
+        });
+        
+        return {
+            technicalName: paramName,
+            displayName: PARAMETER_DISPLAY_NAMES[paramName] || paramName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase(),
+            value: currentValue
+        };
+    });
+
+    console.log('DEBUG-SC: Processed parameters:', parameters);
+
+    return (
+        <div className="parameter-config" key={`params-${indicatorName}`}>
+            {/* Title Section */}
+            <h4 className="parameter-title">
+                {indicatorName} Parameters
+            </h4>
+
+            <div className="parameter-config-container">
+                {/* Parameters Input Section */}
+                <div className="parameter-inputs">
+                    {parameters.map(({ technicalName, displayName, value }) => (
+                        <div className="param-input" 
+                             key={`${indicatorName}-${technicalName}`}>
+                            <label htmlFor={`sidebar-param-${indicatorName}-${technicalName}`}>
+                                {displayName}
+                            </label>
+                            <input
+                                id={`sidebar-param-${indicatorName}-${technicalName}`}
+                                type="number"
+                                value={value}
+                                onChange={(e) => handleParamChange(
+                                    indicatorName,
+                                    technicalName,
+                                    e.target.value
+                                )}
+                                style={{
+                                    backgroundColor: INPUT_BG_COLOR,
+                                    border: INPUT_BORDER,
+                                    color: TEXT_PRIMARY,
+                                    height: '32px',
+                                    width: '100%'
+                                }}
+                            />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Panel Selection Section */}
+                <div className="panel-selection">
+                    <label htmlFor={`sidebar-panel-${indicatorName}`}>
+                        Display in
+                    </label>
+                    <div className="futuristic-select-wrapper">
+                        <select
+                            id={`sidebar-panel-${indicatorName}`}
+                            value={settings.panelAssignments?.[indicatorName] || 'main'}
+                            onChange={(e) => handlePanelChange(indicatorName, e.target.value)}
+                            className="futuristic-select"
+                            style={{
+                                height: INPUT_HEIGHT,
+                                width: INPUT_WIDTH,
+                                color: TEXT_PRIMARY,
+                                backgroundColor: SELECT_BG_COLOR,
+                                border: SELECT_BORDER,
+                                WebkitTextFillColor: TEXT_PRIMARY,
+                                WebkitAppearance: 'none',
+                                MozAppearance: 'none',
+                                appearance: 'none',
+                                boxShadow: SELECT_FOCUS_SHADOW
+                            }}
               >
                 <option value="main"
                   style={{ backgroundColor: SELECT_OPTION_BG, color: TEXT_PRIMARY }}
@@ -591,15 +774,35 @@ const StockSettingsSidebar = ({
     );
   };
 
-  // Function to check if an indicator is configured
+  // Function to check if an indicator is configured.
   const isIndicatorConfigured = (ind) => {
+    console.log("DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured - START");
+    console.log("DEBUG-SC: StockSettingsSidebar:   ind:", ind);
     const name = typeof ind === 'string' ? ind : ind.name;
-    return Object.entries(indicatorConfigs).some(([key]) => key === name);
+    console.log("DEBUG-SC: StockSettingsSidebar:   name:", name);
+    const isConfigured = settings.selectedIndicators.some(indicator => 
+      (typeof indicator === 'string' ? indicator : indicator.name) === name
+  );
+    console.log('DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured: indicator', name, 'is configured?', isConfigured, 'configs:', settings.selectedIndicators);
+    console.log("DEBUG-SC: StockSettingsSidebar: isIndicatorConfigured - END, returning:", isConfigured);
+    return isConfigured;
   };
 
-  // Function to get the indicator name from an indicator object or string
-  const getIndicatorName = (ind) => typeof ind === 'string' ? ind : ind.name;
+  // Function to get the indicator name from an indicator object or string.
+  const getIndicatorName = (ind) => {
+    console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, START");
+    console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, ind", ind);
+    const result = typeof ind === 'string' ? ind : ind.name;
+    console.log("DEBUG-SC: StockSettingsSidebar: getIndicatorName, END, returning", result);
+    return result;
+  };
 
+  // Debug log before rendering completes.
+  console.log("DEBUG-SC: StockSettingsSidebar - RENDER - END");
+
+  // ---------------------------------------------------------------------
+  // Render / Return JSX: Define the component's UI structure.
+  // ---------------------------------------------------------------------
   return (
     <>
       {/* Settings sidebar component */}
@@ -619,7 +822,6 @@ const StockSettingsSidebar = ({
             <h3 className="section-title">Chart Settings</h3>
 
             {/* Chart settings form */}
-            {/* Removed onSubmit, added type="button" to the button */}
             <div className="settings-form">
               {renderFormGroup(
                 'ticker',
@@ -668,7 +870,6 @@ const StockSettingsSidebar = ({
                   <div className="alert-text">Changes not applied. Click "Update Chart" to apply.</div>
                 </div>
               )}
-                {/* Changed button type and onClick */}
               <button
                 type="button"
                 className={`update-button ${hasUnsavedChanges ? 'has-changes' : ''}`}
@@ -692,11 +893,14 @@ const StockSettingsSidebar = ({
           {settings.selectedIndicators.length > 0 && (
             <div className="section-container indicator-configuration-section">
               <h3 className="section-title">Indicator Settings</h3>
+              {console.log('DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, settings.selectedIndicators:', settings.selectedIndicators)}
               {settings.selectedIndicators
                 .filter(isIndicatorConfigured)
                 .map(ind => {
                   const indicatorName = getIndicatorName(ind);
-                  const params = indicatorConfigs[indicatorName] || {};
+                  const params = settings.indicatorConfigs || {};
+                  console.log("DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, params:", params);
+                  console.log("DEBUG-SC: StockSettingsSidebar: indicator-configuration-section, indicatorName:", indicatorName);
                   return renderParameterConfig(indicatorName, params);
                 })}
             </div>
@@ -1056,12 +1260,10 @@ const StockSettingsSidebar = ({
         
         .checkbox-cell {
           padding: 0;
-          /* Top alignment applied inline */
         }
         
         .label-cell {
           text-align: left;
-          /* Top alignment applied inline */
         }
         
         .table-checkbox {
@@ -1078,7 +1280,6 @@ const StockSettingsSidebar = ({
           font-size: 14px;
           color: ${TEXT_PRIMARY};
           transition: color 0.2s;
-          /* Changed to inline-block with line-height applied inline */
         }
         
         .indicator-checkbox:hover .checkbox-text {
@@ -1207,4 +1408,4 @@ const StockSettingsSidebar = ({
   );
 };
 
-export default StockSettingsSidebar; 
+export default StockSettingsSidebar;

@@ -481,8 +481,11 @@ def add_indicator_to_chart(fig, data, indicator_config, ticker, panel_idx=1):
             logger.warning(f"Unknown indicator '{indicator_name}' for {ticker}. Skipping.")
             return False
             
-        # Log the parameters we're using
-        logger.debug(f"Adding indicator '{indicator_name}' for {ticker} with parameters: {params}")
+        if len(params) > 0:
+            logger.debug(f"Adding indicator '{indicator_name}' for {ticker} with parameters: {params}")
+        else:
+            logger.debug(f"No parameters provided for indicator '{indicator_name}' for {ticker}. Adding default parameters.")
+            
             
         # Call the indicator function with the parameters
         result = indicator_functions[indicator_name](data, ticker, **params)

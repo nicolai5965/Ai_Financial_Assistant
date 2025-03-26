@@ -63,8 +63,7 @@ const KpiDashboard = ({
         const groupsData = kpiData.kpi_data?.kpi_groups || {};
         // Convert the groups data to a string for dependency tracking
         const groupsDataString = JSON.stringify(groupsData);
-        console.log("KpiDashboard: groupsDataString:", groupsDataString);
-
+        
         return Object.values(groupsData);
     }, [isLoading, JSON.stringify(kpiData?.kpi_data?.kpi_groups || {})]);
 

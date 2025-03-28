@@ -49,15 +49,26 @@ def get_market_cap(ticker: str) -> Dict[str, Any]:
     else:
         logger.warning(f"Could not retrieve market cap for {ticker}")
     
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        market_cap, 
+        "currency_large", 
+        {"decimal_places": 2, "currency": "$"}
+    )
+
+    # Create description
+    description = (
+        f"**What it is:** The total market value of {ticker}'s outstanding shares (Current Share Price x Total Outstanding Shares).\\n"
+        f"**Trading Use:** Indicates the company's size (e.g., large-cap, mid-cap, small-cap), which influences risk, growth potential, and investor interest.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** Represents the market's current valuation of the entire company."
+    )
+    
     # Return the formatted KPI
     return {
         "name": "Market Capitalization",
-        "value": format_kpi_value(
-            market_cap, 
-            "currency_large", 
-            {"decimal_places": 2, "currency": "$"}
-        ),
-        "description": f"Total market value of {ticker}'s outstanding shares",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "fundamental"
     }
 
@@ -80,13 +91,12 @@ def get_pe_ratio(ticker: str) -> Dict[str, Any]:
     
     # Get P/E ratio
     pe_ratio = info.get('trailingPE')
+    pe_type = "Trailing (TTM)"
     
     # If trailing P/E is not available, try forward P/E
     if pe_ratio is None:
         pe_ratio = info.get('forwardPE')
         pe_type = "Forward"
-    else:
-        pe_type = "Trailing"
     
     # Log the result
     if pe_ratio is not None:
@@ -94,15 +104,42 @@ def get_pe_ratio(ticker: str) -> Dict[str, Any]:
     else:
         logger.warning(f"Could not retrieve P/E ratio for {ticker}")
     
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        pe_ratio, "number", {"decimal_places": 2}
+    )
+
+    # Create interpretation
+    interpretation = "P/E ratio could not be determined."
+    if pe_ratio is not None:
+        if pe_ratio < 0:
+            interpretation = f"The company has negative earnings, making the P/E ratio ({pe_ratio:.2f}) difficult to interpret directly."
+        elif pe_ratio < 15:
+            interpretation = f"The {pe_type} P/E ratio ({pe_ratio:.2f}) is relatively low, potentially indicating undervaluation or lower growth expectations."
+        elif pe_ratio < 25:
+            interpretation = f"The {pe_type} P/E ratio ({pe_ratio:.2f}) is moderate, suggesting a balance between price and earnings."
+        else:
+            interpretation = f"The {pe_type} P/E ratio ({pe_ratio:.2f}) is high, potentially indicating overvaluation or high growth expectations."
+
+    # Create description
+    what_it_is = f"**What it is:** The {pe_type} Price-to-Earnings ratio compares {ticker}'s current share price to its earnings per share."
+    if pe_type == "Trailing (TTM)":
+        what_it_is += " Based on the past 12 months of earnings."
+    else: # Forward
+        what_it_is += " Based on estimated future earnings."
+    
+    description = (
+        f"{what_it_is}\\n"
+        f"**Trading Use:** Used to assess valuation. A high P/E suggests investors expect higher earnings growth in the future compared to companies with a lower P/E.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** {interpretation} (Context relative to industry and market average is important)."
+    )
+    
     # Return the formatted KPI
     return {
         "name": f"{pe_type} P/E Ratio",
-        "value": format_kpi_value(
-            pe_ratio, 
-            "number", 
-            {"decimal_places": 2}
-        ),
-        "description": f"{pe_type} Price-to-Earnings ratio for {ticker}. Lower values may indicate undervaluation.",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "fundamental"
     }
 
@@ -125,35 +162,64 @@ def get_eps(ticker: str) -> Dict[str, Any]:
     
     # Get trailing EPS
     eps = info.get('trailingEps')
-    eps_type = "Trailing"
+    eps_type = "Trailing (TTM)"
     
     # If trailing EPS is not available, try forward EPS
     if eps is None:
         eps = info.get('forwardEps')
         eps_type = "Forward"
     
-    # Get growth rate if available
-    eps_growth = info.get('earningsGrowth')
+    # Get growth rate if available (earningsQuarterlyGrowth seems more reliable than earningsGrowth)
+    eps_growth = info.get('earningsQuarterlyGrowth')
     
     # Log the result
     if eps is not None:
         logger.debug(f"{eps_type} EPS for {ticker}: {eps:.2f}")
         if eps_growth is not None:
-            logger.debug(f"EPS growth rate for {ticker}: {eps_growth:.2%}")
+            logger.debug(f"Quarterly EPS growth rate for {ticker}: {eps_growth:.2%}")
     else:
         logger.warning(f"Could not retrieve EPS for {ticker}")
+    
+    # Format values
+    formatted_value_obj = format_kpi_value(
+        eps, "currency", {"currency": "$"}
+    )
+    formatted_growth_obj = format_kpi_value(
+        eps_growth, "percentage", {"show_sign": True}
+    ) if eps_growth is not None else None
+
+    # Create interpretation
+    interpretation = "EPS could not be determined."
+    if eps is not None:
+        if eps > 0:
+            interpretation = f"The company is profitable on a per-share basis ({formatted_value_obj['formatted_value']})."
+        else:
+            interpretation = f"The company reported a loss per share ({formatted_value_obj['formatted_value']})."
+        if formatted_growth_obj:
+            interpretation += f" Recent quarterly earnings growth was {formatted_growth_obj['formatted_value']}."
+
+    # Create description
+    what_it_is = f"**What it is:** {eps_type} Earnings Per Share represents the portion of {ticker}'s profit allocated to each outstanding share of common stock."
+    if eps_type == "Trailing (TTM)":
+        what_it_is += " Based on the past 12 months."
+    else: # Forward
+        what_it_is += " Based on future estimates."
+
+    description = (
+        f"{what_it_is}\\n"
+        f"**Trading Use:** A key indicator of profitability. Higher EPS is generally better. Growth in EPS is often seen positively by investors.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}"
+        f"{' (Quarterly Growth: ' + formatted_growth_obj['formatted_value'] + ')' if formatted_growth_obj else ''}\\n"
+        f"**Interpretation:** {interpretation}"
+    )
     
     # Return the formatted KPI
     return {
         "name": f"{eps_type} EPS",
-        "value": format_kpi_value(
-            eps, 
-            "currency", 
-            {"decimal_places": 2, "currency": "$"}
-        ),
+        "value": formatted_value_obj,
         "trend": eps_growth,
-        "trend_label": f"{eps_growth*100:.1f}% growth" if eps_growth is not None else None,
-        "description": f"{eps_type} Earnings Per Share for {ticker}",
+        "trend_label": f"{formatted_growth_obj['formatted_value']} Qtr Growth" if formatted_growth_obj else None,
+        "description": description,
         "group": "fundamental"
     }
 
@@ -174,10 +240,10 @@ def get_dividend_yield(ticker: str) -> Dict[str, Any]:
     # Fetch the ticker info
     info = fetch_ticker_info(ticker)
     
-    # Get dividend yield
-    dividend_yield = info.get('dividendYield') / 100
+    # Get dividend yield (provided as decimal, e.g., 0.02 for 2%)
+    dividend_yield = info.get('dividendYield')
     
-    # Get dividend rate
+    # Get dividend rate (annual amount per share)
     dividend_rate = info.get('dividendRate')
     
     # Log the result
@@ -188,21 +254,39 @@ def get_dividend_yield(ticker: str) -> Dict[str, Any]:
     else:
         logger.warning(f"Could not retrieve dividend yield for {ticker}")
     
+    # Format values
+    formatted_yield_obj = format_kpi_value(
+        dividend_yield, "percentage", {"decimal_places": 2}
+    )
+    formatted_rate_obj = format_kpi_value(
+        dividend_rate, "currency", {"currency": "$", "decimal_places": 2}
+    ) if dividend_rate is not None else None
+
+    # Create interpretation
+    interpretation = "Dividend information not available or company does not pay dividends."
+    if dividend_yield is not None and dividend_yield > 0:
+        interpretation = f"{ticker} provides an annual dividend yield of {formatted_yield_obj['formatted_value']} relative to its current share price."
+        if formatted_rate_obj:
+             interpretation += f" This equates to {formatted_rate_obj['formatted_value']} per share annually."
+    elif dividend_yield == 0:
+        interpretation = f"{ticker} currently does not pay a dividend."
+
+    # Create description
+    description = (
+        f"**What it is:** The annual dividend payment per share represented as a percentage of the stock's current market price for {ticker}.\\n"
+        f"**Trading Use:** Measures the income return on an investment. Attractive to income-focused investors. A high yield might signal undervaluation or risk.\\n"
+        f"**Current Data:** {formatted_yield_obj['formatted_value'] if formatted_yield_obj else 'N/A'}"
+        f"{' (Annual Rate: ' + formatted_rate_obj['formatted_value'] + ')' if formatted_rate_obj else ''}\\n"
+        f"**Interpretation:** {interpretation}"
+    )
+    
     # Return the formatted KPI
     return {
         "name": "Dividend Yield",
-        "value": format_kpi_value(
-            dividend_yield, 
-            "percentage", 
-            {"decimal_places": 2}
-        ),
-        "secondary_value": format_kpi_value(
-            dividend_rate, 
-            "currency", 
-            {"decimal_places": 2, "currency": "$"}
-        ) if dividend_rate is not None else None,
-        "secondary_label": "Annual Rate" if dividend_rate is not None else None,
-        "description": f"Annual dividend yield for {ticker}",
+        "value": formatted_yield_obj,
+        "secondary_value": formatted_rate_obj,
+        "secondary_label": "Annual Rate" if formatted_rate_obj else None,
+        "description": description,
         "group": "fundamental"
     }
 
@@ -227,6 +311,7 @@ def get_debt_to_equity(ticker: str) -> Dict[str, Any]:
     
     # Initialize debt-to-equity ratio
     debt_to_equity = None
+    calculation_source = "Unavailable"
     
     # First, try to calculate it ourselves using total debt and total equity
     # This is the most accurate method: Total Debt / Shareholders' Equity
@@ -235,28 +320,49 @@ def get_debt_to_equity(ticker: str) -> Dict[str, Any]:
     
     if total_debt is not None and total_equity is not None and total_equity != 0:
         debt_to_equity = total_debt / total_equity
+        calculation_source = "Calculated (Total Debt / Equity)"
         logger.debug(f"Calculated debt-to-equity for {ticker} from fundamentals: {debt_to_equity:.2f}")
     else:
         # If we can't calculate it ourselves, try to get the pre-calculated value
-        debt_to_equity = info.get('debtToEquity')
+        yahoo_dte = info.get('debtToEquity')
         
-        if debt_to_equity is not None:
+        if yahoo_dte is not None:
             # Yahoo Finance provides debtToEquity as a percentage like 12.95 (for 12.95%)
-            # Convert to a decimal ratio to match our description (0.1295)
-            debt_to_equity = debt_to_equity / 100
+            # Convert to a decimal ratio (0.1295)
+            debt_to_equity = yahoo_dte / 100
+            calculation_source = "Yahoo Finance (Provided Value)"
             logger.debug(f"Using provided debt-to-equity for {ticker}: {debt_to_equity:.4f}")
         else:
-            logger.warning(f"Could not calculate debt-to-equity for {ticker}, no data available")
+            logger.warning(f"Could not calculate or retrieve debt-to-equity for {ticker}")
+
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        debt_to_equity, "number", {"show_color": True, "reverse_color": True}
+    )
+
+    # Create interpretation
+    interpretation = "Debt-to-Equity ratio could not be determined."
+    if debt_to_equity is not None:
+        if debt_to_equity > 2.0: # Example threshold
+            interpretation = f"The company has high financial leverage ({debt_to_equity:.2f}), indicating it uses significantly more debt than equity to finance assets. This can increase risk."
+        elif debt_to_equity > 1.0:
+            interpretation = f"The company has moderate financial leverage ({debt_to_equity:.2f}), using more debt than equity."
+        else:
+            interpretation = f"The company has low financial leverage ({debt_to_equity:.2f}), relying more on equity than debt. This generally implies lower financial risk."
+
+    # Create description
+    description = (
+        f"**What it is:** Measures {ticker}'s financial leverage by comparing its total debt to its total shareholders' equity. (Source: {calculation_source})\\n"
+        f"**Trading Use:** Assesses credit risk and how the company finances its assets. Lower ratios are generally considered safer, but context (industry norms) is important.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** {interpretation}"
+    )
     
     # Return the formatted KPI
     return {
         "name": "Debt-to-Equity Ratio",
-        "value": format_kpi_value(
-            debt_to_equity, 
-            "number", 
-            {"decimal_places": 2, "show_color": True, "reverse_color": True}
-        ),
-        "description": f"Debt-to-equity ratio (Total Debt / Shareholders' Equity) for {ticker}. Lower values indicate less financial leverage.",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "fundamental"
     }
 
@@ -277,7 +383,7 @@ def get_roe(ticker: str) -> Dict[str, Any]:
     # Fetch the ticker info
     info = fetch_ticker_info(ticker)
     
-    # Get ROE
+    # Get ROE (provided as decimal, e.g., 0.15 for 15%)
     roe = info.get('returnOnEquity')
     
     # Log the result
@@ -286,15 +392,36 @@ def get_roe(ticker: str) -> Dict[str, Any]:
     else:
         logger.warning(f"Could not retrieve ROE for {ticker}")
     
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        roe, "percentage", {"show_color": True}
+    )
+
+    # Create interpretation
+    interpretation = "Return on Equity could not be determined."
+    if roe is not None:
+        if roe > 0.20: # Example threshold
+            interpretation = f"The company generates a high return ({formatted_value_obj['formatted_value']}) on shareholder investments, indicating strong profitability and efficiency."
+        elif roe > 0.10:
+            interpretation = f"The company generates a moderate return ({formatted_value_obj['formatted_value']}) on shareholder investments."
+        elif roe > 0:
+             interpretation = f"The company generates a low positive return ({formatted_value_obj['formatted_value']}) on shareholder investments."
+        else:
+             interpretation = f"The company has a negative return ({formatted_value_obj['formatted_value']}) on shareholder investments, indicating it lost money relative to shareholder equity."
+
+    # Create description
+    description = (
+        f"**What it is:** Return on Equity measures {ticker}'s profitability by revealing how much profit a company generates with the money shareholders have invested. (Net Income / Average Shareholders' Equity)\\n"
+        f"**Trading Use:** Assesses management effectiveness in using equity financing to generate profits. Higher ROE is generally better, but should be compared within the industry.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** {interpretation}"
+    )
+    
     # Return the formatted KPI
     return {
         "name": "Return on Equity (ROE)",
-        "value": format_kpi_value(
-            roe, 
-            "percentage", 
-            {"decimal_places": 2, "show_color": True}
-        ),
-        "description": f"Return on Equity (net income / shareholders' equity) for {ticker}. Higher values indicate better profitability.",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "fundamental"
     }
 
@@ -324,15 +451,34 @@ def get_price_to_book(ticker: str) -> Dict[str, Any]:
     else:
         logger.warning(f"Could not retrieve P/B ratio for {ticker}")
     
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        pb_ratio, "number", {"decimal_places": 2}
+    )
+
+    # Create interpretation
+    interpretation = "Price-to-Book ratio could not be determined."
+    if pb_ratio is not None:
+        if pb_ratio < 1.0:
+            interpretation = f"The stock price ({pb_ratio:.2f}) is less than its book value per share, potentially indicating undervaluation."
+        elif pb_ratio < 3.0:
+            interpretation = f"The stock price ({pb_ratio:.2f}) is moderately above its book value per share."
+        else:
+            interpretation = f"The stock price ({pb_ratio:.2f}) is significantly higher than its book value per share, suggesting the market values intangible assets or expects high future growth."
+
+    # Create description
+    description = (
+        f"**What it is:** The Price-to-Book ratio compares {ticker}'s market capitalization to its book value (Assets - Liabilities).\\n"
+        f"**Trading Use:** Used to find potentially undervalued stocks. A P/B ratio below 1 suggests the stock might be trading for less than its net asset value. Often compared within industries.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** {interpretation} (Book value may not accurately reflect the value of service/tech companies with few physical assets)."
+    )
+    
     # Return the formatted KPI
     return {
         "name": "Price-to-Book Ratio",
-        "value": format_kpi_value(
-            pb_ratio, 
-            "number", 
-            {"decimal_places": 2}
-        ),
-        "description": f"Price-to-Book ratio for {ticker}. Values < 1 may indicate undervaluation.",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "fundamental"
     }
 
@@ -353,24 +499,43 @@ def get_price_to_sales(ticker: str) -> Dict[str, Any]:
     # Fetch the ticker info
     info = fetch_ticker_info(ticker)
     
-    # Get P/S ratio
+    # Get P/S ratio (Trailing Twelve Months)
     ps_ratio = info.get('priceToSalesTrailing12Months')
     
     # Log the result
     if ps_ratio is not None:
-        logger.debug(f"P/S ratio for {ticker}: {ps_ratio:.2f}")
+        logger.debug(f"P/S ratio (TTM) for {ticker}: {ps_ratio:.2f}")
     else:
-        logger.warning(f"Could not retrieve P/S ratio for {ticker}")
+        logger.warning(f"Could not retrieve P/S ratio (TTM) for {ticker}")
+    
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        ps_ratio, "number", {"decimal_places": 2} # Changed decimal places to 2 for better precision
+    )
+
+    # Create interpretation
+    interpretation = "Price-to-Sales ratio could not be determined."
+    if ps_ratio is not None:
+        if ps_ratio < 1.0:
+            interpretation = f"The stock price ({ps_ratio:.2f}) is less than its revenue per share over the last year, potentially indicating undervaluation."
+        elif ps_ratio < 2.0:
+            interpretation = f"The stock price ({ps_ratio:.2f}) is moderately above its revenue per share."
+        else:
+            interpretation = f"The stock price ({ps_ratio:.2f}) is significantly higher than its revenue per share, suggesting high market expectations for future growth or profitability."
+
+    # Create description
+    description = (
+        f"**What it is:** The Price-to-Sales (TTM) ratio compares {ticker}'s market capitalization to its total sales or revenue over the past 12 months.\\n"
+        f"**Trading Use:** Useful for valuing companies that are not yet profitable or have inconsistent earnings. Lower ratios may suggest undervaluation.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** {interpretation} (Most effective when comparing against industry peers)."
+    )
     
     # Return the formatted KPI
     return {
-        "name": "Price-to-Sales Ratio",
-        "value": format_kpi_value(
-            ps_ratio, 
-            "number", 
-            {"decimal_places": 0}
-        ),
-        "description": f"Price-to-Sales ratio for {ticker}. Lower values may indicate undervaluation.",
+        "name": "Price-to-Sales Ratio (TTM)", # Clarified TTM
+        "value": formatted_value_obj,
+        "description": description,
         "group": "fundamental"
     }
 

@@ -58,7 +58,7 @@ const KpiGroup = React.memo(({
   group,
   isLoading = false,
   onKpiClick = null,
-  activeKpi = null,
+  activeKpiName = null,
   initiallyExpanded = true,
 }) => {
   // --- State and Refs ---
@@ -115,16 +115,18 @@ const KpiGroup = React.memo(({
     return kpiItems.map((kpi) => {
       // Ensure the kpi object includes the group identifier if missing
       const updatedKpi = { ...kpi, group: kpi.group || group?.group };
-      // Determine if this KPI card should be marked as active
-      const isActive = activeKpi === kpi.name;
+      // Determine if this KPI card is the active one
+      const isActive = activeKpiName === kpi.name; // Compare names
 
       // Use kpi.name as the key for stable identity
       return (
         <KpiCard
           key={kpi.name}
           kpi={updatedKpi}
+          // Pass the received onKpiClick handler directly
+          // It now expects (kpi, anchorEl) from KpiCard and will pass them up
           onClick={onKpiClick}
-          initialTooltipVisible={isActive} // Pass active state to KpiCard if needed
+          isActive={isActive} // Pass active state for styling the card
         />
       );
     });

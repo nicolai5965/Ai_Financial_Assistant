@@ -3,9 +3,8 @@
 // ---------------------------------------------------------------------
 // Import Statements
 // ---------------------------------------------------------------------
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { logger } from '../../../utils/logger'; // Assuming path is correct
-import KpiTooltip from './KpiTooltip'; // Assuming path is correct
 
 // --- Fallback Logger ---
 const safeLogger = {
@@ -36,6 +35,9 @@ const CARD_BORDER = `1px solid rgba(92, 230, 207, 0.15)`; // Subtle accent borde
 const CARD_HOVER_BORDER = `1px solid rgba(92, 230, 207, 0.4)`; // Brighter border on hover
 const CARD_SHADOW = `0 2px 5px ${SHADOW_COLOR}`;
 const CARD_HOVER_SHADOW = `0 4px 8px ${SHADOW_COLOR}`;
+// Add style for active card
+const CARD_ACTIVE_BORDER = `1px solid ${ACCENT_PRIMARY}`;
+const CARD_ACTIVE_SHADOW = `0 0 8px rgba(92, 230, 207, 0.5)`;
 
 // VALUE COLORS - Semantic colors
 const POSITIVE_COLOR = '#4caf50'; // Keep standard green
@@ -55,30 +57,27 @@ const CARD_PADDING = '12px';
 
 /**
  * KpiCard component for displaying an individual KPI, themed consistently.
+ * It passes click events up to the parent, including a reference to its DOM element.
  */
 const KpiCard = React.memo(({
   kpi,
   isLoading = false,
   onClick = null,
-  initialTooltipVisible = false, // Prop to control initial tooltip state
+  isActive = false, // New prop to indicate if this card corresponds to the active tooltip
 }) => {
   // --- State and Refs ---
-  const [tooltipVisible, setTooltipVisible] = useState(initialTooltipVisible);
   const cardRef = useRef(null); // Ref to the card element for tooltip positioning
   const instanceId = useRef(`kpi-card-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`); // Unique ID for logging
 
   // --- Effects ---
-
-  // Sync internal tooltip state with the initial prop value changes
-  useEffect(() => {
-    setTooltipVisible(initialTooltipVisible);
-  }, [initialTooltipVisible]);
+  // Removed useEffect that synced initialTooltipVisible
 
   // Log mount/unmount for debugging
   useEffect(() => {
-    log.debug(`KpiCard: Mounted: ${kpi?.name || 'loading'} (${instanceId.current})`);
-    return () => log.debug(`KpiCard: Unmounting: ${kpi?.name || 'loading'} (${instanceId.current})`);
-  }, [kpi?.name]); // Dependency only on kpi.name
+    const name = isLoading ? 'loading' : kpi?.name || 'unknown';
+    log.debug(`KpiCard: Mounted: ${name} (${instanceId.current}), isActive: ${isActive}`);
+    return () => log.debug(`KpiCard: Unmounting: ${name} (${instanceId.current})`);
+  }, [kpi?.name, isLoading, isActive]); // Added isActive dependency
 
   // --- Data Handling and Formatting ---
 
@@ -131,49 +130,27 @@ const KpiCard = React.memo(({
 
   // --- Event Handlers ---
 
-  // Handle card click: Toggle tooltip and call onClick prop
+  // Handle card click: Call onClick prop with kpi data and the card element ref
   const handleClick = useCallback(() => {
-    if (isLoading) return; // Ignore clicks while loading
+    if (isLoading || !onClick || !kpi) return; // Ignore clicks if loading, no handler, or no kpi data
 
-    const newState = !tooltipVisible;
-    log.debug(`KpiCard: Clicked: ${kpi?.name || 'unknown'} (${instanceId.current}), Toggle tooltip: ${newState}`);
+    log.debug(`KpiCard: Clicked: ${kpi.name} (${instanceId.current}). Calling parent onClick.`);
 
-    // Call the parent's onClick handler, passing the KPI data
-    if (onClick && kpi) {
-      onClick(kpi);
-      // Note: Parent now controls the 'active' state via initialTooltipVisible prop,
-      // so we don't directly setTooltipVisible(newState) here anymore.
-      // Let the parent decide based on the click.
-    }
-  }, [isLoading, tooltipVisible, kpi, onClick]); // Dependencies for the callback
+    // Call the parent's onClick handler, passing the KPI data and the anchor element
+    onClick(kpi, cardRef.current);
 
-  // Handle closing the tooltip (called by KpiTooltip component)
-  const handleCloseTooltip = useCallback(() => {
-    log.debug(`KpiCard: Tooltip close requested for ${kpi?.name || 'unknown'} (${instanceId.current})`);
-    // Only set internal state if it's currently visible
-    if (tooltipVisible) {
-       // If the card itself was controlling visibility, you'd set it here:
-       // setTooltipVisible(false);
-
-       // However, since the parent controls visibility via `initialTooltipVisible`,
-       // we likely need to inform the parent that the *user* closed it,
-       // potentially by calling onClick again or a dedicated onTooltipClose prop.
-       // For now, assuming the parent handles the state change based on the initial click.
-       if (onClick && kpi) {
-         // Re-calling onClick might signify a 'deselect' action to the parent.
-         // This depends on the parent's logic.
-          onClick(kpi);
-       }
-    }
-  }, [tooltipVisible, kpi, onClick]); // Dependencies
+  }, [isLoading, kpi, onClick]); // Dependencies for the callback
 
   // --- JSX Output ---
   return (
     <div
-      className={`kpi-card ${isLoading ? 'loading' : ''}`} // Add loading class
+      className={`kpi-card ${isLoading ? 'loading' : ''} ${isActive ? 'active' : ''}`} // Add loading and active classes
       ref={cardRef}
       onClick={handleClick}
       title={!isLoading ? `Click for details on ${kpi?.name || 'KPI'}` : 'Loading KPI...'} // Add tooltip hint
+      // Add ARIA attribute if the card controls a tooltip elsewhere
+      aria-haspopup="true"
+      aria-expanded={isActive} // Indicate if the associated tooltip is open
     >
       {isLoading ? (
         // Loading state skeleton
@@ -188,28 +165,13 @@ const KpiCard = React.memo(({
           <div className="kpi-value" style={{ color: getValueColor() }}>
             {formatValue(kpi?.value)}
           </div>
-
-          {/* Tooltip is rendered conditionally based on the prop */}
-          {tooltipVisible && kpi && (
-            // Wrapper might not be strictly needed if KpiTooltip handles its own positioning well
-            <div className="tooltip-wrapper">
-              <KpiTooltip
-                kpi={kpi}
-                anchorEl={cardRef.current} // Anchor tooltip to the card div
-                open={tooltipVisible}
-                onClose={handleCloseTooltip} // Pass the close handler
-                // Consider adding position prop if needed ('above', 'below', etc.)
-                // position="above"
-              />
-            </div>
-          )}
         </>
       )}
 
       {/* --- Styles (using theme constants) --- */}
       <style jsx>{`
         .kpi-card {
-          position: relative; /* Needed for absolute positioning of tooltip wrapper */
+          position: relative; /* Still needed if child elements use absolute positioning, but not for tooltip */
           background-color: ${CARD_BG_COLOR};
           border-radius: ${CARD_BORDER_RADIUS};
           border: ${CARD_BORDER};
@@ -223,7 +185,7 @@ const KpiCard = React.memo(({
           box-shadow: ${CARD_SHADOW};
           transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
           cursor: pointer;
-          overflow: hidden; /* Clip content, tooltip needs separate handling/portal */
+          overflow: hidden; /* Keep this to clip internal content if necessary, but tooltip is external now */
         }
 
         .kpi-card:hover {
@@ -231,6 +193,14 @@ const KpiCard = React.memo(({
           border-color: ${CARD_HOVER_BORDER};
           transform: translateY(-2px);
           box-shadow: ${CARD_HOVER_SHADOW};
+        }
+
+        /* Style for the active card */
+        .kpi-card.active {
+          border-color: ${CARD_ACTIVE_BORDER};
+          box-shadow: ${CARD_ACTIVE_SHADOW};
+          /* Optional: slightly different background or transform */
+          /* background-color: ${CARD_HOVER_BG_COLOR}; */
         }
 
         .kpi-name {
@@ -254,18 +224,6 @@ const KpiCard = React.memo(({
           line-height: 1.2;
           align-self: flex-start; /* Align value to the start */
           margin-top: auto; /* Push value towards the bottom */
-        }
-
-        .tooltip-wrapper {
-          /* This wrapper might not be needed if KpiTooltip uses a Portal */
-          /* If KpiTooltip is rendered directly here, it needs careful positioning */
-          position: absolute;
-          /* Example positioning: above the card */
-          bottom: 105%; /* Position above the card */
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 1050; /* Ensure tooltip is above other elements */
-          /* Add pointer-events: none; if wrapper should not intercept clicks */
         }
 
         /* Loading state styles */

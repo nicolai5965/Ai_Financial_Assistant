@@ -54,15 +54,26 @@ def get_current_volume(ticker: str) -> Dict[str, Any]:
     else:
         logger.warning(f"Could not retrieve current volume for {ticker}")
     
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        current_volume,
+        "volume",
+        {}
+    )
+
+    # Create description
+    description = (
+        f"**What it is:** The total number of {ticker} shares traded during the current market session.\\n"
+        f"**Trading Use:** Indicates the level of market activity and liquidity in the stock. High volume can confirm price trends.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** Shows the current trading intensity for {ticker}."
+    )
+
     # Return the formatted KPI
     return {
         "name": "Current Volume",
-        "value": format_kpi_value(
-            current_volume, 
-            "volume", 
-            {}
-        ),
-        "description": f"The number of shares traded during the current session for {ticker}",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "volume"
     }
 
@@ -86,9 +97,11 @@ def get_average_volume(ticker: str, period_days: int = 30) -> Dict[str, Any]:
     
     # First try to get the average volume directly from info
     avg_volume = info.get('averageVolume')
+    source = "Yahoo Finance"
     
     # If not available, calculate from historical data
     if avg_volume is None:
+        source = "calculated"
         # Fetch historical data for the specified period
         history = fetch_ticker_history(ticker, timeframe=f"{period_days}d")
         
@@ -102,15 +115,34 @@ def get_average_volume(ticker: str, period_days: int = 30) -> Dict[str, Any]:
     else:
         logger.debug(f"Using average volume from ticker info for {ticker}: {avg_volume}")
     
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        avg_volume,
+        "volume",
+        {}
+    )
+
+    # Create description
+    desc_period = f"{period_days}-Day"
+    if period_days == 10:
+        desc_period = "10-Day"
+    elif period_days == 30:
+        desc_period = "30-Day" # Common default
+
+    source_info = f"(Source: {source})" if source == "calculated" else ""
+
+    description = (
+        f"**What it is:** The average number of {ticker} shares traded daily over the past {period_days} days. {source_info}\\n"
+        f"**Trading Use:** Provides a baseline for normal trading activity. Helps identify unusual volume spikes.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** Represents the typical daily trading interest in {ticker} over the specified period."
+    )
+
     # Return the formatted KPI
     return {
-        "name": f"{period_days}-Day Average Volume",
-        "value": format_kpi_value(
-            avg_volume, 
-            "volume", 
-            {}
-        ),
-        "description": f"Average daily trading volume over the last {period_days} days for {ticker}",
+        "name": f"{desc_period} Average Volume",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "volume"
     }
 
@@ -137,22 +169,42 @@ def get_volume_ratio(ticker: str) -> Dict[str, Any]:
     
     # Calculate ratio if both values are available
     volume_ratio = None
+    interpretation = "Volume ratio could not be calculated."
     
     if current_volume is not None and avg_volume is not None and avg_volume != 0:
         volume_ratio = current_volume / avg_volume
         logger.debug(f"Volume ratio for {ticker}: {volume_ratio:.2f}")
+        if volume_ratio > 2.0:
+            interpretation = f"Today's volume is significantly higher than average ({volume_ratio:.2f}x), indicating strong interest or a potential catalyst."
+        elif volume_ratio > 1.0:
+            interpretation = f"Today's volume is higher than average ({volume_ratio:.2f}x), suggesting increased activity."
+        elif volume_ratio < 0.8:
+            interpretation = f"Today's volume is lower than average ({volume_ratio:.2f}x), suggesting reduced activity."
+        else:
+            interpretation = f"Today's volume is near the average level ({volume_ratio:.2f}x)."
     else:
         logger.warning(f"Could not calculate volume ratio for {ticker}")
     
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        volume_ratio,
+        "ratio",
+        {"decimal_places": 2, "show_color": True}
+    )
+
+    # Create description
+    description = (
+        f"**What it is:** Compares the current session's volume to the average daily volume (usually 30-day) for {ticker}.\\n"
+        f"**Trading Use:** Highlights unusual trading activity. Ratios > 1 indicate above-average volume, < 1 indicate below-average.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** {interpretation}"
+    )
+
     # Return the formatted KPI
     return {
         "name": "Volume Ratio",
-        "value": format_kpi_value(
-            volume_ratio, 
-            "ratio", 
-            {"decimal_places": 2, "show_color": True}
-        ),
-        "description": f"Ratio of current volume to average volume for {ticker}. Values > 1 indicate higher than average activity.",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "volume"
     }
 
@@ -178,6 +230,7 @@ def get_relative_volume(ticker: str, timeframe: str = "5d") -> Dict[str, Any]:
     history = fetch_ticker_history(ticker, timeframe=timeframe)
     
     relative_volume = None
+    interpretation = "Relative volume could not be calculated."
     
     if not history.empty:
         # Get current date and previous dates
@@ -209,31 +262,56 @@ def get_relative_volume(ticker: str, timeframe: str = "5d") -> Dict[str, Any]:
                 
                 if similar_time_volumes:
                     avg_time_volume = sum(similar_time_volumes) / len(similar_time_volumes)
-                    current_volume = current_day['Volume'].iloc[-1]
+                    # Get cumulative volume up to the current time today
+                    current_cumulative_volume = current_day['Volume'].iloc[-1]
                     
                     if avg_time_volume > 0:
-                        relative_volume = current_volume / avg_time_volume
+                        relative_volume = current_cumulative_volume / avg_time_volume
                         logger.debug(f"Relative volume for {ticker}: {relative_volume:.2f}")
+                        if relative_volume > 2.0:
+                            interpretation = f"Volume so far today is significantly higher ({relative_volume:.2f}x) than average for this time of day, suggesting strong participation."
+                        elif relative_volume > 1.0:
+                            interpretation = f"Volume so far today is higher ({relative_volume:.2f}x) than average for this time of day."
+                        elif relative_volume < 0.8:
+                            interpretation = f"Volume so far today is lower ({relative_volume:.2f}x) than average for this time of day."
+                        else:
+                            interpretation = f"Volume so far today is near the average ({relative_volume:.2f}x) for this time of day."
                     else:
                         logger.warning(f"Average time volume is zero for {ticker}")
+                        interpretation = "Average volume at this time of day was zero in the comparison period."
                 else:
                     logger.warning(f"No similar time volumes found for {ticker}")
+                    interpretation = "Could not find comparable volume data from previous days."
             else:
                 logger.warning(f"No current day data available for {ticker}")
+                interpretation = "No trading data available for today yet."
         else:
             logger.warning(f"Not enough historical dates for relative volume calculation for {ticker}")
+            interpretation = "Not enough historical data to compare."
     else:
         logger.warning(f"No historical data available for relative volume calculation for {ticker}")
+        interpretation = "Historical data could not be fetched."
     
+    # Format the value
+    formatted_value_obj = format_kpi_value(
+        relative_volume,
+        "ratio",
+        {"decimal_places": 2, "show_color": True}
+    )
+
+    # Create description
+    description = (
+        f"**What it is:** Compares today's cumulative volume up to the current time with the average cumulative volume at the same time on previous days (using {timeframe} data).\\n"
+        f"**Trading Use:** Provides a time-adjusted view of volume strength. High relative volume early in the day can signal strong interest.\\n"
+        f"**Current Data:** {formatted_value_obj['formatted_value'] if formatted_value_obj else 'N/A'}\\n"
+        f"**Interpretation:** {interpretation}"
+    )
+
     # Return the formatted KPI
     return {
         "name": "Relative Volume",
-        "value": format_kpi_value(
-            relative_volume, 
-            "ratio", 
-            {"decimal_places": 2, "show_color": True}
-        ),
-        "description": f"Volume compared to average volume at the same time of day. Values > 1 indicate higher than usual activity.",
+        "value": formatted_value_obj,
+        "description": description,
         "group": "volume"
     }
 

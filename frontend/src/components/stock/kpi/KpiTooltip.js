@@ -70,6 +70,7 @@ const VIEWPORT_MARGIN = 10; // Minimum distance from viewport edge
 /**
  * KpiTooltip component for displaying detailed explanations and contextual information
  * about Key Performance Indicators (KPIs), styled with the application theme.
+ * Description and context come directly from the `kpi.description` field provided by the backend.
  */
 const KpiTooltip = ({
   kpi,
@@ -242,28 +243,34 @@ const KpiTooltip = ({
 
   // --- Content Rendering ---
 
-  // Renders specific content sections based on KPI group/name
+  // Renders the tooltip content using data exclusively from the kpi prop
   const renderTooltipContent = () => {
-    const kpiGroup = kpi.group || ''; // Get group name safely
+    // Check if kpi data is valid
+    if (!kpi) {
+      log.warn(`KpiTooltip: renderTooltipContent called with null or undefined kpi (${instanceId.current})`);
+      return <div className="tooltip-content">No KPI data available.</div>;
+    }
 
     return (
       <div className="tooltip-content">
         {/* Header: Title and Formatted Value */}
         <div className="tooltip-header">
+          {/* Display KPI name or a fallback */}
           <h3 className="tooltip-title">{kpi.name || 'Unknown KPI'}</h3>
           {/* Display formatted value if available */}
-          {kpi.value && (
+          {kpi.value !== undefined && kpi.value !== null && (
             <div className="tooltip-value">
+              {/* Prioritize formatted_value if the value is an object */}
               {typeof kpi.value === 'object' && kpi.value.formatted_value
                 ? kpi.value.formatted_value
                 : typeof kpi.value === 'object'
-                  ? JSON.stringify(kpi.value) // Fallback for unformatted objects
-                  : String(kpi.value)}
+                  ? JSON.stringify(kpi.value) // Fallback for objects without formatted_value
+                  : String(kpi.value)} {/* Render other types as strings */}
             </div>
           )}
         </div>
 
-        {/* Description */}
+        {/* Description - Directly from the backend kpi object */}
         {kpi.description && (
           <div className="tooltip-description">
             {kpi.description}
@@ -271,34 +278,37 @@ const KpiTooltip = ({
         )}
 
         {/* Trend Indicator */}
+        {/* Check for trend existence (including 0) */}
         {kpi.trend !== undefined && kpi.trend !== null && (
           <div className={`tooltip-trend ${kpi.trend > 0 ? 'positive' : kpi.trend < 0 ? 'negative' : 'neutral'}`}>
             <span className="trend-icon">
-              {kpi.trend > 0 ? '▲' : kpi.trend < 0 ? '▼' : '–'} {/* Use different arrows */}
+              {/* Use appropriate icons for trend direction */}
+              {kpi.trend > 0 ? '▲' : kpi.trend < 0 ? '▼' : '–'}
             </span>
             <span className="trend-label">
-              {/* Display trend_label if provided, otherwise format the trend value */}
+              {/* Display trend_label if provided, otherwise format the trend value as percentage */}
               {kpi.trend_label || `${Math.abs(kpi.trend * 100).toFixed(1)}%`}
             </span>
           </div>
         )}
 
-        {/* Contextual Information Sections */}
-        {kpiGroup === 'price' && renderPriceInfo()}
-        {kpiGroup === 'volume' && renderVolumeInfo()}
-        {kpiGroup === 'volatility' && renderVolatilityInfo()}
-        {kpiGroup === 'fundamental' && renderFundamentalInfo()}
-        {kpiGroup === 'sentiment' && renderSentimentInfo()}
+        {/* --- REMOVED CONTEXTUAL INFO SECTIONS --- */}
+        {/* The specific sections based on kpi.group (renderPriceInfo, etc.) are removed */}
+        {/* All necessary contextual information should now be included in the kpi.description from the backend */}
 
         {/* Secondary Value Display */}
-        {kpi.secondary_value && (
+        {/* Check if secondary_value exists */}
+        {kpi.secondary_value !== undefined && kpi.secondary_value !== null && (
           <div className="tooltip-secondary">
+            {/* Display secondary_label or a default */}
             <span className="secondary-label">{kpi.secondary_label || 'Info'}: </span>
             <span className="secondary-value">
               {/* Format secondary value similar to primary value */}
-              {typeof kpi.secondary_value === 'object'
-                ? (kpi.secondary_value.formatted_value || JSON.stringify(kpi.secondary_value))
-                : String(kpi.secondary_value)}
+              {typeof kpi.secondary_value === 'object' && kpi.secondary_value.formatted_value
+                ? kpi.secondary_value.formatted_value
+                : typeof kpi.secondary_value === 'object'
+                  ? JSON.stringify(kpi.secondary_value) // Fallback for objects
+                  : String(kpi.secondary_value)} {/* Render other types as strings */}
             </span>
           </div>
         )}
@@ -307,46 +317,9 @@ const KpiTooltip = ({
   };
 
   // --- Helper Render Functions for Contextual Info ---
-  // (These functions remain largely the same, just ensure class names match style block)
-  const renderPriceInfo = () => { /* ... content ... */
-     if (!kpi.name) return null;
-     if (kpi.name.includes('Change')) {
-      return <div className="tooltip-info-section"><p>Price change since previous close.</p></div>;
-     }
-     return null;
-  };
-  const renderVolumeInfo = () => { /* ... content ... */
-      if (!kpi.name) return null;
-      if (kpi.name.includes('Volume Ratio')) {
-        return <div className="tooltip-info-section"><p>Volume Ratio: Current volume vs average.</p><ul className="tooltip-scale"><li className="positive">{'>'}2: High</li><li className="neutral">0.8-2: Normal</li><li className="negative">{'<'}0.8: Low</li></ul></div>;
-      }
-      return null;
-  };
-  const renderVolatilityInfo = () => { /* ... content ... */
-     if (!kpi.name) return null;
-     if (kpi.name.includes('Beta')) {
-       return <div className="tooltip-info-section"><p>Beta: Volatility vs market.</p><ul className="tooltip-scale"><li className="negative">{'>'}1.5: High</li><li className="neutral">0.5-1.5: Moderate</li><li className="positive">{'<'}0.5: Low</li></ul></div>;
-     }
-     if (kpi.name.includes('Volatility')) {
-       return <div className="tooltip-info-section"><p>Historical Volatility (annualized).</p></div>;
-     }
-     return null;
-  };
-  const renderFundamentalInfo = () => { /* ... content ... */
-     if (!kpi.name) return null;
-     if (kpi.name.includes('P/E')) { return <div className="tooltip-info-section"><p>Price-to-Earnings Ratio.</p></div>; }
-     if (kpi.name.includes('Debt-to-Equity')) { return <div className="tooltip-info-section"><p>Debt vs Equity financing.</p><ul className="tooltip-scale"><li className="positive">{'<'}0.5: Low Debt</li><li className="neutral">0.5-2: Moderate</li><li className="negative">{'>'}2: High Debt</li></ul></div>;}
-     if (kpi.name.includes('ROE')) { return <div className="tooltip-info-section"><p>Return on Equity (profitability).</p></div>;}
-     if (kpi.name.includes('Dividend Yield')) { return <div className="tooltip-info-section"><p>Annual dividend vs share price.</p></div>;}
-     return null;
-  };
-  const renderSentimentInfo = () => { /* ... content ... */
-     if (!kpi.name) return null;
-     if (kpi.name.includes('Sentiment')) {
-       return <div className="tooltip-info-section"><p>Market perception score.</p></div>;
-     }
-     return null;
-  };
+  // REMOVED: renderPriceInfo, renderVolumeInfo, renderVolatilityInfo,
+  // renderFundamentalInfo, renderSentimentInfo functions are deleted
+  // as this logic is now handled by the backend providing the description.
 
   // Determine the CSS class for the arrow based on the computed position
   const getArrowClass = () => {
@@ -540,7 +513,8 @@ const KpiTooltip = ({
         .tooltip-trend.neutral { background-color: ${NEUTRAL_BG}; color: ${NEUTRAL_COLOR}; }
         .trend-icon { font-size: 14px; }
 
-        /* Contextual Info Sections */
+        /* Contextual Info Sections (removed, styles left for reference/cleanup if needed) */
+        /*
         .tooltip-info-section {
           margin-top: 8px;
           padding-top: 8px;
@@ -564,6 +538,7 @@ const KpiTooltip = ({
         .tooltip-scale li.positive::before { color: ${POSITIVE_COLOR};}
         .tooltip-scale li.negative::before { color: ${NEGATIVE_COLOR};}
         .tooltip-scale li.neutral::before { color: ${NEUTRAL_COLOR};}
+        */
 
         .tooltip-secondary {
           margin-top: 8px;

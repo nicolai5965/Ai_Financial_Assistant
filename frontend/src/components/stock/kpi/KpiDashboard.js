@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import KpiGroup from './KpiGroup'; // Assuming path is correct
+import KpiTooltip from './KpiTooltip'; // Import KpiTooltip here
 import { logger } from '../../../utils/logger'; // Assuming path is correct
 
 // --- Fallback Logger ---
@@ -66,7 +67,8 @@ const KpiDashboard = ({
   viewPreferences = {}, // User preferences for visible/expanded groups
 }) => {
   // --- State and Refs ---
-  const [activeKpi, setActiveKpi] = useState(null); // Track the name of the currently active/clicked KPI for tooltip control
+  const [activeKpi, setActiveKpi] = useState(null); // Stores the active KPI *object*
+  const [tooltipAnchorEl, setTooltipAnchorEl] = useState(null); // Stores the DOM element for the tooltip anchor
   const instanceId = useRef(`kpi-dashboard-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`); // Unique ID for logging
 
   // --- Effects ---
@@ -77,30 +79,53 @@ const KpiDashboard = ({
     return () => log.debug(`KpiDashboard: Unmounting (${instanceId.current})`);
   }, []);
 
+  // Log when tooltip should be open/closed based on state
+  useEffect(() => {
+    if (activeKpi && tooltipAnchorEl) {
+      log.debug(`KpiDashboard: State updated, tooltip should open for ${activeKpi.name}. (${instanceId.current})`);
+    } else {
+       log.debug(`KpiDashboard: State updated, tooltip should be closed. (${instanceId.current})`);
+    }
+  }, [activeKpi, tooltipAnchorEl]);
+
   // --- Event Handlers ---
 
   // Handle refresh button click
   const handleRefreshClick = useCallback(() => {
     setActiveKpi(null); // Hide any active tooltip on refresh
+    setTooltipAnchorEl(null);
     if (onRefresh) {
       log.info(`KpiDashboard: Refresh requested (${instanceId.current})`);
       onRefresh();
     }
   }, [onRefresh]); // Dependency only on onRefresh
 
-  // Handle clicking on an individual KPI card
-  const handleKpiClick = useCallback((kpi) => {
-    if (!kpi) return;
-    // Toggle active state: if same KPI clicked again, deactivate (hide tooltip), otherwise activate.
-    const newActiveKpi = activeKpi === kpi.name ? null : kpi.name;
-    log.debug(`KpiDashboard: KPI clicked: ${kpi.name}, New active state: ${newActiveKpi} (${instanceId.current})`);
-    setActiveKpi(newActiveKpi);
+  // Handler passed down to KpiGroup -> KpiCard
+  const handleKpiCardClick = useCallback((kpi, anchorEl) => {
+    // If the clicked KPI is already active, deactivate it
+    if (activeKpi && kpi.name === activeKpi.name) {
+      log.debug(`KpiDashboard: KPI clicked again: ${kpi.name}, Deactivating. (${instanceId.current})`);
+      setActiveKpi(null);
+      setTooltipAnchorEl(null);
+    } else {
+      // Otherwise, activate the new KPI
+      log.debug(`KpiDashboard: KPI clicked: ${kpi.name}, New active state. (${instanceId.current})`);
+      setActiveKpi(kpi);
+      setTooltipAnchorEl(anchorEl); // Store the anchor element
+    }
 
-    // Notify parent component if needed
+    // Notify parent component if needed (optional)
     if (onKpiClick) {
       onKpiClick(kpi);
     }
-  }, [activeKpi, onKpiClick]); // Dependencies
+  }, [activeKpi, onKpiClick]); // Dependency on activeKpi to check current state
+
+  // Handler for closing the tooltip (e.g., called by KpiTooltip's onClose)
+  const handleCloseTooltip = useCallback(() => {
+     log.debug(`KpiDashboard: Closing tooltip explicitly. (${instanceId.current})`);
+     setActiveKpi(null);
+     setTooltipAnchorEl(null);
+  }, []);
 
   // --- Data Processing ---
 
@@ -197,8 +222,8 @@ const KpiDashboard = ({
         <KpiGroup
           key={group.group} // Use the unique group identifier as the key
           group={group}
-          onKpiClick={handleKpiClick} // Pass down the handler
-          activeKpi={activeKpi} // Pass down the currently active KPI name
+          onKpiClick={handleKpiCardClick} // Pass down the specific handler for card clicks
+          activeKpiName={activeKpi?.name} // Pass the *name* of the active KPI for card styling
           initiallyExpanded={isExpanded} // Control initial expansion state
         />
       );
@@ -213,7 +238,8 @@ const KpiDashboard = ({
         <h2 className="dashboard-title">
           Key Performance Indicators
           {/* Append ticker symbol if available */}
-          {kpiData?.data?.ticker ? ` - ${kpiData.data.ticker}` : ''}
+          {/* Safely access potentially nested ticker */}
+          {kpiData?.kpi_data?.ticker ? ` - ${kpiData.kpi_data.ticker}` : ''}
         </h2>
         {/* Only show refresh button if handler is provided */}
         {onRefresh && (
@@ -233,12 +259,25 @@ const KpiDashboard = ({
         {renderContent()}
       </div>
 
+      {/* Render the single KpiTooltip instance conditionally */}
+      {/* It's rendered here, outside the KpiCard's overflow context */}
+      {activeKpi && tooltipAnchorEl && (
+        <KpiTooltip
+          kpi={activeKpi} // Pass the full KPI object
+          anchorEl={tooltipAnchorEl} // Pass the anchor element
+          open={true} // If it's rendered here, it's because it should be open
+          onClose={handleCloseTooltip} // Pass the handler to allow tooltip to close itself
+          // position="above" // You can set a default position
+        />
+      )}
+
       {/* --- Styles (using theme constants) --- */}
       <style jsx>{`
         .kpi-dashboard {
           width: 100%;
           padding: ${DASHBOARD_PADDING};
           background-color: ${DASHBOARD_BG_COLOR}; /* Transparent background */
+          position: relative; /* Added to ensure correct context for absolute/fixed children if needed */
         }
 
         .dashboard-header {

@@ -74,10 +74,10 @@ const Layout = ({ children }) => {
           transition: margin-left 0.3s ease; /* Smooth transition for sidebar */
         }
         
-        /* Adjust main content when sidebar is open */
-        .main-content.sidebar-open {
-          margin-left: ${SIDEBAR_WIDTH}; /* Match the sidebar width */
-        }
+        // /* Adjust main content when sidebar is open */
+        // .main-content.sidebar-open {
+        //   margin-left: ${SIDEBAR_WIDTH}; /* Match the sidebar width */
+        // }
       `}</style>
       
       {/* Global styles for color theme consistency */}

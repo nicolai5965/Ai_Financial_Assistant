@@ -55,6 +55,9 @@ const DEFAULT_PREFERENCES = {
   visibleGroups: DEFAULT_KPI_CONFIG.groups || [], // Ensure defaults are arrays
   expandedGroups: DEFAULT_KPI_CONFIG.groups || [], // Ensure defaults are arrays
   activeView: 'technical', // Default active view
+  // Add the groupOrder property with a default order
+  // Ensure this order aligns logically with visibleGroups/DEFAULT_KPI_CONFIG
+  groupOrder: DEFAULT_KPI_CONFIG.groups ? [...DEFAULT_KPI_CONFIG.groups] : ['price', 'volume', 'volatility', 'fundamental', 'sentiment'], // Use config groups or a fallback
 };
 
 // Storage Key (Moved constant definition up)

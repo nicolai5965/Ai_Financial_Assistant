@@ -75,6 +75,14 @@ const CHECKBOX_MARGIN_RIGHT = '10px';
 // TEXT & TITLES
 const SECTION_TITLE_COLOR = ACCENT_PRIMARY; // Use accent for section titles
 
+// ADD/REMOVE/MOVE BUTTONS
+const BUTTON_ACTION_BG = 'rgba(92, 230, 207, 0.1)';
+const BUTTON_ACTION_HOVER_BG = 'rgba(92, 230, 207, 0.25)';
+const BUTTON_ACTION_COLOR = ACCENT_PRIMARY;
+const BUTTON_ACTION_DISABLED_COLOR = 'rgba(92, 230, 207, 0.3)';
+const BUTTON_MOVE_PADDING = '4px 8px'; // Smaller padding for move buttons
+const BUTTON_MOVE_FONT_SIZE = '18px'; // Use icons/arrows
+
 // ---------------------------------------------------------------------
 // Predefined Views Configuration
 // ---------------------------------------------------------------------
@@ -93,7 +101,7 @@ const KpiSettings = ({
   isVisible,
   onClose,
   availableGroups = [], // Array of available group names (e.g., ['price', 'volume'])
-  preferences = {}, // Current preferences { visibleGroups: [], expandedGroups: [], activeView: 'all' }
+  preferences = {}, // Current preferences { visibleGroups: [], expandedGroups: [], activeView: 'all', groupOrder: [] }
   onPreferencesChange, // Callback when preferences change internally
   onSaveClick, // Callback when the user explicitly saves
 }) => {
@@ -101,8 +109,9 @@ const KpiSettings = ({
   // Local state to manage preferences within the modal before saving
   const [currentPreferences, setCurrentPreferences] = useState({
     visibleGroups: preferences.visibleGroups || [],
-    expandedGroups: preferences.expandedGroups || [], // Maintain expanded state if needed
+    expandedGroups: preferences.expandedGroups || [],
     activeView: preferences.activeView || 'all',
+    groupOrder: preferences.groupOrder || [],
   });
   // Ref for unique instance ID for logging
   const instanceId = useRef(`kpi-settings-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`);
@@ -113,10 +122,17 @@ const KpiSettings = ({
   useEffect(() => {
     if (isVisible) {
       log.debug(`KpiSettings: Syncing internal state with props on visible (${instanceId.current})`);
+      // Ensure groupOrder exists in preferences, falling back to availableGroups if needed
+      const initialGroupOrder = preferences.groupOrder && preferences.groupOrder.length > 0
+         ? preferences.groupOrder
+         : (preferences.visibleGroups || []); // Fallback to visibleGroups order if groupOrder is missing
+
       setCurrentPreferences({
         visibleGroups: preferences.visibleGroups || [],
-        expandedGroups: preferences.expandedGroups || [], // Ensure expandedGroups are also synced
-        activeView: preferences.activeView || 'all',
+        expandedGroups: preferences.expandedGroups || [],
+        activeView: preferences.activeView || 'custom', // Default to custom if complex state loaded
+        // Initialize groupOrder, ensuring it only contains currently visible groups
+        groupOrder: initialGroupOrder.filter(group => (preferences.visibleGroups || []).includes(group)),
       });
     }
   }, [isVisible, preferences]); // Rerun when visibility or external preferences change
@@ -139,6 +155,8 @@ const KpiSettings = ({
         ...currentPreferences, // Keep other preferences like expandedGroups
         visibleGroups: [...viewConfig.groups], // Use a copy of the groups array
         activeView: viewKey,
+        // Set groupOrder to match the predefined view's order
+        groupOrder: [...viewConfig.groups],
       };
       setCurrentPreferences(newPreferences);
       // Optionally notify parent immediately of the change within the modal
@@ -148,34 +166,74 @@ const KpiSettings = ({
     }
   }, [currentPreferences, onPreferencesChange]); // Dependencies
 
-  // Handle toggling the visibility of an individual group via checkbox
-  const handleGroupToggle = useCallback((groupName) => {
-    log.debug(`KpiSettings: Toggling group visibility: ${groupName} (${instanceId.current})`);
+  // Handle Adding a group from Available to Selected
+  const handleAddGroup = useCallback((groupName) => {
+      if (!currentPreferences.visibleGroups.includes(groupName)) {
+          log.debug(`KpiSettings: Adding group: ${groupName} (${instanceId.current})`);
+          const newVisibleGroups = [...currentPreferences.visibleGroups, groupName];
+          const newGroupOrder = [...currentPreferences.groupOrder, groupName]; // Add to end of order
 
-    const isCurrentlyVisible = currentPreferences.visibleGroups.includes(groupName);
-    let newVisibleGroups;
+          const newPreferences = {
+              ...currentPreferences,
+              visibleGroups: newVisibleGroups,
+              groupOrder: newGroupOrder,
+              activeView: 'custom',
+          };
+          setCurrentPreferences(newPreferences);
+          if (onPreferencesChange) {
+              onPreferencesChange(newPreferences);
+          }
+      }
+  }, [currentPreferences, onPreferencesChange]);
 
-    if (isCurrentlyVisible) {
-      // Remove the group if it was visible
-      newVisibleGroups = currentPreferences.visibleGroups.filter(g => g !== groupName);
-    } else {
-      // Add the group if it was not visible
-      newVisibleGroups = [...currentPreferences.visibleGroups, groupName];
-      // Ensure added group exists in availableGroups for safety? Maybe not necessary here.
-    }
+  // Handle Removing a group from Selected back to Available
+  const handleRemoveGroup = useCallback((groupName) => {
+      if (currentPreferences.visibleGroups.includes(groupName)) {
+          log.debug(`KpiSettings: Removing group: ${groupName} (${instanceId.current})`);
+          const newVisibleGroups = currentPreferences.visibleGroups.filter(g => g !== groupName);
+          const newGroupOrder = currentPreferences.groupOrder.filter(g => g !== groupName); // Remove from order
 
-    // Update local state, mark activeView as 'custom' since it no longer matches a predefined view
-    const newPreferences = {
-      ...currentPreferences,
-      visibleGroups: newVisibleGroups,
-      activeView: 'custom', // Indicate custom selection
-    };
-    setCurrentPreferences(newPreferences);
-    // Optionally notify parent immediately
-    if (onPreferencesChange) {
-      onPreferencesChange(newPreferences);
-    }
-  }, [currentPreferences, onPreferencesChange]); // Dependencies
+          const newPreferences = {
+              ...currentPreferences,
+              visibleGroups: newVisibleGroups,
+              groupOrder: newGroupOrder,
+              activeView: 'custom',
+          };
+          setCurrentPreferences(newPreferences);
+          if (onPreferencesChange) {
+              onPreferencesChange(newPreferences);
+          }
+      }
+  }, [currentPreferences, onPreferencesChange]);
+
+  // Handle Moving a group Up or Down in the Selected list
+  const handleMoveGroup = useCallback((groupName, direction) => {
+      const currentIndex = currentPreferences.groupOrder.indexOf(groupName);
+      if (currentIndex === -1) return; // Should not happen
+
+      const newOrder = [...currentPreferences.groupOrder];
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+      // Check bounds
+      if (targetIndex < 0 || targetIndex >= newOrder.length) {
+          return; // Cannot move further
+      }
+
+      log.debug(`KpiSettings: Moving group ${groupName} ${direction} (${instanceId.current})`);
+
+      // Swap elements
+      [newOrder[currentIndex], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[currentIndex]];
+
+      const newPreferences = {
+          ...currentPreferences,
+          groupOrder: newOrder,
+          activeView: 'custom',
+      };
+      setCurrentPreferences(newPreferences);
+      if (onPreferencesChange) {
+          onPreferencesChange(newPreferences);
+      }
+  }, [currentPreferences, onPreferencesChange]);
 
   // Handle closing the modal (without saving changes made within the modal)
   const handleClose = useCallback(() => {
@@ -189,16 +247,21 @@ const KpiSettings = ({
 
   // Handle saving the current local preferences and closing the modal
   const handleSave = useCallback(() => {
-    log.info(`KpiSettings: Save requested. Saving preferences:`, currentPreferences, `(${instanceId.current})`);
+    // Ensure groupOrder only contains groups that are actually visible
+    const finalPreferences = {
+        ...currentPreferences,
+        groupOrder: currentPreferences.groupOrder.filter(g => currentPreferences.visibleGroups.includes(g)),
+    };
+    log.info(`KpiSettings: Save requested. Saving preferences:`, finalPreferences, `(${instanceId.current})`);
     // Call the explicit save handler provided by the parent
     if (onSaveClick) {
-        // Pass the current internal state to the parent to save
-        onSaveClick(currentPreferences);
+        // Pass the cleaned-up internal state to the parent to save
+        onSaveClick(finalPreferences);
     } else if (onPreferencesChange) {
         // Fallback: If only onPreferencesChange is provided, use that.
         // This implies the parent updates its state immediately on any change.
         log.warn(`KpiSettings: Using onPreferencesChange as fallback for save. Consider providing onSaveClick for explicit save action. (${instanceId.current})`)
-        onPreferencesChange(currentPreferences);
+        onPreferencesChange(finalPreferences);
     }
     handleClose(); // Close the modal after saving
   }, [currentPreferences, onSaveClick, onPreferencesChange, handleClose]); // Dependencies
@@ -237,44 +300,81 @@ const KpiSettings = ({
             </div>
           </div>
 
-          {/* Group Visibility Section */}
-          <div className="settings-section group-toggles">
-            <h4 className="section-title">Visible Groups (Custom)</h4>
-            <div className="toggle-list">
-              {/* Map over available groups passed from parent */}
-              {availableGroups.map((groupName) => (
-                <label key={groupName} className="toggle-item">
-                  {/* Custom styled checkbox */}
-                  <div
-                    className={`custom-checkbox ${currentPreferences.visibleGroups.includes(groupName) ? 'checked' : ''}`}
-                    onClick={(e) => { e.preventDefault(); handleGroupToggle(groupName); }} // Prevent label double-trigger
-                    role="checkbox"
-                    aria-checked={currentPreferences.visibleGroups.includes(groupName)}
-                    tabIndex={0} // Make it focusable
-                    onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') handleGroupToggle(groupName); }} // Keyboard support
-                  >
-                    {currentPreferences.visibleGroups.includes(groupName) && (
-                       <svg className="checkmark" viewBox="0 0 12 10">
-                         <polyline points="1.5 6 4.5 9 10.5 3"></polyline>
-                       </svg>
+          {/* Group Visibility Section - Refactored */}
+          <div className="settings-section group-management">
+             <div className="group-list-container">
+                {/* Selected Groups List */}
+                <div className="group-list selected-groups">
+                    <h4 className="section-title">Selected & Ordered Groups</h4>
+                    {currentPreferences.groupOrder.length > 0 ? (
+                        currentPreferences.groupOrder.map((groupName, index) => (
+                          <div key={groupName} className="list-item selected-item">
+                             <div className="item-controls">
+                                 {/* Move Up Button */}
+                                 <button
+                                     className="move-button"
+                                     onClick={() => handleMoveGroup(groupName, 'up')}
+                                     disabled={index === 0} // Disable if first item
+                                     title="Move up"
+                                  >
+                                     ▲
+                                 </button>
+                                 {/* Move Down Button */}
+                                 <button
+                                     className="move-button"
+                                     onClick={() => handleMoveGroup(groupName, 'down')}
+                                     disabled={index === currentPreferences.groupOrder.length - 1} // Disable if last item
+                                     title="Move down"
+                                 >
+                                     ▼
+                                 </button>
+                             </div>
+                             <span className="item-label">
+                                 {groupName.charAt(0).toUpperCase() + groupName.slice(1)}
+                             </span>
+                             {/* Remove Button */}
+                             <button
+                                 className="action-button remove-button"
+                                 onClick={() => handleRemoveGroup(groupName)}
+                                 title="Remove group"
+                             >
+                                 &times; {/* Simple 'x' icon */}
+                             </button>
+                           </div>
+                        ))
+                    ) : (
+                         <p className="no-groups-message">No groups selected.</p>
                     )}
-                  </div>
-                   {/* Hidden actual checkbox for semantics/accessibility */}
-                   <input
-                    type="checkbox"
-                    checked={currentPreferences.visibleGroups.includes(groupName)}
-                    onChange={() => handleGroupToggle(groupName)} // Let this handle state change
-                    style={{ display: 'none' }} // Hide the actual checkbox
-                  />
-                  <span className="toggle-label">
-                    {/* Capitalize group name for display */}
-                    {groupName.charAt(0).toUpperCase() + groupName.slice(1)}
-                  </span>
-                </label>
-              ))}
-            </div>
+                </div>
+
+                {/* Available Groups List */}
+                 <div className="group-list available-groups">
+                     <h4 className="section-title">Available Groups</h4>
+                     {availableGroups.filter(g => !currentPreferences.visibleGroups.includes(g)).length > 0 ? (
+                         availableGroups
+                             .filter(g => !currentPreferences.visibleGroups.includes(g)) // Only show groups not already selected
+                             .map((groupName) => (
+                                <div key={groupName} className="list-item available-item">
+                                   <span className="item-label">
+                                      {groupName.charAt(0).toUpperCase() + groupName.slice(1)}
+                                   </span>
+                                   {/* Add Button */}
+                                   <button
+                                       className="action-button add-button"
+                                       onClick={() => handleAddGroup(groupName)}
+                                       title="Add group"
+                                   >
+                                       + {/* Simple '+' icon */}
+                                   </button>
+                                </div>
+                             ))
+                     ) : (
+                          <p className="no-groups-message">All available groups are selected.</p>
+                     )}
+                 </div>
+             </div>
              {availableGroups.length === 0 && (
-                 <p className="no-groups-message">No KPI groups available to configure.</p>
+                 <p className="no-groups-message centered-message">No KPI groups available to configure.</p>
              )}
           </div>
         </div>
@@ -421,66 +521,97 @@ const KpiSettings = ({
           box-shadow: 0 0 8px rgba(92, 230, 207, 0.5);
         }
 
-        /* Group Toggles */
-        .toggle-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px; /* Increased gap */
+        /* Group Toggles - Replaced with Group Management */
+        .group-management {
+            /* Container for the two lists */
         }
-
-        .toggle-item {
-          display: flex;
-          align-items: center;
-          cursor: pointer;
-          padding: 4px 0; /* Add some vertical padding */
+        .group-list-container {
+            display: flex;
+            gap: 20px; /* Space between Selected and Available lists */
+            margin-top: 10px;
         }
+        .group-list {
+            flex: 1; /* Each list takes half the space */
+            border: 1px solid rgba(92, 230, 207, 0.15);
+            border-radius: ${BUTTON_BORDER_RADIUS};
+            padding: 10px;
+            min-height: 150px; /* Ensure lists have some minimum height */
+            max-height: 250px; /* Limit height and allow scrolling if needed */
+            overflow-y: auto;
+            background-color: rgba(10, 20, 30, 0.4); /* Slightly different bg for lists */
 
-        /* Custom Checkbox Styling */
-        .custom-checkbox {
-            width: ${CHECKBOX_SIZE};
-            height: ${CHECKBOX_SIZE};
-            background-color: ${CHECKBOX_BG};
-            border: 1px solid ${CHECKBOX_BORDER};
-            border-radius: 3px;
-            margin-right: ${CHECKBOX_MARGIN_RIGHT};
+             /* Scrollbar styles */
+             scrollbar-width: thin;
+             scrollbar-color: ${ACCENT_PRIMARY} rgba(0, 0, 0, 0.2);
+        }
+         .group-list::-webkit-scrollbar { width: 6px; }
+         .group-list::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); border-radius: 3px; }
+         .group-list::-webkit-scrollbar-thumb { background-color: ${ACCENT_PRIMARY}; border-radius: 3px; }
+
+
+        .list-item {
             display: flex;
             align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background-color 0.2s ease, border-color 0.2s ease;
-            flex-shrink: 0; /* Prevent shrinking */
+            justify-content: space-between;
+            padding: 6px 0; /* Vertical padding for items */
+            border-bottom: 1px solid rgba(92, 230, 207, 0.1); /* Separator line */
+        }
+        .list-item:last-child {
+            border-bottom: none;
         }
 
-        .custom-checkbox:hover {
-            border-color: ${ACCENT_PRIMARY};
+        .selected-item .item-controls {
+            display: flex;
+            flex-direction: column; /* Stack move buttons vertically */
+            margin-right: 10px;
         }
 
-        .custom-checkbox.checked {
-            background-color: ${CHECKBOX_CHECKED_BG};
-            border-color: ${CHECKBOX_CHECKED_BG};
+        .item-label {
+            color: ${TEXT_PRIMARY};
+            font-size: 14px;
+            flex-grow: 1; /* Allow label to take available space */
+            margin-left: 5px; /* Space after controls or before add button */
+            margin-right: 5px;
         }
 
-        .checkmark {
-            width: calc(${CHECKBOX_SIZE} * 0.6);
-            height: calc(${CHECKBOX_SIZE} * 0.6);
-            stroke: ${CHECKBOX_CHECK_COLOR};
-            stroke-width: 2.5;
-            fill: none;
-            stroke-linecap: round;
-            stroke-linejoin: round;
+        /* Specific Button Styles within lists */
+        .action-button, .move-button {
+             background-color: ${BUTTON_ACTION_BG};
+             color: ${BUTTON_ACTION_COLOR};
+             border: none;
+             border-radius: 3px;
+             cursor: pointer;
+             transition: background-color 0.2s ease;
+             font-weight: bold;
+             line-height: 1; /* Ensure icon alignment */
+             padding: ${BUTTON_MOVE_PADDING};
+             font-size: ${BUTTON_MOVE_FONT_SIZE};
+        }
+        .action-button { /* Add/Remove */
+            padding: 4px 8px; /* Adjust padding if needed */
+             font-size: 16px;
         }
 
-        .toggle-label {
-          color: ${TEXT_PRIMARY};
-          font-size: 14px;
-          user-select: none; /* Prevent text selection on click */
+        .action-button:hover, .move-button:hover {
+             background-color: ${BUTTON_ACTION_HOVER_BG};
         }
+
+         .move-button:disabled {
+             color: ${BUTTON_ACTION_DISABLED_COLOR};
+             cursor: not-allowed;
+             background-color: transparent;
+         }
 
         .no-groups-message {
             color: ${TEXT_SECONDARY};
             font-style: italic;
             font-size: 14px;
             margin-top: 10px;
+        }
+
+        .centered-message {
+            text-align: center;
+            width: 100%; /* Make it span the container if used outside lists */
         }
 
         /* Footer */

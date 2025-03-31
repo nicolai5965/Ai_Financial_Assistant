@@ -1,3 +1,4 @@
+
 """
 Price-related KPI calculations.
 

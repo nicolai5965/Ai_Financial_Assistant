@@ -5,6 +5,9 @@
     "next": "^15.2.3",
     "plotly.js-dist-min": "^3.0.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-beautiful-dnd": "^13.1.1",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-breaks": "^4.0.0"
   }
 }

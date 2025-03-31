@@ -157,6 +157,48 @@ const KpiDashboard = ({
     return kpiGroups;
   }, [kpiGroups, viewPreferences?.visibleGroups]); // Dependency on processed groups and the specific preference
 
+  // useMemo to sort the visible groups based on user preferences
+  const sortedVisibleGroups = useMemo(() => {
+      if (!visibleGroups || visibleGroups.length === 0) {
+          return [];
+      }
+
+      const groupOrder = viewPreferences?.groupOrder || []; // Get order or default to empty array
+      log.debug(`KpiDashboard: Sorting ${visibleGroups.length} groups based on order: [${groupOrder.join(', ')}] (${instanceId.current})`);
+
+      // Create a copy and sort it
+      const sorted = [...visibleGroups].sort((a, b) => {
+          const groupA = a?.group;
+          const groupB = b?.group;
+
+          // Handle cases where group names might be missing
+          if (!groupA && !groupB) return 0;
+          if (!groupA) return 1; // Put items without group name last
+          if (!groupB) return -1;
+
+          const indexA = groupOrder.indexOf(groupA);
+          const indexB = groupOrder.indexOf(groupB);
+
+          // If both groups are in the order array, sort by index
+          if (indexA !== -1 && indexB !== -1) {
+              return indexA - indexB;
+          }
+          // If only A is in the order array, A comes first
+          if (indexA !== -1) return -1;
+          // If only B is in the order array, B comes first
+          if (indexB !== -1) return 1;
+          // If neither is in the order array, maintain original relative order (or sort alphabetically)
+          // Find original indices in the unsorted kpiGroups array for a stable fallback
+          const originalIndexA = kpiGroups.findIndex(g => g?.group === groupA);
+          const originalIndexB = kpiGroups.findIndex(g => g?.group === groupB);
+          return originalIndexA - originalIndexB;
+          // return 0; // Fallback: Keep original relative order among unordered items
+      });
+
+      return sorted;
+
+  }, [visibleGroups, viewPreferences?.groupOrder, kpiGroups]); // Dependencies: visibleGroups, the specific order preference, and original kpiGroups for fallback sorting
+
   // Check for error state in the data
   const hasError = !!kpiData?.error;
 
@@ -193,7 +235,7 @@ const KpiDashboard = ({
     }
 
     // Show message if no groups are visible (either none exist or none selected in preferences)
-    if (!visibleGroups || visibleGroups.length === 0) {
+    if (!sortedVisibleGroups || sortedVisibleGroups.length === 0) {
        // Differentiate message based on whether groups exist but aren't selected
       const message = kpiGroups.length > 0
         ? "No KPI groups selected. Adjust visibility in settings."
@@ -206,9 +248,9 @@ const KpiDashboard = ({
       );
     }
 
-    // Render the filtered list of KpiGroup components
-    log.debug(`KpiDashboard: Rendering ${visibleGroups.length} visible KPI groups (${instanceId.current})`);
-    return visibleGroups.map((group) => {
+    // Render the filtered and sorted list of KpiGroup components
+    log.debug(`KpiDashboard: Rendering ${sortedVisibleGroups.length} visible and sorted KPI groups (${instanceId.current})`);
+    return sortedVisibleGroups.map((group) => {
       if (!group || !group.group) {
           log.warn(`KpiDashboard: Skipping invalid group data in render loop (${instanceId.current})`, group);
           return null; // Skip rendering if group or group.group is missing

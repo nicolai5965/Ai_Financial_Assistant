@@ -4,6 +4,8 @@
 // Import Statements
 // ---------------------------------------------------------------------
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
+import remarkBreaks from 'remark-breaks'; // Import the remark-breaks plugin
 import { logger } from '../../../utils/logger'; // Assuming path is correct
 
 // --- Fallback Logger ---
@@ -250,6 +252,11 @@ const KpiTooltip = ({
       log.warn(`KpiTooltip: renderTooltipContent called with null or undefined kpi (${instanceId.current})`);
       return <div className="tooltip-content">No KPI data available.</div>;
     }
+    const processedDescription = kpi.description
+    ? kpi.description
+        .replace(/\\n/g, '\n')      // Step 1: Replace literal '\\n' with actual newline '\n'
+        .replace(/\n\*\*/g, '\n\n**') // Step 2: Replace newline before '**' with double newline
+    : '';
 
     return (
       <div className="tooltip-content">
@@ -270,10 +277,13 @@ const KpiTooltip = ({
           )}
         </div>
 
-        {/* Description - Directly from the backend kpi object */}
+        {/* Description - Use ReactMarkdown to render from backend kpi object */}
         {kpi.description && (
           <div className="tooltip-description">
-            {kpi.description}
+            {/* Use ReactMarkdown with remark-breaks plugin for line breaks */}
+            <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+              {processedDescription}
+            </ReactMarkdown>
           </div>
         )}
 

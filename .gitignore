@@ -26,6 +26,7 @@ python-installer.exe
 # Ignore the test_file.py
 test_file.py
 **/test_*.py
+test.py
 
 # Ignore the logs folder and any log files
 backend/logs/

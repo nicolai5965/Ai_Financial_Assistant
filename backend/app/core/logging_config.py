@@ -32,19 +32,19 @@ _logger_configured = False
 def configure_logger():
     """Configure the logger with handlers if not already configured."""
     global _logger_configured
-    
+
     if _logger_configured:
         return logger
-    
+
     # Check if the logger already has handlers to prevent duplicates
     if logger.hasHandlers():
         # Logger already has handlers, just return it
         _logger_configured = True
         return logger
-        
+
     # Print only during first configuration
     print(f"Logs will be written to: {log_file_path}")
-    
+
     # Set the base logger level to capture everything
     logger.setLevel(logging.DEBUG)
 
@@ -58,9 +58,9 @@ def configure_logger():
     file_handler.suffix = "%Y-%m-%d"  # Append the date to the log file name
     file_handler.setLevel(logging.DEBUG)  # All logs go to the file
 
-    # Define a log message format
+    # Define a log message format including filename and line number <<-- MODIFIED HERE
     formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        "%(asctime)s - %(levelname)s - %(name)s - [%(filename)s:%(lineno)d] - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
     file_handler.setFormatter(formatter)
@@ -69,13 +69,14 @@ def configure_logger():
     # Add a console handler with environment-appropriate level
     console_handler = logging.StreamHandler()
     console_handler.setLevel(CONSOLE_LOG_LEVEL)  # Use the module-level constant
+    # Use the SAME formatter for the console handler so it also shows file/line
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
     print(f"Logger initialized: File logging at DEBUG level, console logging at {logging.getLevelName(CONSOLE_LOG_LEVEL)} level")
     if not IS_DEVELOPMENT:
         print("Set ENVIRONMENT=development for more verbose console logging")
-    
+
     _logger_configured = True
     return logger
 
@@ -89,3 +90,16 @@ def get_logger():
 # This prevents duplicate logs when the logger is used in different modules
 logger.propagate = False
 
+# --- Example Usage (in another file, e.g., main.py) ---
+# from your_logger_module import get_logger # Assuming your config is in 'your_logger_module.py'
+#
+# logger = get_logger()
+#
+# def some_function():
+#     logger.info("This is an info message from some_function.")
+#     logger.warning("This is a warning.")
+#
+# if __name__ == "__main__":
+#     logger.debug("Starting the application.")
+#     some_function()
+#     logger.error("An error occurred somewhere.", exc_info=True) # exc_info adds traceback

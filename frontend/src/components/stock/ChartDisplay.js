@@ -63,8 +63,14 @@ const PLOTLY_CONFIG = {
 
 /**
  * ChartDisplay component for rendering a Plotly chart using StockSettingsSidebar theme.
+ * @param {object} props - Component props
+ * @param {object|string|null} props.chartData - The chart data object from the backend (Plotly format) or null/undefined.
+ * @param {boolean} props.isLoading - Flag indicating if data is currently being loaded.
+ * @param {object|string|null} props.prevChartData - The previous chart data object, used for smoother transitions during loading.
+ * @param {function} props.onUpdateClick - Callback function to trigger a chart update.
+ * @param {string|null} [props.chartInfoMessage] - An informational message to display, typically when chartData is null due to specific reasons.
  */
-const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) => {
+const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick, chartInfoMessage }) => {
 
   // --- State and Refs ---
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -142,6 +148,13 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
   const showInitialLoadingMessage = isLoading && !hasCurrentChartData && !hasPreviousChartData;
   // Determine if there's any chart content (current or previous) to potentially display or overlay
   const hasAnyChartContent = hasCurrentChartData || hasPreviousChartData;
+
+  // **** NEW: Determine if the info message should be shown ****
+  // Show the info message if it's provided, not loading, AND there's no actual chart data currently
+  // (We check !hasCurrentChartData because the message usually explains *why* there's no data)
+  const showInfoMessage = !isLoading && !!chartInfoMessage && chartInfoMessage.length > 0 && !hasCurrentChartData;
+  // **** UPDATE: Show generic "No data" only if there's no specific info message AND no current data ****
+  const showNoDataMessage = !isLoading && !showInfoMessage && !hasCurrentChartData;
 
 
   // --- Event Handlers ---
@@ -259,13 +272,27 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
   // Determine which data/layout to display based on loading state
   // When loading, show the *previous* data dimly under the overlay if available.
   // When not loading, show the *current* data.
+  // **** UPDATED: Logic uses hasCurrentChartData which is derived from processedChartData ****
   const dataToShow = !isLoading && hasCurrentChartData ? displayData : (hasPreviousChartData ? processedPrevChartData.data : []);
   const layoutToShow = !isLoading && hasCurrentChartData ? displayLayout : (hasPreviousChartData ? processedPrevChartData.layout : {});
   // Only render the Plotly component itself if there's some data (current or previous)
-  const shouldRenderPlotComponent = dataToShow.length > 0;
+  // **** UPDATED: Logic uses hasCurrentChartData ****
+  const shouldRenderPlotComponent = hasCurrentChartData || (isLoading && hasPreviousChartData); // Render plot if current data OR if loading and have previous data
   // Determine the title to show in the banner
   const bannerTitle = getChartTitle() || processedPrevChartData.originalTitle || "Chart";
 
+  // **** DEBUG LOGGING ****
+  logger.debug('ChartDisplay Render State:', {
+    isLoading,
+    chartInfoMessage,
+    hasCurrentChartData,
+    hasPreviousChartData,
+    showInfoMessage,
+    showNoDataMessage,
+    showInitialLoadingMessage,
+    shouldRenderPlotComponent,
+  });
+  // **** END DEBUG LOGGING ****
 
   // --- Rendering ---
   return (
@@ -301,22 +328,23 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
       {!isFullScreen && (
         // This container defines the space for the chart and overlays
         <div style={{ position: 'relative', width: CHART_WIDTH, height: CHART_HEIGHT }}>
-          {/* Render Plot component wrapper if we have data (current or previous) */}
+          {/* Render Plot component wrapper if we should show it */}
           {shouldRenderPlotComponent && (
             <div
               ref={plotDivRef}
               style={{
                   width: "100%",
                   height: "100%",
-                  // Apply transparency effect *directly* to the chart container when loading
-                  opacity: isLoading ? 0.3 : 1,
+                  // Apply transparency effect *directly* to the chart container when loading AND there is previous data to show dimly
+                  opacity: isLoading && hasPreviousChartData ? 0.3 : 1,
                   transition: 'opacity 0.3s ease-in-out',
               }}
             >
               <Plot
                 // Pass the determined data/layout
-                data={dataToShow}
-                layout={layoutToShow}
+                // Show current if not loading, else show previous if available
+                data={!isLoading ? displayData : (hasPreviousChartData ? processedPrevChartData.data : [])}
+                layout={!isLoading ? displayLayout : (hasPreviousChartData ? processedPrevChartData.layout : {})}
                 revision={revision} // **** ADDED: Pass revision ****
                 style={{ width: "100%", height: "100%" }}
                 useResizeHandler={true} // Helps react-plotly manage container size changes
@@ -339,15 +367,23 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
 
           {/* Initial loading message (if loading AND no data ever shown yet) */}
           {showInitialLoadingMessage && (
-             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_PRIMARY, zIndex: 5, pointerEvents: 'none' }}>
+             <div className="message-overlay initial-loading-message"> {/* Use consistent overlay class, add specific class */}
               <p>Loading chart data...</p>
             </div>
           )}
 
-          {/* No data message (if not loading AND no current data available) */}
-          {/* Also handles the case after loading finishes but results in no data */}
-          {!isLoading && !hasCurrentChartData && (
-             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_SECONDARY, zIndex: 5, pointerEvents: 'none' }}>
+          {/* **** NEW: Specific Info Message Overlay **** */}
+          {/* Show when not loading, message exists, and no current chart data */}
+          {showInfoMessage && (
+            <div className="message-overlay info-message"> {/* Add specific class */}
+              <p>{chartInfoMessage}</p>
+            </div>
+          )}
+
+          {/* **** UPDATED: Generic No Data Message Overlay **** */}
+          {/* Show when not loading, no info message, and no current chart data */}
+          {showNoDataMessage && (
+             <div className="message-overlay no-data-message"> {/* Add specific class */}
                <p>No chart data available.</p>
              </div>
           )}
@@ -383,22 +419,23 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
             {/* Chart Area (Full Screen) */}
             {/* Height calculation accounts for the fixed banner height */}
             <div style={{ position: 'relative', width: "100%", height: "calc(100% - 50px)" }}>
-               {/* Render Plot component wrapper if we have data (current or previous) */}
+               {/* Render Plot component wrapper if we should show it */}
                {shouldRenderPlotComponent && (
                  <div
                    ref={plotDivRef} // Re-assign ref when in fullscreen
                    style={{
                       width: "100%",
                       height: "100%",
-                      // Apply transparency effect *directly* to the chart container when loading
-                      opacity: isLoading ? 0.3 : 1,
+                      // Apply transparency effect *directly* to the chart container when loading AND there is previous data to show dimly
+                      opacity: isLoading && hasPreviousChartData ? 0.3 : 1,
                       transition: 'opacity 0.3s ease-in-out',
                     }}
                   >
                     <Plot
                       // Pass the determined data/layout
-                      data={dataToShow}
-                      layout={layoutToShow}
+                      // Show current if not loading, else show previous if available
+                      data={!isLoading ? displayData : (hasPreviousChartData ? processedPrevChartData.data : [])}
+                      layout={!isLoading ? displayLayout : (hasPreviousChartData ? processedPrevChartData.layout : {})}
                       revision={revision} // **** ADDED: Pass revision ****
                       style={{ width: "100%", height: "100%" }}
                       useResizeHandler={true}
@@ -419,13 +456,23 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
 
                {/* Initial loading message (if loading AND no data ever shown yet) */}
                {showInitialLoadingMessage && (
-                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_PRIMARY, zIndex: 5, pointerEvents: 'none' }}>
+                 <div className="message-overlay initial-loading-message"> {/* Use consistent overlay class, add specific class */}
                    <p>Loading chart data...</p>
                  </div>
                )}
-                {/* No data message (if not loading AND no current data available) */}
-                {!isLoading && !hasCurrentChartData && (
-                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_SECONDARY, zIndex: 5, pointerEvents: 'none' }}>
+
+                {/* **** NEW: Specific Info Message Overlay (Fullscreen) **** */}
+                {/* Show when not loading, message exists, and no current chart data */}
+               {showInfoMessage && (
+                 <div className="message-overlay info-message"> {/* Add specific class */}
+                  <p>{chartInfoMessage}</p>
+                </div>
+               )}
+
+                {/* **** UPDATED: Generic No Data Message Overlay (Fullscreen) **** */}
+                {/* Show when not loading, no info message, and no current chart data */}
+                {showNoDataMessage && (
+                  <div className="message-overlay no-data-message"> {/* Add specific class */}
                     <p>No chart data available.</p>
                   </div>
                 )}
@@ -473,7 +520,7 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
           justify-content: center;
           align-items: center;
           /* No background, opacity is on the chart div */
-          z-index: 10; /* Spinner above dimmed chart */
+          z-index: 10; /* Spinner above dimmed chart and messages */
           pointer-events: none; /* Allow interaction with underlying elements if needed */
         }
         .loading-spinner {
@@ -632,6 +679,47 @@ const ChartDisplay = ({ chartData, isLoading, prevChartData, onUpdateClick }) =>
          :global(.plot-container .plotly) {
              background-color: transparent !important;
          }
+
+        /* Styling for message overlays */
+        .message-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: 20px;
+          box-sizing: border-box;
+          z-index: 5; /* Below loading spinner but above chart */
+          pointer-events: none; /* Don't block interaction */
+        }
+
+        .message-overlay p {
+           margin: 0;
+           max-width: 80%; /* Prevent text from spanning entire width */
+           line-height: 1.4; /* Improve readability */
+        }
+
+        /* Specific styling for the INFO message (when data is null for specific reason) */
+        .info-message {
+           color: ${TEXT_SECONDARY}; /* Light gray or adjust as needed */
+           /* Optional: Add a subtle background */
+           /* background-color: rgba(13, 27, 42, 0.5); */ /* Semi-transparent dark */
+           /* border-radius: 4px; */
+        }
+
+         /* Specific styling for the generic NO DATA message */
+        .no-data-message {
+           color: ${TEXT_SECONDARY}; /* Keep consistent with info message or differentiate */
+        }
+
+        /* Specific styling for the INITIAL LOADING message */
+        .initial-loading-message {
+            color: ${TEXT_PRIMARY}; /* White text for initial loading */
+        }
 
       `}</style>
     </div>

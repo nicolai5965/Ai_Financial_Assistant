@@ -57,6 +57,15 @@ const StockChart = ({
   const toggleSettingsSidebar = () => { setIsSettingsSidebarOpen(prev => !prev); logger.debug(`StockChart: Settings sidebar toggled`); };
 
   // Render / Return JSX
+
+  // **** DEBUG LOGGING ****
+  logger.debug('StockChart Render State:', {
+    error,
+    loading,
+    chartData, // Log the structure of the chartData prop received
+  });
+  // **** END DEBUG LOGGING ****
+
   return (
     <div className="stock-chart-container">
       {error && <ErrorMessage message={error} />}
@@ -72,6 +81,7 @@ const StockChart = ({
             isLoading={loading}
             prevChartData={prevChartRef.current?.chart}
             onUpdateClick={onUpdateClick}
+            chartInfoMessage={chartData?.message}
           />
         )}
       </div>

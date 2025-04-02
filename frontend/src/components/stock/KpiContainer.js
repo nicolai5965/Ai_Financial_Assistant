@@ -100,6 +100,7 @@ const KpiContainer = ({
       // Pass error object down so dashboard can display it
       return { error };
     }
+    // log.debug(`KpiContainer: Memoized displayKpiData: ${dashboardData?.kpi_data.kpi_data.kpi_groups} (${instanceId.current})`);
     // Safely access nested kpi_data, return null if not found
     return dashboardData?.kpi_data || null;
   }, [dashboardData, error]); // Dependencies: recompute if data or error changes
@@ -108,7 +109,7 @@ const KpiContainer = ({
   // Used to populate the KpiSettings checklist.
   const availableGroups = useMemo(() => {
     // Safely access available_groups, fallback to default config groups if necessary
-    const groups = dashboardData?.kpi_data?.available_groups;
+    const groups = dashboardData?.kpi_data?.groups;
     if (Array.isArray(groups)) {
         return groups;
     }

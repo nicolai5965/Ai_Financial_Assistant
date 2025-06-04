@@ -17,6 +17,8 @@ load_dotenv()
 
 # Import the centralized logger configuration and environment flags
 from app.core.logging_config import get_logger, ENVIRONMENT, IS_DEVELOPMENT
+# Import the LangChain settings initializer
+from app.core import initialize_langchain_settings
 
 # Get the pre-configured logger instance
 logger = get_logger()
@@ -27,6 +29,10 @@ def main():
     Adjusts Uvicorn settings based on the environment and logs important startup events.
     """
     try:
+        # Initialize LangChain settings (including LangSmith tracing)
+        initialize_langchain_settings()
+        logger.info("LangChain settings initialized.")
+
         # Log the startup mode using the centralized logger
         logger.info("Starting Stock Analysis API server in %s mode...", ENVIRONMENT)
         

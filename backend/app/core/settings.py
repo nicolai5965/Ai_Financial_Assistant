@@ -2,7 +2,7 @@
 import os
 from dotenv import load_dotenv
 
-def initialize_environment():
+def initialize_langchain_settings():
     """Initialize environment variables and LangChain settings."""
     # Load environment variables from .env file
     load_dotenv()

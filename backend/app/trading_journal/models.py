@@ -56,11 +56,11 @@ class TradeLogLLMExtract(BaseModel):
     initial_units: float = Field(..., description="The total number of units for the initial position.")
     initial_stop_loss_price: Optional[float] = Field(None, description="The first stop-loss price (in quote_currency) set for this trade.")
     initial_take_profit_price: Optional[float] = Field(None, description="The first take-profit price (in quote_currency) set for this trade.")
-    exit_timestamp: List[datetime] = Field(default_factory=list, description="List of timestamps for trade exits.")
-    exit_price: List[float] = Field(default_factory=list, description="List of prices (in quote_currency) at which parts of the trade were exited.")
-    exit_units: List[float] = Field(default_factory=list, description="List of units exited at each corresponding exit price.")
+    exit_timestamp: Optional[datetime] = Field(None, description="Timestamp for the trade exit, if any.")
+    exit_price: Optional[float] = Field(None, description="Price (in quote_currency) at which the trade was exited, if any.")
+    exit_units: Optional[float] = Field(None, description="Units exited, if any.")
     trade_events_narrative: str = Field(..., description="An LLM-generated summary of trade events.")
-    all_order_ids_mentioned: List[str] = Field(default_factory=list, description="All unique order IDs mentioned by the LLM; should be actual IDs, not other numbers.")
+    all_order_ids_mentioned: Optional[str] = Field(None, description="All unique order IDs mentioned by the LLM as a single string; should be actual IDs, not other numbers.")
 
     # Fields for currency and trade type identification by LLM
     trade_type: Optional[Literal["STOCK", "FOREX", "CRYPTO", "FUTURES", "UNKNOWN"]] = Field(None, description="Type of the traded instrument (e.g., STOCK, FOREX). LLM should determine this.")
@@ -70,29 +70,6 @@ class TradeLogLLMExtract(BaseModel):
     # Fields for leverage and commissions identified by LLM
     leverage: Optional[str] = Field(None, description="Leverage used for the trade, if mentioned by the LLM (e.g., '50x', '100:1').")
     total_commission_fees_usd: Optional[float] = Field(None, description="Total sum of all commission fees for the trade, in USD. LLM should sum these, maintaining signs (e.g., if logs show -1 USD and -1 USD, this should be -2.0 USD). If commissions are in another currency in the log, LLM should convert them to USD using a provided rate or mark as needing conversion if rate is unknown.")
-
-    @field_validator('exit_price', 'exit_units', 'exit_timestamp', mode='before')
-    def ensure_list_for_exits(cls, v):
-        """Ensures that exit-related fields are initialized as empty lists if None."""
-        if v is None:
-            return []
-        return v
-    
-    @field_validator('exit_units')
-    def check_exit_fields_consistency(cls, v, info: ValidationInfo):
-        """Validates that all exit-related lists (units, price, timestamp) have the same length."""
-        # This validator depends on 'exit_price' and 'exit_timestamp' being present in info.data
-        # Ensure that info.data is checked for key existence before accessing.
-        exit_price_data = info.data.get('exit_price')
-        exit_timestamp_data = info.data.get('exit_timestamp')
-
-        if exit_price_data is not None and exit_timestamp_data is not None:
-            if not (len(v) == len(exit_price_data) == len(exit_timestamp_data)):
-                raise ValueError("Exit lists (units, price, timestamp) must have the same length.")
-        # If exit_price or exit_timestamp are not in info.data (e.g. if they were excluded during model creation),
-        # this validation might not be fully effective or could pass vacuously.
-        # However, for standard model creation, all fields are typically processed.
-        return v
 
 class CalculatedTradeData(BaseModel):
     """
@@ -114,9 +91,41 @@ class CalculatedTradeData(BaseModel):
     trade_duration_seconds: Optional[float] = Field(None, description="Total duration of the trade in seconds.")
     trade_duration_readable: Optional[str] = Field(None, description="Total duration of the trade in human-readable format (e.g., '1d 2h 30m 15s').")
 
-class CombinedTradeLog(TradeLogLLMExtract, CalculatedTradeData):
+class CombinedTradeLog(BaseModel):
     """
     A comprehensive Pydantic model that combines LLM-extracted data and calculated financial metrics.
-    This model represents a full trade log entry.
+    Fields are ordered according to Suggestion 1 for better readability in contexts like database display.
     """
+    # Suggestion 1 Order
+    # id is handled by the database as PK AUTOINCREMENT, not part of this Pydantic model directly for data payload
+    symbol: str = Field(..., description="The trading symbol, e.g., 'COINBASE:SOLUSD'")
+    status: Optional[Literal["WIN", "LOSS", "BREAK_EVEN"]] = Field(None, description="Status of the trade based on PNL.")
+    final_pnl_usd: Optional[float] = Field(None, description="Net Profit and Loss for the trade (after commissions), in USD.")
+    actual_r_multiple_on_risk: Optional[float] = Field(None, description="Actual R-multiple achieved on the initial risk (final_pnl_usd / initial_total_risk_usd).")
+    direction: Literal["BUY", "SELL"] = Field(..., description="The direction of the initial trade (BUY or SELL)")
+    entry_timestamp: datetime = Field(..., description="Timestamp of the initial trade entry/execution")
+    entry_price: float = Field(..., description="Price (in quote_currency) at which the initial trade was entered.")
+    initial_units: float = Field(..., description="The total number of units for the initial position.")
+    exit_timestamp: Optional[datetime] = Field(None, description="Timestamp for the trade exit, if any.")
+    exit_price: Optional[float] = Field(None, description="Price (in quote_currency) at which the trade was exited, if any.")
+    exit_units: Optional[float] = Field(None, description="Units exited, if any.")
+    initial_total_risk_usd: Optional[float] = Field(None, description="Total initial risk for the trade, in USD (initial_risk_per_unit_usd * initial_units).")
+    expected_pnl_at_initial_tp_usd: Optional[float] = Field(None, description="Expected PNL in USD if the initial take-profit price was hit.")
+    expected_r_multiple_at_initial_tp: Optional[float] = Field(None, description="Expected R-multiple if initial TP was hit (expected_pnl_at_initial_tp_usd / initial_total_risk_usd).")
+    total_commission_fees_usd: Optional[float] = Field(None, description="Total sum of all commission fees for the trade, in USD.") # From TradeLogLLMExtract
+    trade_type: Optional[Literal["STOCK", "FOREX", "CRYPTO", "FUTURES", "UNKNOWN"]] = Field(None, description="Type of the traded instrument.") # From TradeLogLLMExtract
+    quote_currency: Optional[str] = Field(None, description="The currency in which the price is quoted.") # From TradeLogLLMExtract
+    conversion_rate_of_quote_to_usd: Optional[float] = Field(None, description="Conversion rate: 1 unit of quote_currency equals X USD.") # From TradeLogLLMExtract
+    leverage: Optional[str] = Field(None, description="Leverage used for the trade.") # From TradeLogLLMExtract
+    initial_stop_loss_price: Optional[float] = Field(None, description="The first stop-loss price.") # From TradeLogLLMExtract
+    initial_take_profit_price: Optional[float] = Field(None, description="The first take-profit price.") # From TradeLogLLMExtract
+    initial_risk_per_unit_usd: Optional[float] = Field(None, description="Initial risk per unit, in USD.") # From CalculatedTradeData
+    trade_duration_seconds: Optional[float] = Field(None, description="Total duration of the trade in seconds.") # From CalculatedTradeData
+    all_order_ids_mentioned: Optional[str] = Field(None, description="All unique order IDs mentioned by the LLM as a single string.") # From TradeLogLLMExtract
+    trade_events_narrative: str = Field(..., description="An LLM-generated summary of trade events.") # From TradeLogLLMExtract
+    trade_duration_readable: Optional[str] = Field(None, description="Total duration of the trade in human-readable format.") # From CalculatedTradeData
+
+    # This explicit definition replaces the inheritance: class CombinedTradeLog(TradeLogLLMExtract, CalculatedTradeData):
+    # All fields from both parent classes are now listed explicitly in the desired order.
+    # Ensure all fields are covered and their types/descriptions match the original intent.
     pass 

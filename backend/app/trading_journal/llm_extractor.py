@@ -68,11 +68,11 @@ Ensure all field names exactly match the Pydantic model shown below.
   "initial_units": "float",
   "initial_stop_loss_price": "Optional[float] (price in quote_currency)",
   "initial_take_profit_price": "Optional[float] (price in quote_currency)",
-  "exit_timestamp": "List[datetime string (YYYY-MM-DDTHH:MM:SS)]",
-  "exit_price": "List[float] (price in quote_currency)",
-  "exit_units": "List[float]",
+  "exit_timestamp": "Optional[datetime string (YYYY-MM-DDTHH:MM:SS)] (single value or null)",
+  "exit_price": "Optional[float] (price in quote_currency, single value or null)",
+  "exit_units": "Optional[float] (single value or null)",
   "trade_events_narrative": "str (summarize key events chronologically)",
-  "all_order_ids_mentioned": "List[str] (only include actual order IDs, not dates or other numbers)",
+  "all_order_ids_mentioned": "Optional[str] (single string of comma-separated IDs or null, not a list)",
   "trade_type": "Optional[Literal['STOCK', 'FOREX', 'CRYPTO', 'FUTURES', 'UNKNOWN']]",
   "quote_currency": "Optional[str] (e.g., USD, DKK, EUR)",
   "conversion_rate_of_quote_to_usd": "Optional[float] (1 unit of quote_currency = X USD. If quote_currency is USD, this is 1.0. If not USD and rate is unknown, use null.)",
@@ -88,9 +88,9 @@ Detailed instructions for fields:
 - initial_units: Total units of the initial position.
 - initial_stop_loss_price: The first stop-loss price set (in quote_currency). Null if not found.
 - initial_take_profit_price: The first take-profit price set (in quote_currency). Null if not found.
-- exit_timestamp, exit_price, exit_units: Lists for all exit events. Prices are in quote_currency. Empty lists ([]) if no exits.
+- exit_timestamp, exit_price, exit_units: Single optional values for the exit event. Use null if no exit. Price is in quote_currency.
 - trade_events_narrative: Concise chronological summary of the trade lifecycle.
-- all_order_ids_mentioned: Unique, actual order identifiers (e.g., "ORDER-123"). Exclude dates or other numerical data. Empty list ([]) if none.
+- all_order_ids_mentioned: A single string containing all unique, actual order identifiers (e.g., "ORDER-123, ORDER-456"). Exclude dates or other numerical data. Null if none.
 - trade_type: Classify the trade (STOCK, FOREX, CRYPTO, FUTURES). If unsure, use UNKNOWN. Null if not determinable.
 - quote_currency: The currency of prices in the log. For USDDKK, it's DKK. For EURUSD, it's USD. For AAPL, it's USD. For SOLUSD, it's USD. Prioritize explicit mentions like "currency: DKK". Null if not determinable.
 - conversion_rate_of_quote_to_usd: The rate for 1 unit of quote_currency to USD (e.g., 0.152178 for DKK if 1 DKK = 0.152178 USD). MUST be 1.0 if quote_currency is USD. If the rate from quote_currency to USD is not found in the text for a non-USD quote, use null.

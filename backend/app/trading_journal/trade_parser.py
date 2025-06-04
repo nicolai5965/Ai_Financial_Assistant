@@ -3,11 +3,14 @@ import json
 from typing import Optional
 import logging
 import sys
+import sqlite3 # Added for error handling during DB operations
 
 # Importing from other modules within the trading_journal package
 from .models import CombinedTradeLog, TradeLogLLMExtract # Assuming all models are in .models
 from .llm_extractor import get_llm_trade_extraction
 from .calculations import calculate_additional_trade_data, format_duration # format_duration might not be directly used here but good to note its location
+# Import database handler functions
+from .database_handler import get_db_connection, create_trades_table, insert_trade
 
 # Logger setup
 try:
@@ -66,12 +69,32 @@ def process_trade_log_entry(raw_trade_text: str) -> Optional[CombinedTradeLog]:
     logger.debug(f"Calculated data dump: {calculated_data.model_dump_json(indent=2)}")
 
     # Combine extracted and calculated data into the final log object.
-    # The CombinedTradeLog model inherits from both, so it can take all fields directly.
     combined_log_data_dict = {**extracted_data.model_dump(), **calculated_data.model_dump()}
     combined_log = CombinedTradeLog(**combined_log_data_dict)
     
     logger.info(f"Step 4: Final combined trade log created for symbol: {combined_log.symbol}. Final PNL USD: {combined_log.final_pnl_usd}")
     logger.debug(f"Combined log (raw dump): {combined_log.model_dump_json(indent=2)}")
+
+    # --- Database Integration --- 
+    logger.info(f"Step 5: Attempting to save trade log for symbol: {combined_log.symbol} to database...")
+    db_conn = None # Initialize db_conn to None for finally block
+    try:
+        db_conn = get_db_connection()
+        create_trades_table(db_conn) # Ensure table exists
+        insert_trade(db_conn, combined_log)
+        logger.info(f"Successfully saved trade log for symbol: {combined_log.symbol} to database.")
+    except sqlite3.Error as e:
+        logger.error(f"Database error while processing trade for symbol {combined_log.symbol}: {e}", exc_info=True)
+        # Depending on requirements, you might want to let the process continue or raise the error
+        # For now, we log the error and continue, so the print output still happens.
+    except Exception as e:
+        # Catch any other unexpected errors during DB interaction
+        logger.error(f"An unexpected error occurred during database operation for symbol {combined_log.symbol}: {e}", exc_info=True)
+    finally:
+        if db_conn:
+            db_conn.close()
+            logger.info(f"Database connection closed for symbol: {combined_log.symbol}.")
+    # --- End Database Integration ---
 
     # Define the desired order for console output for readability.
     # This helps in quick verification and debugging during development.

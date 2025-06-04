@@ -113,22 +113,24 @@ def calculate_additional_trade_data(extracted_data: TradeLogLLMExtract) -> Calcu
 
     # Calculate Gross PNL from prices in USD if possible (requires exit data and conversion ability)
     gross_pnl_from_prices_usd: Optional[float] = None
-    if can_convert_to_usd and extracted_data.exit_price and extracted_data.exit_units and \
-       len(extracted_data.exit_price) == len(extracted_data.exit_units) == len(extracted_data.exit_timestamp):
+    if can_convert_to_usd and \
+       extracted_data.exit_price is not None and \
+       extracted_data.exit_units is not None and \
+       extracted_data.entry_price is not None: # entry_price is non-optional, but good to be explicit
         current_pnl_in_quote_currency = 0.0
-        for i in range(len(extracted_data.exit_price)):
-            exit_p = extracted_data.exit_price[i]
-            exit_u = extracted_data.exit_units[i]
-            if extracted_data.direction == "BUY":
-                current_pnl_in_quote_currency += (exit_p - extracted_data.entry_price) * exit_u
-            elif extracted_data.direction == "SELL":
-                current_pnl_in_quote_currency += (extracted_data.entry_price - exit_p) * exit_u
+        # Direct calculation for a single exit event
+        if extracted_data.direction == "BUY":
+            current_pnl_in_quote_currency = (extracted_data.exit_price - extracted_data.entry_price) * extracted_data.exit_units
+        elif extracted_data.direction == "SELL":
+            current_pnl_in_quote_currency = (extracted_data.entry_price - extracted_data.exit_price) * extracted_data.exit_units
         gross_pnl_from_prices_usd = round(current_pnl_in_quote_currency * rate, 2)
-    elif extracted_data.exit_price or extracted_data.exit_units or extracted_data.exit_timestamp:
-        # Log if exit data is present but inconsistent, preventing PNL calculation from prices.
+    elif extracted_data.exit_price is not None or extracted_data.exit_units is not None or extracted_data.exit_timestamp is not None:
+        # Log if some exit data is present but not all required for PNL calculation from prices,
+        # or if conversion to USD is not possible.
         logger.warning(
-            f"Inconsistent exit data for symbol '{extracted_data.symbol}' (price, units, timestamp lists differ in length or are partially missing). "
-            f"Gross PNL calculation from prices skipped."
+            f"Incomplete or non-convertible exit data for symbol '{extracted_data.symbol}'. "
+            f"Exit Price: {extracted_data.exit_price}, Units: {extracted_data.exit_units}, Timestamp: {extracted_data.exit_timestamp}, Can convert: {can_convert_to_usd}. "
+            f"Gross PNL calculation from prices skipped or incomplete."
         )
 
     # Calculate Net Final PNL USD (after commissions)
@@ -182,23 +184,24 @@ def calculate_additional_trade_data(extracted_data: TradeLogLLMExtract) -> Calcu
     if expected_pnl_at_initial_tp_usd is not None and initial_total_risk_usd is not None and initial_total_risk_usd != 0:
         expected_r_multiple_at_initial_tp = round(expected_pnl_at_initial_tp_usd / initial_total_risk_usd, 2)
         
-    # Calculate Trade Duration if entry and exit timestamps are available.
+    # Calculate Trade Duration if entry and (single) exit timestamps are available.
     if extracted_data.entry_timestamp and extracted_data.exit_timestamp:
-        # Use the latest exit timestamp for duration calculation.
-        last_exit_time = max(extracted_data.exit_timestamp) if extracted_data.exit_timestamp else None
-        if last_exit_time:
-            duration_delta = last_exit_time - extracted_data.entry_timestamp
-            trade_duration_seconds = duration_delta.total_seconds()
-            if trade_duration_seconds >= 0: # Ensure duration is not negative (sanity check)
-                trade_duration_readable = format_duration(trade_duration_seconds)
-            else:
-                # Log if a negative duration is calculated, indicating inconsistent timestamp data.
-                logger.warning(
-                    f"Calculated negative trade duration ({trade_duration_seconds}s) for symbol '{extracted_data.symbol}'. "
-                    f"Entry: {extracted_data.entry_timestamp}, Last Exit: {last_exit_time}. Setting duration to N/A."
-                )
-                trade_duration_seconds = None # Mark as None or an indicator of invalidity
-                trade_duration_readable = "N/A (invalid)"
+        # Use the single exit timestamp for duration calculation.
+        last_exit_time = extracted_data.exit_timestamp # This is now Optional[datetime]
+        # No need to check if last_exit_time is None here as the outer if already checks extracted_data.exit_timestamp
+        
+        duration_delta = last_exit_time - extracted_data.entry_timestamp
+        trade_duration_seconds = duration_delta.total_seconds()
+        if trade_duration_seconds >= 0: # Ensure duration is not negative (sanity check)
+            trade_duration_readable = format_duration(trade_duration_seconds)
+        else:
+            # Log if a negative duration is calculated, indicating inconsistent timestamp data.
+            logger.warning(
+                f"Calculated negative trade duration ({trade_duration_seconds}s) for symbol '{extracted_data.symbol}'. "
+                f"Entry: {extracted_data.entry_timestamp}, Exit: {last_exit_time}. Setting duration to N/A."
+            )
+            trade_duration_seconds = None # Mark as None or an indicator of invalidity
+            trade_duration_readable = "N/A (invalid)"
         
     return CalculatedTradeData(
         final_pnl_usd=final_pnl_usd, 

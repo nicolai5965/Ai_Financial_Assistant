@@ -158,7 +158,7 @@ class GoogleHandler(BaseLLMHandler):
 
     def initialize_model(self):
         from langchain_google_genai import ChatGoogleGenerativeAI
-        default_model_name = 'gemini-2.0-flash'
+        default_model_name = 'gemini-2.5-flash-preview-05-20'
         chosen_model_name = self.model_name or default_model_name
         logger.info(f"Initializing Google model: {chosen_model_name}")
 

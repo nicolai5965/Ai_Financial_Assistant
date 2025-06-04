@@ -2,6 +2,7 @@ import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+import sys # Import sys for stdout/stderr reconfiguration
 
 # ========= ENVIRONMENT CONFIGURATION =========
 # Set these constants once at the module level
@@ -53,7 +54,8 @@ def configure_logger():
         log_file_path,
         when="midnight",  # Rotate at midnight
         interval=1,       # Interval of 1 day
-        backupCount=7     # Keep the logs for the last 7 days
+        backupCount=7,    # Keep the logs for the last 7 days
+        encoding='utf-8'  # Explicitly set UTF-8 for file handler for consistency
     )
     file_handler.suffix = "%Y-%m-%d"  # Append the date to the log file name
     file_handler.setLevel(logging.DEBUG)  # All logs go to the file
@@ -66,6 +68,21 @@ def configure_logger():
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
+    # Attempt to reconfigure stdout and stderr for UTF-8 console output
+    # This should be done before the StreamHandler is instantiated.
+    try:
+        if hasattr(sys.stdout, 'reconfigure') and (not sys.stdout.encoding or sys.stdout.encoding.lower() != 'utf-8'):
+            sys.stdout.reconfigure(encoding='utf-8')
+            # Using logger.debug for this message as it's part of logger setup, 
+            # but print to stderr if logger isn't fully ready or if this needs to be seen regardless of level.
+            print("Note: Reconfigured sys.stdout to UTF-8 in logging_config.", file=sys.stderr)
+        if hasattr(sys.stderr, 'reconfigure') and (not sys.stderr.encoding or sys.stderr.encoding.lower() != 'utf-8'):
+            sys.stderr.reconfigure(encoding='utf-8')
+            print("Note: Reconfigured sys.stderr to UTF-8 in logging_config.", file=sys.stderr)
+    except Exception as e_config:
+        # If reconfiguration fails, print a warning to stderr.
+        print(f"Warning: Could not reconfigure sys.stdout/stderr to UTF-8 in logging_config: {e_config}. Console logging might have encoding issues with special characters.", file=sys.stderr)
+
     # Add a console handler with environment-appropriate level
     console_handler = logging.StreamHandler()
     console_handler.setLevel(CONSOLE_LOG_LEVEL)  # Use the module-level constant
@@ -73,9 +90,9 @@ def configure_logger():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    print(f"Logger initialized: File logging at DEBUG level, console logging at {logging.getLevelName(CONSOLE_LOG_LEVEL)} level")
+    print(f"Logger initialized: File logging at DEBUG level (UTF-8), console logging at {logging.getLevelName(CONSOLE_LOG_LEVEL)} level (attempted UTF-8).", file=sys.stderr)
     if not IS_DEVELOPMENT:
-        print("Set ENVIRONMENT=development for more verbose console logging")
+        print("Set ENVIRONMENT=development for more verbose console logging", file=sys.stderr)
 
     _logger_configured = True
     return logger

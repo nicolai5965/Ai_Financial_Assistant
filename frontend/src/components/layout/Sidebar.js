@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------
 import React, { useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link'; // Import the Link component
 import { logger } from '../../utils/logger'; // Assuming logger path is correct
 
 // ---------------------------------------------------------------------
@@ -84,14 +85,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             />
           </div>
 
-          {/* Sidebar navigation links */}
+          {/* Sidebar navigation links updated to use Next.js Link */}
           <nav className="sidebar-nav">
             <ul>
-              {/* Example Links - update href as needed */}
-              <li><a href="/">Dashboard</a></li>
-              <li><a href="/reports">Reports</a></li>
-              <li><a href="/stocks">Stock Analysis</a></li>
-              <li><a href="/settings">Settings</a></li>
+              <li><Link href="/">Dashboard</Link></li>
+              <li><Link href="/journal">Journal</Link></li>
+              <li><Link href="/stocks">Stock Analysis</Link></li>
+              <li><Link href="/settings">Settings</Link></li>
               {/* Add more navigation links here */}
             </ul>
           </nav>
@@ -211,24 +211,25 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         }
 
         .sidebar-nav li {
-          margin-bottom: 0.5rem; /* Slightly tighter spacing */
+          margin-bottom: 0.5rem;
         }
 
+        /* Target the anchor tag inside the Link component */
         .sidebar-nav a {
-          color: ${TEXT_PRIMARY}; /* Use themed text color */
+          color: ${TEXT_PRIMARY};
           text-decoration: none;
           display: block;
-          padding: 0.75rem 1rem; /* Slightly more padding */
-          transition: background-color 0.2s, color 0.2s, text-shadow 0.2s; /* Smooth transitions */
+          padding: 0.75rem 1rem;
+          transition: background-color 0.2s, color 0.2s, text-shadow 0.2s;
           border-radius: 4px;
-          font-size: 15px; /* Slightly larger font */
+          font-size: 15px;
           letter-spacing: 0.5px;
         }
 
         .sidebar-nav a:hover {
-          background-color: ${LINK_HOVER_BG}; /* Themed hover background */
-          color: ${LINK_HOVER_TEXT}; /* Themed hover text color */
-          text-shadow: 0 0 5px rgba(92, 230, 207, 0.5); /* Subtle glow on hover */
+          background-color: ${LINK_HOVER_BG};
+          color: ${LINK_HOVER_TEXT};
+          text-shadow: 0 0 5px rgba(92, 230, 207, 0.5);
         }
       `}</style>
     </>

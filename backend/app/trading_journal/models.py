@@ -97,7 +97,7 @@ class CombinedTradeLog(BaseModel):
     Fields are ordered according to Suggestion 1 for better readability in contexts like database display.
     """
     # Suggestion 1 Order
-    # id is handled by the database as PK AUTOINCREMENT, not part of this Pydantic model directly for data payload
+    id: Optional[int] = Field(None, description="The unique identifier for the trade in the database.")
     symbol: str = Field(..., description="The trading symbol, e.g., 'COINBASE:SOLUSD'")
     status: Optional[Literal["WIN", "LOSS", "BREAK_EVEN"]] = Field(None, description="Status of the trade based on PNL.")
     final_pnl_usd: Optional[float] = Field(None, description="Net Profit and Loss for the trade (after commissions), in USD.")

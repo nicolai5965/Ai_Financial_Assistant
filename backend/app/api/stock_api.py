@@ -67,6 +67,16 @@ app = FastAPI(
     version="1.0.5" # Incremented version for fix
 )
 
+# --- Add Trading Journal Router ---
+# This makes the endpoints defined in trading_journal_api.py available under the main app.
+try:
+    from .routers import trading_journal_api
+    app.include_router(trading_journal_api.router)
+    logger.info("Successfully included Trading Journal API router.")
+except ImportError as e:
+    logger.error(f"Could not import or include Trading Journal API router: {e}. Journal endpoints will be unavailable.")
+
+
 # Initialize the market hours tracker
 market_hours_tracker = MarketHoursTracker()
 

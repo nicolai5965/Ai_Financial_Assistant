@@ -78,75 +78,34 @@ def process_trade_log_entry(raw_trade_text: str) -> Optional[CombinedTradeLog]:
     # --- Database Integration --- 
     logger.info(f"Step 5: Attempting to save trade log for symbol: {combined_log.symbol} to database...")
     db_conn = None # Initialize db_conn to None for finally block
+    new_trade_id = None
     try:
         db_conn = get_db_connection()
         create_trades_table(db_conn) # Ensure table exists
-        insert_trade(db_conn, combined_log)
-        logger.info(f"Successfully saved trade log for symbol: {combined_log.symbol} to database.")
+        new_trade_id = insert_trade(db_conn, combined_log)
+        logger.info(f"Successfully saved trade log for symbol: {combined_log.symbol} to database with ID: {new_trade_id}.")
+        # Add the new ID to the object before returning it
+        if new_trade_id:
+            combined_log.id = new_trade_id
     except sqlite3.Error as e:
         logger.error(f"Database error while processing trade for symbol {combined_log.symbol}: {e}", exc_info=True)
-        # Depending on requirements, you might want to let the process continue or raise the error
-        # For now, we log the error and continue, so the print output still happens.
+        # If DB operation fails, we cannot consider the process successful.
+        return None
     except Exception as e:
         # Catch any other unexpected errors during DB interaction
         logger.error(f"An unexpected error occurred during database operation for symbol {combined_log.symbol}: {e}", exc_info=True)
+        return None
     finally:
         if db_conn:
             db_conn.close()
             logger.info(f"Database connection closed for symbol: {combined_log.symbol}.")
     # --- End Database Integration ---
 
-    # Define the desired order for console output for readability.
-    # This helps in quick verification and debugging during development.
-    ordered_output_keys = [
-        # Core Outcome & Identification
-        "symbol", "direction", "status", "final_pnl_usd", "actual_r_multiple_on_risk",
-        
-        # Risk vs. Reward (Expected vs. Actual)
-        "initial_total_risk_usd", 
-        "expected_pnl_at_initial_tp_usd", "expected_r_multiple_at_initial_tp",
-        
-        # Trade Classification & Currency Details
-        "trade_type", "quote_currency", "conversion_rate_of_quote_to_usd",
-        
-        # Entry Details & Leverage
-        "entry_timestamp", "entry_price", "initial_units", "leverage", 
-        
-        # Initial Risk Parameters (Prices in quote_currency, then derived USD value)
-        "initial_stop_loss_price", "initial_take_profit_price", 
-        "initial_risk_per_unit_usd", # This is already in USD from calculations
-        
-        # Exit Details (Lists of timestamps, prices, units)
-        "exit_timestamp", "exit_price", "exit_units",
-        
-        # Fees and Duration
-        "total_commission_fees_usd", 
-        "trade_duration_readable", "trade_duration_seconds", 
-        
-        # Supporting Information from LLM
-        "all_order_ids_mentioned", "trade_events_narrative"
-    ]
+    # The console output block is being removed as this function will now be
+    # primarily used by the API, which handles its own responses.
+    # The `if __name__ == "__main__"` block below can still be used for direct
+    # command-line testing, and it can handle its own printing.
 
-    # Create an ordered dictionary for printing to ensure consistent output format.
-    combined_log_dict_for_print = combined_log.model_dump()
-    ordered_log_dict_for_print = {key: combined_log_dict_for_print.get(key) for key in ordered_output_keys if key in combined_log_dict_for_print}
-    
-    # Add any keys that might have been missed by ordered_output_keys 
-    # (e.g., if new fields are added to models but not to this list).
-    # This ensures all data is still printed.
-    for key_in_model, value_in_model in combined_log_dict_for_print.items():
-        if key_in_model not in ordered_log_dict_for_print:
-            ordered_log_dict_for_print[key_in_model] = value_in_model
-
-    # Print the ordered JSON to the console.
-    # Using default=str to handle datetime objects and other non-standard JSON types.
-    print("\n--- Output from process_trade_log_entry (Ordered for Readability) --- ")
-    try:
-        print(json.dumps(ordered_log_dict_for_print, indent=2, default=str))
-    except Exception as e:
-        logger.error(f"Error during final JSON dump for printing: {e}")
-        print(f"Error printing final JSON: {e}. Check logs.")
-        
     return combined_log
 
 # Example main block for testing (similar to the one in the original test_file.py)
@@ -209,6 +168,27 @@ if __name__ == "__main__":
 
         if combined_log_result:
             logger.info(f"Trade processing complete for symbol: {combined_log_result.symbol}.")
+            
+            # Define the desired order for console output for readability.
+            ordered_output_keys = [
+                "id", "symbol", "direction", "status", "final_pnl_usd", "actual_r_multiple_on_risk",
+                "initial_total_risk_usd", "expected_pnl_at_initial_tp_usd", "expected_r_multiple_at_initial_tp",
+                "trade_type", "quote_currency", "conversion_rate_of_quote_to_usd",
+                "entry_timestamp", "entry_price", "initial_units", "leverage", 
+                "initial_stop_loss_price", "initial_take_profit_price", "initial_risk_per_unit_usd",
+                "exit_timestamp", "exit_price", "exit_units",
+                "total_commission_fees_usd", "trade_duration_readable", "trade_duration_seconds", 
+                "all_order_ids_mentioned", "trade_events_narrative"
+            ]
+            # Create an ordered dictionary for printing
+            combined_log_dict_for_print = combined_log_result.model_dump()
+            ordered_log_dict_for_print = {key: combined_log_dict_for_print.get(key) for key in ordered_output_keys if key in combined_log_dict_for_print}
+            
+            print("\n--- Output from process_trade_log_entry (Ordered for Readability) --- ")
+            try:
+                print(json.dumps(ordered_log_dict_for_print, indent=2, default=str))
+            except Exception as e:
+                logger.error(f"Error during final JSON dump for printing: {e}")
         else:
             logger.error("Trade processing failed. See previous logs for details.")
             print("\n--- Processing Failed ---")

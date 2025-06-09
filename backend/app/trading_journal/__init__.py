@@ -1,0 +1,1 @@
+# This file makes the 'trading_journal' directory a Python package. 

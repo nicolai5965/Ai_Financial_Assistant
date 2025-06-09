@@ -190,6 +190,59 @@ def insert_trade(conn: sqlite3.Connection, trade_log: CombinedTradeLogTypeHint):
         conn.rollback()
         raise
 
+def get_all_trades(conn: sqlite3.Connection, limit: int = 20, offset: int = 0) -> list[dict]:
+    """
+    Retrieves a paginated list of all trades from the database, ordered by entry time descending.
+
+    Args:
+        conn: sqlite3.Connection object.
+        limit: The maximum number of trades to retrieve.
+        offset: The starting point from which to retrieve trades.
+
+    Returns:
+        A list of dictionaries, where each dictionary represents a trade.
+    """
+    trades = []
+    try:
+        # Use sqlite3.Row as the row_factory to get dict-like rows
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM trades
+            ORDER BY entry_timestamp DESC
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
+        rows = cursor.fetchall()
+        # Convert Row objects to standard dicts
+        trades = [dict(row) for row in rows]
+        logger.info(f"Successfully retrieved {len(trades)} trades from DB with limit={limit}, offset={offset}.")
+    except sqlite3.Error as e:
+        logger.error(f"Error retrieving trades from database: {e}", exc_info=True)
+        # In case of error, return an empty list; the caller can decide how to handle.
+    return trades
+
+def get_total_trade_count(conn: sqlite3.Connection) -> int:
+    """
+    Retrieves the total number of trades in the 'trades' table.
+
+    Args:
+        conn: sqlite3.Connection object.
+
+    Returns:
+        The total count of trades as an integer.
+    """
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(id) FROM trades")
+        # fetchone() will return a tuple, e.g., (15,)
+        result = cursor.fetchone()
+        count = result[0] if result else 0
+        logger.debug(f"Total trade count from DB: {count}")
+        return count
+    except sqlite3.Error as e:
+        logger.error(f"Error getting total trade count: {e}", exc_info=True)
+        return 0
+
 if __name__ == '__main__':
     # Example usage / basic test
     logger.info("Running database_handler.py directly for testing.")
@@ -293,6 +346,17 @@ if __name__ == '__main__':
         logger.info("Last 5 trades from DB:")
         for row in rows:
             logger.info(row)
+
+        # Test new functions
+        logger.info("\n--- Testing get_all_trades and get_total_trade_count ---")
+        total_trades = get_total_trade_count(test_conn)
+        logger.info(f"Total trade count: {total_trades}")
+        
+        all_trades_paginated = get_all_trades(test_conn, limit=5, offset=0)
+        logger.info(f"Retrieved {len(all_trades_paginated)} trades for first page:")
+        for trade in all_trades_paginated:
+            # Print a few fields to verify it's a dict
+            logger.info(f"  ID: {trade['id']}, Symbol: {trade['symbol']}, PNL: {trade['final_pnl_usd']}")
 
     except Exception as e:
         logger.error(f"Error during database_handler.py self-test: {e}", exc_info=True)

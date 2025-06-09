@@ -75,18 +75,32 @@ async def submit_new_trade(request: TradeSubmissionRequest):
 
     try:
         # This function now handles LLM extraction, calculation, and DB insertion
-        combined_log = process_trade_log_entry(request.raw_trade_text)
+        # It returns a tuple: (log_data, error_message)
+        combined_log, error_message = process_trade_log_entry(request.raw_trade_text)
 
-        if not combined_log:
-            logger.error("Trade processing failed. The processor returned None. This could be due to LLM failure, data validation errors, or DB issues.")
+        # If an error message is returned, it means processing failed at some point.
+        if error_message:
+            logger.error(f"Trade processing failed with an error: {error_message}")
+            # 422 Unprocessable Entity is a good status code for validation/processing errors.
             raise HTTPException(
-                status_code=422, # Unprocessable Entity
-                detail="Failed to process the trade text. The format might be invalid or there was an internal processing error. Please check the logs."
+                status_code=422,
+                detail=error_message # Pass the specific error message to the frontend.
+            )
+
+        # This case would be unusual with the new logic, but as a safeguard:
+        if not combined_log:
+            logger.error("Trade processing returned no data and no error. This is an unexpected state.")
+            raise HTTPException(
+                status_code=500, # Internal Server Error for unexpected states.
+                detail="An unexpected internal error occurred: processing finished without data or a specific error message."
             )
         
         logger.info(f"Successfully processed and saved new trade with ID: {combined_log.id}")
         return combined_log
 
+    except HTTPException:
+        # Re-raise HTTPExceptions directly to let FastAPI handle them.
+        raise
     except Exception as e:
         # Catch-all for any other unexpected errors during processing
         logger.exception(f"An unexpected critical error occurred during trade submission: {e}")

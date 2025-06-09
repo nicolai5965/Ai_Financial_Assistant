@@ -112,7 +112,8 @@ export async function fetchJournalTrades({ page = 1, limit = 20 }) {
  * Submits a new trade log from raw text for processing and storage.
  * 
  * @param {string} rawText - The raw, multi-line text of the trade log.
- * @returns {Promise<Object>} - The newly created and processed trade object, or an error object.
+ * @returns {Promise<Object>} - The newly created and processed trade object.
+ * @throws {Error} - Throws an error with a specific message if the submission fails.
  */
 export async function submitJournalTrade(rawText) {
   const requestId = generateRequestId();
@@ -135,26 +136,25 @@ export async function submitJournalTrade(rawText) {
       requestId
     );
 
-    const responseData = await response.json();
-
+    // If the response is not OK (e.g., 400, 422, 500), we must handle it as an error.
     if (!response.ok) {
-      const errorMessage = responseData.detail || `Failed to submit trade: ${response.statusText}`;
-      logger.error(`Error submitting trade (request: ${requestId}):`, responseData);
-      return {
-          error: true,
-          message: errorMessage,
-      };
+      // Try to parse the error response body to get the specific "detail" message.
+      const errorData = await response.json();
+      const errorMessage = errorData.detail || `Server error: ${response.status} ${response.statusText}`;
+      logger.error(`Error submitting trade (request: ${requestId}):`, errorMessage);
+      // Throw an error that the UI component can catch.
+      throw new Error(errorMessage);
     }
     
+    // If the response is OK, parse the JSON and return it.
+    const responseData = await response.json();
     logger.info(`Successfully submitted and processed new trade (request: ${requestId})`, responseData);
     return responseData; // This should be the newly created trade object
 
   } catch (error) {
-    const errorMessage = error?.message || 'An unknown error occurred while submitting the trade.';
-    logger.error(`Failed to submit journal trade (request: ${requestId}): ${errorMessage}`);
-    return {
-      error: true,
-      message: errorMessage,
-    };
+    // Re-throw the error to be handled by the calling component.
+    // This could be our custom error from above or a network error from the fetch helper.
+    logger.error(`Failed to submit journal trade (request: ${requestId}): ${error.message}`);
+    throw error;
   }
 } 

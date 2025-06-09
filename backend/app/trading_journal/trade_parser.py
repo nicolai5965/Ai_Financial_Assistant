@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Optional
+from typing import Optional, Tuple
 import logging
 import sys
 import sqlite3 # Added for error handling during DB operations
@@ -34,7 +34,7 @@ except ImportError:
         logger.addHandler(handler)
     logger.info("Fallback logger initialized for trade_parser.py.")
 
-def process_trade_log_entry(raw_trade_text: str) -> Optional[CombinedTradeLog]:
+def process_trade_log_entry(raw_trade_text: str) -> Tuple[Optional[CombinedTradeLog], Optional[str]]:
     """
     Orchestrates the complete processing of a raw trade log entry.
 
@@ -48,16 +48,22 @@ def process_trade_log_entry(raw_trade_text: str) -> Optional[CombinedTradeLog]:
         raw_trade_text: The raw string containing the trade log information.
 
     Returns:
-        An Optional[CombinedTradeLog] object if the entire process is successful,
-        otherwise None if any step (LLM extraction, calculation) fails.
+        A tuple containing:
+        - An Optional[CombinedTradeLog] object if the entire process is successful.
+        - An Optional[str] containing a user-facing error message if any step fails.
     """
     logger.info(f"Step 1: Attempting to extract trade data using LLM for text starting with: '{raw_trade_text[:100]}...'")
     # Defaulting to Google provider; this could be made configurable if needed.
-    extracted_data: Optional[TradeLogLLMExtract] = get_llm_trade_extraction(raw_trade_text, llm_provider_name="google") 
+    extracted_data, error_message = get_llm_trade_extraction(raw_trade_text, llm_provider_name="google") 
+
+    if error_message:
+        logger.error(f"LLM extraction failed: {error_message}. Aborting trade log processing.")
+        return None, error_message
 
     if not extracted_data:
-        logger.error("Failed to extract data from LLM. Aborting trade log processing.")
-        return None
+        logger.error("LLM extraction failed to return data, but gave no error message. Aborting.")
+        # Provide a generic error if the extractor unexpectedly returns (None, None)
+        return None, "LLM extraction failed for an unknown reason."
 
     logger.info(f"Step 2: LLM Extraction successful for symbol: {extracted_data.symbol}."
                   f" Extracted trade type: {extracted_data.trade_type}, Quote Ccy: {extracted_data.quote_currency}.")
@@ -90,11 +96,11 @@ def process_trade_log_entry(raw_trade_text: str) -> Optional[CombinedTradeLog]:
     except sqlite3.Error as e:
         logger.error(f"Database error while processing trade for symbol {combined_log.symbol}: {e}", exc_info=True)
         # If DB operation fails, we cannot consider the process successful.
-        return None
+        return None, f"A database error occurred: {e}"
     except Exception as e:
         # Catch any other unexpected errors during DB interaction
         logger.error(f"An unexpected error occurred during database operation for symbol {combined_log.symbol}: {e}", exc_info=True)
-        return None
+        return None, f"An unexpected error occurred during the database operation: {e}"
     finally:
         if db_conn:
             db_conn.close()
@@ -106,7 +112,7 @@ def process_trade_log_entry(raw_trade_text: str) -> Optional[CombinedTradeLog]:
     # The `if __name__ == "__main__"` block below can still be used for direct
     # command-line testing, and it can handle its own printing.
 
-    return combined_log
+    return combined_log, None
 
 # Example main block for testing (similar to the one in the original test_file.py)
 # This allows running this module directly to test the full processing pipeline.
@@ -164,9 +170,13 @@ if __name__ == "__main__":
     else:
         # Log a generic message for the raw input to avoid encoding issues with direct logging of user input.
         logger.info("Processing provided trade data (raw input preview suppressed due to potential encoding issues).")
-        combined_log_result = process_trade_log_entry(input_raw_trade_text)
+        combined_log_result, error_message = process_trade_log_entry(input_raw_trade_text)
 
-        if combined_log_result:
+        if error_message:
+            logger.error(f"Trade processing failed with message: {error_message}")
+            print("\n--- Processing Failed ---")
+            print(f"Error: {error_message}")
+        elif combined_log_result:
             logger.info(f"Trade processing complete for symbol: {combined_log_result.symbol}.")
             
             # Define the desired order for console output for readability.

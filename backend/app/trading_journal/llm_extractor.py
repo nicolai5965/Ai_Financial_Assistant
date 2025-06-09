@@ -1,11 +1,17 @@
 import os
 import json
-from typing import Optional
+from typing import Optional, Tuple, Any
 import logging
 import sys
 
+# For LangGraph State
+from typing_extensions import TypedDict # Or from typing import TypedDict for Python 3.9+
+
 # Importing models from the .models module within the same package
 from .models import TradeLogLLMExtract
+
+# LangGraph imports
+from langgraph.graph import StateGraph, END
 
 # Logger setup
 try:
@@ -29,33 +35,110 @@ except ImportError:
         logger.addHandler(handler)
     logger.info("Fallback logger initialized for llm_extractor.py.")
 
-def get_llm_trade_extraction(raw_trade_text: str, llm_provider_name: str = "google") -> Optional[TradeLogLLMExtract]:
+# --- LangGraph State Definition ---
+class GraphState(TypedDict):
+    raw_trade_text: str
+    llm_provider_name: str
+    is_trading_data_check_passed: Optional[bool]
+    user_facing_error: Optional[str]
+    extracted_trade_data: Optional[TradeLogLLMExtract]
+
+# --- Graph Nodes ---
+
+def pre_check_node(state: GraphState) -> GraphState:
     """
-    Extracts structured trade information from raw text using a specified LLM provider.
-
-    The function constructs a detailed prompt for the LLM, sends the raw trade text,
-    parses the LLM's JSON response, and validates it against the TradeLogLLMExtract model.
-    It also handles potential Markdown fences (```json ... ```) that the LLM might add.
-
-    Args:
-        raw_trade_text: The raw string containing the trade log information.
-        llm_provider_name: The name of the LLM provider to use (e.g., "google").
-                           Defaults to "google".
-
-    Returns:
-        An Optional[TradeLogLLMExtract] object if extraction and validation are successful,
-        otherwise None if any error occurs (e.g., LLM import failure, JSON decoding error,
-        Pydantic validation error, or other exceptions during LLM interaction).
+    Node to pre-check if the input text is trading-related data.
     """
-    logger.info(f"Attempting to use {llm_provider_name} LLM provider for trade extraction.")
+    logger.info("Entering pre_check_node.")
+    raw_trade_text = state["raw_trade_text"]
+    llm_provider_name = state["llm_provider_name"]
+
     try:
-        # Dynamically import LLMHandler to avoid import errors if the module is run in isolation
-        # or if the main app structure isn't fully available.
-        # The path assumes this module is in backend/app/trading_journal/
         from ..services.llm.llm_handler import LLMHandler
+    except ImportError:
+        logger.error("Failed to import LLMHandler in pre_check_node. Pre-check aborted.")
+        return {
+            **state, # type: ignore # TypedDict spread is fine in recent Pythons with appropriate linters
+            "is_trading_data_check_passed": False,
+            "user_facing_error": "System error: Pre-check module failed to load. Please contact support.",
+        }
+
+    example_trading_data = """
+[2025-06-06 14:30:53	14,384.78	14,383.78	
+−1.00 USD Commission for: Close short position for symbol FX:USDJPY at price 144.510 for 137674 units. Position AVG Price was 144.289000, currency: JPY, rate: 0.006920, point value: 1.000000
+2025-06-06 14:10:28	Order 2054350820 for symbol FX:USDJPY has been executed at price 144.289 for 137674 units
+2025-06-06 11:11:57	Call to place limit order to sell 137674 units of symbol FX:USDJPY at price 144.289 with SL 144.472 and TP 143.937]
+    """
+
+    pre_check_prompt = f"""You are a text classifier. Your task is to determine if the provided text contains information related to financial trading activities, such as trade logs, order executions, position entries/exits, commissions, or market instrument symbols.
+
+Consider the following as an example of text that IS trading-related:
+---
+{example_trading_data}
+---
+
+Now, analyze the following text:
+---
+{raw_trade_text}
+---
+
+Based on your analysis, does the text above appear to be a log or description of financial trading activity?
+Answer with only 'YES' or 'NO'."""
+
+    try:
+        handler_instance = LLMHandler(llm_provider=llm_provider_name)
+        pre_check_llm = handler_instance.get_model()
         
-        # Comprehensive prompt for the LLM, detailing expected JSON structure and field instructions.
-        prompt = f"""Please extract trading information from the following raw text. 
+        logger.info(f"Sending pre-check prompt to {llm_provider_name} LLM for text starting with: '{raw_trade_text[:100]}...'")
+        response = pre_check_llm.invoke(pre_check_prompt)
+        
+        response_content = (response.content if hasattr(response, 'content') else str(response)).strip().upper()
+        logger.info(f"Pre-check LLM response: {response_content}")
+
+        if response_content == "YES":
+            logger.info("Pre-check determined data IS trading-related.")
+            return {**state, "is_trading_data_check_passed": True, "user_facing_error": None} # type: ignore
+        elif response_content == "NO":
+            logger.warning("Pre-check determined data IS NOT trading-related.")
+            return {
+                **state, # type: ignore
+                "is_trading_data_check_passed": False,
+                "user_facing_error": "The provided text does not appear to be trading-related data. Please input valid trading journal entries.",
+            }
+        else:
+            logger.error(f"Pre-check LLM gave an unexpected response: {response_content}")
+            return {
+                **state, # type: ignore
+                "is_trading_data_check_passed": False,
+                "user_facing_error": "The system could not determine if the input is trading data due to an unexpected pre-check response. Please try again or simplify your input.",
+            }
+    except Exception as e:
+        logger.error(f"Error during pre-check LLM interaction with {llm_provider_name}: {e}", exc_info=True)
+        return {
+            **state, # type: ignore
+            "is_trading_data_check_passed": False,
+            "user_facing_error": f"An error occurred during the data pre-check: {str(e)}. Please try again.",
+        }
+
+def extraction_node(state: GraphState) -> GraphState:
+    """
+    Node to perform the detailed trade extraction using the main LLM.
+    """
+    logger.info("Entering extraction_node.")
+    raw_trade_text = state["raw_trade_text"]
+    llm_provider_name = state["llm_provider_name"]
+
+    try:
+        from ..services.llm.llm_handler import LLMHandler
+    except ImportError:
+        logger.error("Failed to import LLMHandler in extraction_node. Extraction aborted.")
+        return {
+            **state, # type: ignore
+            "extracted_trade_data": None,
+            "user_facing_error": state.get("user_facing_error") or "System error: Extraction module failed to load. Please contact support.",
+        }
+
+    extraction_prompt = f"""Please extract trading information from the following raw text. 
 Provide the output in a valid JSON format according to this Pydantic model structure. 
 IMPORTANT: The JSON output MUST NOT contain duplicate keys. Each key must appear only once. 
 Ensure all field names exactly match the Pydantic model shown below.
@@ -107,47 +190,167 @@ Raw trade text:
 
 JSON Output:"""
 
-        # Initialize and use the LLMHandler
+    llm_response_content = "" 
+    try:
         handler_instance = LLMHandler(llm_provider=llm_provider_name)
         language_model = handler_instance.get_model()
 
-        logger.info(f"Sending prompt to {llm_provider_name} LLM for trade text starting with: '{raw_trade_text[:100]}...'")
-        response = language_model.invoke(prompt)
+        logger.info(f"Sending extraction prompt to {llm_provider_name} LLM for trade text starting with: '{raw_trade_text[:100]}...'")
+        response = language_model.invoke(extraction_prompt)
         
-        # Extract content from response, accommodating different LLM response structures
         llm_response_content = response.content if hasattr(response, 'content') else str(response)
         
-        logger.info("Received response from LLM.")
+        logger.info("Received response from extraction LLM.")
         logger.debug(f"Raw LLM response content before stripping fences: {llm_response_content}")
 
-        # Strip Markdown JSON fences (e.g., ```json ... ``` or ``` ... ```) if present
         if llm_response_content.startswith("```json"):
             llm_response_content = llm_response_content[len("```json"):].strip()
             if llm_response_content.endswith("```"):
                 llm_response_content = llm_response_content[:-len("```")]
             llm_response_content = llm_response_content.strip()
-        elif llm_response_content.startswith("```"): # Handles cases where LLM might forget the 'json' language hint
+        elif llm_response_content.startswith("```"):
             llm_response_content = llm_response_content[len("```"):].strip()
             if llm_response_content.endswith("```"):
                  llm_response_content = llm_response_content[:-len("```")]
             llm_response_content = llm_response_content.strip()
-
         logger.debug(f"Cleaned LLM response content after stripping fences: {llm_response_content}")
 
-        # Parse the cleaned JSON string into a dictionary
         llm_data = json.loads(llm_response_content)
-        # Validate and create the Pydantic model instance
         extracted_data = TradeLogLLMExtract(**llm_data)
         logger.info(f"Successfully extracted and validated trade data for symbol: {extracted_data.symbol}")
-        return extracted_data
+        return {**state, "extracted_trade_data": extracted_data, "user_facing_error": None} # type: ignore
 
-    except ImportError:
-        logger.error(f"Failed to import LLMHandler for {llm_provider_name}. Ensure 'app.services.llm.llm_handler.py' is accessible and app structure is correct. LLM extraction aborted.")
-        return None
     except json.JSONDecodeError as e:
-        logger.error(f"Error decoding LLM JSON response: {e}. Raw response content was: {llm_response_content}. LLM extraction aborted.")
-        return None
+        error_msg = f"Error decoding LLM JSON response for extraction: {e}. Raw response: '{llm_response_content[:200]}...'"
+        logger.error(error_msg)
+        return {
+            **state, # type: ignore
+            "extracted_trade_data": None,
+            "user_facing_error": "Failed to parse the extracted trade data. The format from the AI was incorrect. Please try again or simplify your input.",
+        }
     except Exception as e: 
-        # Catch-all for other errors, including Pydantic validation errors or LLM interaction issues.
-        logger.error(f"An error occurred during LLM data processing or interaction with {llm_provider_name}: {e}. LLM extraction aborted.", exc_info=True)
-        return None 
+        error_msg = f"An error occurred during LLM data processing or interaction with {llm_provider_name} for extraction: {e}"
+        logger.error(error_msg, exc_info=True)
+        return {
+            **state, # type: ignore
+            "extracted_trade_data": None,
+            "user_facing_error": f"An error occurred during trade data extraction: {str(e)}. Please check the input or try again.",
+        }
+
+# --- Conditional Edges ---
+
+def should_proceed_to_extraction(state: GraphState) -> str:
+    """
+    Determines the next step after the pre-check.
+    """
+    logger.info("Evaluating condition: should_proceed_to_extraction.")
+    if state.get("user_facing_error"): 
+        logger.info(f"Pre-check failed or errored: {state['user_facing_error']}. Ending graph.")
+        return "end_graph"
+    
+    if state.get("is_trading_data_check_passed") is True:
+        logger.info("Pre-check passed. Proceeding to extraction_node.")
+        return "extract_data"
+    else:
+        # This path should ideally be covered by user_facing_error being set in pre_check_node.
+        # If not, it means is_trading_data_check_passed is False or None without a specific error message.
+        logger.warning("is_trading_data_check_passed is False or None, but no user_facing_error from pre_check. Ending graph.")
+        # The pre_check_node should always set user_facing_error if the check fails.
+        return "end_graph"
+
+
+# --- Workflow Definition ---
+workflow = StateGraph(GraphState)
+
+workflow.add_node("pre_checker", pre_check_node)
+workflow.add_node("extractor", extraction_node)
+
+workflow.set_entry_point("pre_checker")
+
+workflow.add_conditional_edges(
+    "pre_checker",
+    should_proceed_to_extraction,
+    {
+        "extract_data": "extractor",
+        "end_graph": END,
+    },
+)
+workflow.add_edge("extractor", END)
+
+# Compile the graph
+app_graph = workflow.compile()
+
+
+# --- Main Function to be Called ---
+def get_llm_trade_extraction(raw_trade_text: str, llm_provider_name: str = "google") -> Tuple[Optional[TradeLogLLMExtract], Optional[str]]:
+    """
+    Extracts structured trade information using a two-step LLM process with LangGraph:
+    1. Pre-checks if the text is trading data.
+    2. If yes, extracts detailed trade information.
+
+    Args:
+        raw_trade_text: The raw string containing the trade log information.
+        llm_provider_name: The name of the LLM provider to use.
+
+    Returns:
+        A tuple: (Optional[TradeLogLLMExtract], Optional[str])
+        - The first element is the extracted trade data model if successful.
+        - The second element is a user-facing error message if any step fails or if data is not trading-related.
+    """
+    logger.info(f"Starting LangGraph trade extraction for text: '{raw_trade_text[:100]}...' with provider: {llm_provider_name}")
+    
+    initial_state: GraphState = {
+        "raw_trade_text": raw_trade_text,
+        "llm_provider_name": llm_provider_name,
+        "is_trading_data_check_passed": None,
+        "user_facing_error": None,
+        "extracted_trade_data": None,
+    }
+
+    try:
+        final_state_dict = app_graph.invoke(initial_state)
+        
+        if not isinstance(final_state_dict, dict): # Should be a dict based on GraphState
+            logger.error(f"LangGraph invocation did not return a dictionary. Got: {type(final_state_dict)}")
+            # This could happen if the graph is configured to stream intermediate states as a list.
+            # Assuming standard invoke returns the final state dict. If it's a list, take the last one.
+            if isinstance(final_state_dict, list) and final_state_dict:
+                final_state_dict = final_state_dict[-1]
+                if not isinstance(final_state_dict, dict):
+                     return None, "A system error occurred during processing. Unexpected graph output structure."
+            else:
+                return None, "A system error occurred during processing. Unexpected graph output."
+
+
+        logger.info(f"LangGraph execution finished. Final state keys: {list(final_state_dict.keys())}")
+
+        # Accessing TypedDict items using .get() is safer
+        extracted_data = final_state_dict.get("extracted_trade_data")
+        user_error = final_state_dict.get("user_facing_error")
+
+        if user_error:
+            logger.warning(f"Process finished with user-facing error: {user_error}")
+            return None, user_error 
+        
+        if extracted_data:
+            # Ensure extracted_data is of the correct type, Pydantic model should handle this.
+            logger.info(f"Successfully processed and extracted trade data via LangGraph for symbol: {extracted_data.symbol if hasattr(extracted_data, 'symbol') else 'N/A'}")
+            return extracted_data, None
+        else:
+            # This case implies the graph ended, no specific user error was set, and no data was extracted.
+            # This might happen if pre-check was 'NO' and user_facing_error was correctly set,
+            # or if an edge case in conditional logic led to END without error/data.
+            # The should_proceed_to_extraction logic and node error handling should prevent this
+            # unless pre_check says NO and user_facing_error was correctly set.
+            # If user_error is None here, it implies the path was valid but didn't produce data.
+            logger.warning("LangGraph finished, no extracted data and no explicit user error. This might indicate a non-trading input or an unexpected path.")
+            # If pre_check_node correctly sets user_facing_error for "NO", this path shouldn't be hit with user_error as None.
+            # If it is, it means "NO" isn't creating an error message, or extraction failed silently.
+            # The pre_check_node is designed to set user_facing_error for "NO".
+            # So, if user_error is None here, it's an unexpected state.
+            return None, "Processing completed, but no trade data was extracted. The input might not be recognized or an issue occurred."
+
+
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during LangGraph execution: {e}", exc_info=True)
+        return None, f"A critical system error occurred during processing: {str(e)}" 

@@ -59,8 +59,11 @@ class TradeLogLLMExtract(BaseModel):
     exit_timestamp: Optional[datetime] = Field(None, description="Timestamp for the trade exit, if any.")
     exit_price: Optional[float] = Field(None, description="Price (in quote_currency) at which the trade was exited, if any.")
     exit_units: Optional[float] = Field(None, description="Units exited, if any.")
-    trade_events_narrative: str = Field(..., description="An LLM-generated summary of trade events.")
-    all_order_ids_mentioned: Optional[str] = Field(None, description="All unique order IDs mentioned by the LLM as a single string; should be actual IDs, not other numbers.")
+    trade_events_narrative: str = Field(..., description="A detailed, chronological narrative of all trade events, including entries, exits, adjustments, and commissions, as described in the log.")
+    all_order_ids_mentioned: Optional[str] = Field(None, description="A comma-separated list of all unique order IDs mentioned in the entire log text.")
+    # New field to specifically capture gross P&L from a 'Close position' log line.
+    # This is crucial for accurately calculating P&L on scaled-in trades where manual calculation is unreliable.
+    gross_pnl_from_close_event: Optional[float] = Field(None, description="The gross profit or loss value extracted directly from the '[History] Close long/short position...' log line, before commissions.")
 
     # Fields for currency and trade type identification by LLM
     trade_type: Optional[Literal["STOCK", "FOREX", "CRYPTO", "FUTURES", "UNKNOWN"]] = Field(None, description="Type of the traded instrument (e.g., STOCK, FOREX). LLM should determine this.")

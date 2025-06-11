@@ -76,9 +76,38 @@ def calculate_additional_trade_data(extracted_data: TradeLogLLMExtract) -> Calcu
     Returns:
         A CalculatedTradeData object populated with the calculated metrics.
     """
-    # Initialize all calculable fields to None
-    final_pnl_usd: Optional[float] = None
-    status: Optional[Literal["WIN", "LOSS", "BREAK_EVEN"]] = None
+    # --- PNL Override for Scaled-In Trades ---
+    # Check if the LLM extracted a gross P&L directly from a 'Close position' log line.
+    # This is more reliable for scaled-in trades than calculating from a single entry/exit price.
+    if extracted_data.gross_pnl_from_close_event is not None:
+        logger.info(
+            f"Using PNL override for scaled-in trade on symbol '{extracted_data.symbol}'. "
+            f"Gross P&L from log: {extracted_data.gross_pnl_from_close_event}"
+        )
+        # The final PNL is the gross PNL from the close event plus all summed commissions.
+        final_pnl_usd = extracted_data.gross_pnl_from_close_event
+        if extracted_data.total_commission_fees_usd is not None:
+            final_pnl_usd += extracted_data.total_commission_fees_usd
+        
+        final_pnl_usd = round(final_pnl_usd, 2)
+
+        # Since this is a scaled-in trade, some metrics based on a single entry price are ambiguous.
+        # We set a clear status and calculate what we can.
+        if final_pnl_usd > 0: status = "WIN"
+        elif final_pnl_usd < 0: status = "LOSS"
+        else: status = "BREAK_EVEN"
+        
+        # We can still attempt to calculate risk and duration, but they might be less meaningful.
+        # The existing logic below will handle this based on the available data.
+        # Fall through to the rest of the function to calculate what's possible (like duration).
+        # We will re-assign final_pnl_usd and status at the end.
+
+    else:
+        # If no override PNL is present, set final_pnl_usd to None so the original logic path is followed.
+        final_pnl_usd = None
+        status = None
+
+    # Initialize all other calculable fields to None or their defaults
     initial_risk_per_unit_usd: Optional[float] = None
     initial_total_risk_usd: Optional[float] = None
     expected_pnl_at_initial_tp_usd: Optional[float] = None
@@ -160,13 +189,31 @@ def calculate_additional_trade_data(extracted_data: TradeLogLLMExtract) -> Calcu
         final_pnl_usd = extracted_data.total_commission_fees_usd
 
 
-    # Determine Trade Status based on Net PNL USD
-    # Thresholds for WIN/LOSS can be configured if needed.
-    if final_pnl_usd is not None:
-        if final_pnl_usd > 40: status = "WIN"
-        elif final_pnl_usd < -40: status = "LOSS"
-        else: status = "BREAK_EVEN"
-        
+    # --- Final PNL and Status Assignment ---
+    # This block ensures that if the PNL override was used, its values are preserved.
+    # Otherwise, it uses the values from the standard calculation path.
+    
+    final_pnl_to_use = final_pnl_usd
+    status_to_use = status
+
+    if extracted_data.gross_pnl_from_close_event is not None:
+        # Recalculate and reassign from the override values to ensure they are final.
+        override_pnl = extracted_data.gross_pnl_from_close_event
+        if extracted_data.total_commission_fees_usd is not None:
+            override_pnl += extracted_data.total_commission_fees_usd
+        final_pnl_to_use = round(override_pnl, 2)
+
+        if final_pnl_to_use > 0: status_to_use = "WIN"
+        elif final_pnl_to_use < 0: status_to_use = "LOSS"
+        else: status_to_use = "BREAK_EVEN"
+    
+    else:
+        # Determine Trade Status based on Net PNL USD calculated the standard way
+        if final_pnl_to_use is not None:
+            if final_pnl_to_use > 40: status_to_use = "WIN"
+            elif final_pnl_to_use < -40: status_to_use = "LOSS"
+            else: status_to_use = "BREAK_EVEN"
+
     # Calculate Expected PNL at Initial Take Profit in USD if possible
     if can_convert_to_usd and extracted_data.initial_take_profit_price is not None and \
        extracted_data.entry_price is not None and extracted_data.initial_units is not None:
@@ -178,8 +225,8 @@ def calculate_additional_trade_data(extracted_data: TradeLogLLMExtract) -> Calcu
         expected_pnl_at_initial_tp_usd = round(expected_pnl_at_tp_in_quote_currency * rate, 2)
 
     # Calculate R-Multiples if all necessary USD values are available and risk is not zero.
-    if final_pnl_usd is not None and initial_total_risk_usd is not None and initial_total_risk_usd != 0:
-        actual_r_multiple_on_risk = round(final_pnl_usd / initial_total_risk_usd, 2)
+    if final_pnl_to_use is not None and initial_total_risk_usd is not None and initial_total_risk_usd != 0:
+        actual_r_multiple_on_risk = round(final_pnl_to_use / initial_total_risk_usd, 2)
     
     if expected_pnl_at_initial_tp_usd is not None and initial_total_risk_usd is not None and initial_total_risk_usd != 0:
         expected_r_multiple_at_initial_tp = round(expected_pnl_at_initial_tp_usd / initial_total_risk_usd, 2)
@@ -204,8 +251,8 @@ def calculate_additional_trade_data(extracted_data: TradeLogLLMExtract) -> Calcu
             trade_duration_readable = "N/A (invalid)"
         
     return CalculatedTradeData(
-        final_pnl_usd=final_pnl_usd, 
-        status=status,
+        final_pnl_usd=final_pnl_to_use, 
+        status=status_to_use,
         initial_risk_per_unit_usd=initial_risk_per_unit_usd,
         initial_total_risk_usd=initial_total_risk_usd,
         expected_pnl_at_initial_tp_usd=expected_pnl_at_initial_tp_usd,

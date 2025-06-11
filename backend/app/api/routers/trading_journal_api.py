@@ -7,13 +7,13 @@ from datetime import datetime
 # Assuming all models and handlers are accessible from the app structure
 try:
     from ...trading_journal.models import CombinedTradeLog
-    from ...trading_journal.database_handler import get_db_connection, get_all_trades, get_total_trade_count
+    from ...trading_journal.database_handler import get_db_connection, get_all_trades, get_total_trade_count, get_trade_statistics
     from ...trading_journal.trade_parser import process_trade_log_entry # Import the processor
     from ...core.logging_config import get_logger
 except ImportError:
     # Fallback for isolated development/testing if needed
     from backend.app.trading_journal.models import CombinedTradeLog
-    from backend.app.trading_journal.database_handler import get_db_connection, get_all_trades, get_total_trade_count
+    from backend.app.trading_journal.database_handler import get_db_connection, get_all_trades, get_total_trade_count, get_trade_statistics
     from backend.app.trading_journal.trade_parser import process_trade_log_entry # Import the processor
     from backend.app.core.logging_config import get_logger
 
@@ -57,6 +57,17 @@ class PaginatedTradesResponse(BaseModel):
     page: int
     limit: int
     total_pages: int
+
+class StatisticsResponse(BaseModel):
+    """
+    Pydantic model for the aggregated trade statistics response.
+    """
+    total_pnl: float = Field(..., description="Total profit and loss across all trades.")
+    win_count: int = Field(..., description="Total number of trades with positive P&L.")
+    loss_count: int = Field(..., description="Total number of trades with negative P&L.")
+    avg_expected_r: Optional[float] = Field(None, description="Average expected R-multiple at initial take profit.")
+    avg_actual_r: Optional[float] = Field(None, description="Average actual R-multiple achieved on the risk taken.")
+    initial_account_balance: float = Field(..., description="The starting account balance.")
 
 
 # --- API Endpoint Definition ---
@@ -156,4 +167,33 @@ async def get_trades_paginated(
     finally:
         if db_conn:
             db_conn.close()
-            logger.debug("API: Database connection closed for get_trades_paginated.") 
+            logger.debug("API: Database connection closed for get_trades_paginated.")
+
+@router.get("/statistics", response_model=StatisticsResponse)
+async def get_journal_statistics():
+    """
+    Retrieves aggregated key performance indicators (KPIs) for the entire trading journal.
+    """
+    db_conn = None
+    try:
+        db_conn = get_db_connection()
+        stats_data = get_trade_statistics(db_conn)
+        
+        # Add the hardcoded initial account balance as per the plan
+        stats_data["initial_account_balance"] = 10000.0
+        
+        logger.info(f"API: Successfully retrieved journal statistics.")
+        
+        # Validate and return the response
+        return StatisticsResponse(**stats_data)
+
+    except Exception as e:
+        logger.exception(f"API Error: Failed to retrieve journal statistics. Error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal server error occurred while retrieving statistics."
+        )
+    finally:
+        if db_conn:
+            db_conn.close()
+            logger.debug("API: Database connection closed for get_journal_statistics.") 

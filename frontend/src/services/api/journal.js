@@ -157,4 +157,45 @@ export async function submitJournalTrade(rawText) {
     logger.error(`Failed to submit journal trade (request: ${requestId}): ${error.message}`);
     throw error;
   }
+}
+
+/**
+ * Fetches the aggregated trade statistics from the backend.
+ * 
+ * @returns {Promise<Object>} The statistics object.
+ * @throws {Error} Throws an error if the fetch fails.
+ */
+export async function fetchJournalStatistics() {
+  const requestId = generateRequestId();
+  const url = `${API_URL}/api/journal/statistics`;
+
+  try {
+    logger.info(`Fetching journal statistics from: ${url} (request: ${requestId})`);
+
+    const response = await performFetchWithRetry(
+      url,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+      requestId
+    );
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        const errorMessage = errorData.detail || `Server error: ${response.status} ${response.statusText}`;
+        logger.error(`Error fetching statistics (request: ${requestId}):`, errorMessage);
+        throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    logger.info(`Successfully fetched journal statistics (request: ${requestId})`, data);
+    return data;
+
+  } catch (error) {
+    logger.error(`Failed to fetch journal statistics (request: ${requestId}): ${error.message}`);
+    throw error;
+  }
 } 

@@ -156,14 +156,19 @@ Ensure all field names exactly match the Pydantic model shown below.
   "exit_units": "Optional[float] (single value or null)",
   "trade_events_narrative": "str (summarize key events chronologically)",
   "all_order_ids_mentioned": "Optional[str] (single string of comma-separated IDs or null, not a list)",
+  "gross_pnl_from_close_event": "Optional[float] (Gross P/L from the 'Close position' log line, before commissions.)",
   "trade_type": "Optional[Literal['STOCK', 'FOREX', 'CRYPTO', 'FUTURES', 'UNKNOWN']]",
-  "quote_currency": "Optional[str] (e.g., USD, DKK, EUR)",
+  "quote_currency": "Optional[str] (e.g., USD, DKK, EUR, unless stated otherwise from the profit / loss of the trade)",
   "conversion_rate_of_quote_to_usd": "Optional[float] (1 unit of quote_currency = X USD. If quote_currency is USD, this is 1.0. If not USD and rate is unknown, use null.)",
   "leverage": "Optional[str] (e.g., '50x', '100:1', or null if not found)",
-  "total_commission_fees_usd": "Optional[float] (Sum of all commissions in USD. If commissions in logs are not in USD, convert them if possible using a rate found in the text. These are usually costs, so sum of -1 and -1 should be -2.0. If no commissions, use null.)"
+  "total_commission_fees_usd": "Optional[float] (Sum of ALL commissions in USD. Typically a negative number.)"
 }}
 
-Detailed instructions for fields:
+CRITICAL INSTRUCTIONS for handling complex trades:
+1.  **Gross P&L Extraction**: If you see a `[History]` log line for "Close ... position", you MUST extract the P/L value from that line and place it in the `gross_pnl_from_close_event` field. This is the most reliable P&L figure. For example, from `Close long position... (-99.40 USD)`, you must extract -99.40.
+2.  **Commission Summation for Scaled-In Trades**: A trade may have multiple 'Enter position' events (scaling in). You MUST find ALL commission entries associated with the entire trade (all entries AND the exit) and sum them together for `total_commission_fees_usd`. For example, if there are two entry commissions of -1.00 USD each and one exit commission of -1.00 USD, the correct total is -3.00.
+
+Detailed instructions for other fields:
 - symbol: The trading instrument code (e.g., FOREXCOM:USDDKK, COINBASE:SOLUSD, AAPL).
 - direction: Initial trade direction (BUY or SELL).
 - entry_timestamp: Timestamp of initial position opening (YYYY-MM-DDTHH:MM:SS).
@@ -176,9 +181,9 @@ Detailed instructions for fields:
 - all_order_ids_mentioned: A single string containing all unique, actual order identifiers (e.g., "ORDER-123, ORDER-456"). Exclude dates or other numerical data. Null if none.
 - trade_type: Classify the trade (STOCK, FOREX, CRYPTO, FUTURES). If unsure, use UNKNOWN. Null if not determinable.
 - quote_currency: The currency of prices in the log. For USDDKK, it's DKK. For EURUSD, it's USD. For AAPL, it's USD. For SOLUSD, it's USD. Prioritize explicit mentions like "currency: DKK". Null if not determinable.
-- conversion_rate_of_quote_to_usd: The rate for 1 unit of quote_currency to USD (e.g., 0.152178 for DKK if 1 DKK = 0.152178 USD). MUST be 1.0 if quote_currency is USD. If the rate from quote_currency to USD is not found in the text for a non-USD quote, use null.
+- conversion_rate_of_quote_to_usd: The rate for 1 unit of quote_currency to USD (e.g., 0.152178 for DKK if 1 DKK = 0.152178 USD). MUST be 1.0 if quote_currency is USD. If the rate from quote_currency to USD is not found in the text for a non-USD quote, use null, DO NOT TRY AND CALCULATE IT.
 - leverage: Extract any mention of leverage (e.g., "leverage: 20x", "1:100"). If not found, use null.
-- total_commission_fees_usd: Find all commission entries. Sum their values. If commissions are specified in a currency other than USD, use the 'conversion_rate_of_quote_to_usd' (if found from the text, or if it can be inferred for the quote_currency) to convert each commission to USD *before* summing. If commissions are already in USD (e.g., "-1.00USD Commission"), sum them directly. Report the total sum (this is typically a negative number if commissions are costs). If no commissions are mentioned, use null.
+- total_commission_fees_usd: Find ALL commission entries. Sum their values as per the CRITICAL INSTRUCTIONS above. If commissions are not in USD, convert them if possible. Report the total sum (typically a negative number). If no commissions are mentioned, use null.
 
 Ensure all datetime strings are in YYYY-MM-DDTHH:MM:SS format.
 For optional fields, use null if no information is found. Fields expecting lists should be empty lists ([]) if no relevant items are found.

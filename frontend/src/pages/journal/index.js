@@ -7,8 +7,60 @@ import { logger } from '../../utils/logger';
 import JournalTable from '../../components/journal/JournalTable';
 import PaginationControls from '../../components/journal/PaginationControls';
 import TradeSubmissionForm from '../../components/journal/TradeSubmissionForm';
+import KpiDashboard from '../../components/journal/KpiDashboard';
 
 // --- Helper Functions and Components ---
+
+/**
+ * A component to display submission status messages (e.g., success or error).
+ * The message automatically fades out and disappears.
+ */
+const SubmissionStatus = ({ message, type, onClear }) => {
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => {
+                onClear();
+            }, 5000); // Message disappears after 5 seconds
+            return () => clearTimeout(timer);
+        }
+    }, [message, onClear]);
+
+    if (!message) return null;
+
+    return (
+        <>
+            <div className={`submission-status ${type}`}>
+                {message}
+            </div>
+            <style jsx>{`
+                .submission-status {
+                    padding: 1rem 1.5rem;
+                    border-radius: 4px;
+                    margin-bottom: 1.5rem;
+                    animation: fadeInOut 5s forwards;
+                    text-align: center;
+                    font-weight: 500;
+                }
+                .submission-status.success {
+                    background-color: #2e7d32; /* Darker Green */
+                    color: #e8f5e9;
+                    border: 1px solid #66bb6a;
+                }
+                .submission-status.error {
+                    background-color: #c62828; /* Darker Red */
+                    color: #ffebee;
+                    border: 1px solid #ef5350;
+                }
+                @keyframes fadeInOut {
+                    0% { opacity: 0; transform: translateY(-10px); }
+                    10% { opacity: 1; transform: translateY(0); }
+                    90% { opacity: 1; transform: translateY(0); }
+                    100% { opacity: 0; transform: translateY(-10px); }
+                }
+            `}</style>
+        </>
+    );
+};
 
 /**
  * Formats a date string or timestamp into a more readable format.
@@ -61,6 +113,8 @@ const JournalPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isFormVisible, setIsFormVisible] = useState(false);
+    const [submissionStatus, setSubmissionStatus] = useState({ message: '', type: '' });
+    const [kpiKey, setKpiKey] = useState(Date.now()); // State to trigger KPI refresh
 
     const loadTrades = async (page) => {
         setLoading(true);
@@ -106,6 +160,8 @@ const JournalPage = () => {
         // A more complex approach would be to check if the newTrade.id is already in the list.
         logger.info("New trade received, reloading current page to display it.");
         setIsFormVisible(false); // Hide the form on success
+        setSubmissionStatus({ message: 'New trade successfully processed and added to the journal!', type: 'success' });
+        setKpiKey(Date.now()); // Change the key to force a refresh of the KPI dashboard
         loadTrades(pagination.currentPage);
     };
 
@@ -130,6 +186,8 @@ const JournalPage = () => {
                     )}
                 </div>
 
+                <KpiDashboard refreshKey={kpiKey} />
+
                 {isFormVisible && (
                     <TradeSubmissionForm
                         onTradeSubmitted={handleTradeSubmitted}
@@ -137,9 +195,19 @@ const JournalPage = () => {
                     />
                 )}
                 
+                <SubmissionStatus 
+                    message={submissionStatus.message} 
+                    type={submissionStatus.type} 
+                    onClear={() => setSubmissionStatus({ message: '', type: '' })} 
+                />
+
                 {error && <div className="error-message">Error: {error}</div>}
 
                 <JournalTable trades={trades} isLoading={loading} />
+
+                <div className="table-disclaimer">
+                    * PNL (USD) values are shown after commission fees have been deducted.
+                </div>
 
                 <PaginationControls
                     currentPage={pagination.currentPage}
@@ -200,6 +268,14 @@ const JournalPage = () => {
                     border: 1px solid #ef5350;
                     background-color: rgba(239, 83, 80, 0.1);
                     border-radius: 4px;
+                }
+
+                .table-disclaimer {
+                    font-size: 0.875rem;
+                    color: #90a4ae;
+                    text-align: center;
+                    margin: -0.5rem 0 1.5rem 0;
+                    font-style: italic;
                 }
             `}</style>
         </>

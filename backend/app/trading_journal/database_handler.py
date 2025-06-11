@@ -243,6 +243,67 @@ def get_total_trade_count(conn: sqlite3.Connection) -> int:
         logger.error(f"Error getting total trade count: {e}", exc_info=True)
         return 0
 
+def get_trade_statistics(conn: sqlite3.Connection) -> dict:
+    """
+    Calculates and retrieves key performance indicators (KPIs) from the trades table.
+
+    Args:
+        conn: sqlite3.Connection object.
+
+    Returns:
+        A dictionary containing the calculated statistics.
+        Returns a default dictionary with zero/null values if an error occurs or no data is present.
+    """
+    stats = {
+        "total_pnl": 0,
+        "win_count": 0,
+        "loss_count": 0,
+        "avg_expected_r": None,
+        "avg_actual_r": None,
+    }
+    try:
+        # We need dict-like access for the cursor result
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # This single, optimized query calculates all required metrics
+        # - SUM pnl for total profit/loss
+        # - FILTER clause (PostgreSQL/SQLite 3.30+) is efficient for conditional aggregation
+        # - AVG calculates the mean, automatically handling NULLs
+        cursor.execute("""
+            SELECT
+                SUM(final_pnl_usd) AS total_pnl,
+                COUNT(id) FILTER (WHERE final_pnl_usd > 0) AS win_count,
+                COUNT(id) FILTER (WHERE final_pnl_usd < 0) AS loss_count,
+                AVG(expected_r_multiple_at_initial_tp) AS avg_expected_r,
+                AVG(actual_r_multiple_on_risk) AS avg_actual_r
+            FROM trades
+        """)
+        
+        result = cursor.fetchone()
+        
+        if result:
+            # Directly update the stats dictionary from the query result.
+            # The keys in the result object match the 'AS' aliases in the SQL.
+            # Coalesce None results to the default values.
+            stats["total_pnl"] = result["total_pnl"] if result["total_pnl"] is not None else 0
+            stats["win_count"] = result["win_count"] if result["win_count"] is not None else 0
+            stats["loss_count"] = result["loss_count"] if result["loss_count"] is not None else 0
+            stats["avg_expected_r"] = result["avg_expected_r"] # Can be None if no data
+            stats["avg_actual_r"] = result["avg_actual_r"] # Can be None if no data
+            logger.info(f"Successfully calculated trade statistics: {stats}")
+        else:
+            logger.warning("get_trade_statistics query returned no result. Using default zero values.")
+
+    except sqlite3.Error as e:
+        logger.error(f"Error calculating trade statistics: {e}", exc_info=True)
+        # Return the default zero-value dictionary on error
+    finally:
+        # It's good practice to reset the row_factory if it was changed for a specific function
+        conn.row_factory = None
+        
+    return stats
+
 if __name__ == '__main__':
     # Example usage / basic test
     logger.info("Running database_handler.py directly for testing.")
@@ -357,6 +418,11 @@ if __name__ == '__main__':
         for trade in all_trades_paginated:
             # Print a few fields to verify it's a dict
             logger.info(f"  ID: {trade['id']}, Symbol: {trade['symbol']}, PNL: {trade['final_pnl_usd']}")
+
+        # Test get_trade_statistics
+        logger.info("\n--- Testing get_trade_statistics ---")
+        stats = get_trade_statistics(test_conn)
+        logger.info(f"Trade statistics: {stats}")
 
     except Exception as e:
         logger.error(f"Error during database_handler.py self-test: {e}", exc_info=True)

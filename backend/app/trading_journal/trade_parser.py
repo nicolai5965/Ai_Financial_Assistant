@@ -69,6 +69,33 @@ def process_trade_log_entry(raw_trade_text: str) -> Tuple[Optional[CombinedTrade
                   f" Extracted trade type: {extracted_data.trade_type}, Quote Ccy: {extracted_data.quote_currency}.")
     logger.debug(f"LLM Extracted data dump: {extracted_data.model_dump_json(indent=2)}")
     
+    # --- Implicit Conversion Rate Derivation ---
+    # This logic block handles cases where a non-USD currency is used (e.g., USDDKK)
+    # but no explicit conversion rate was found in the trade text.
+    if (extracted_data.quote_currency != "USD" and
+            not extracted_data.conversion_rate_of_quote_to_usd and
+            "USD" in extracted_data.symbol.upper() and
+            # The exit price is the most accurate point for P&L conversion.
+            extracted_data.exit_price is not None and extracted_data.exit_price != 0):
+        
+        try:
+            # For FX pairs like 'USDDKK', the price is 'DKK per USD'.
+            # To get the USD value of 1 DKK, we invert the exit price.
+            implicit_rate = 1.0 / extracted_data.exit_price
+            
+            # Update the in-memory model before it's passed to the calculator
+            extracted_data.conversion_rate_of_quote_to_usd = implicit_rate
+            
+            logger.info(
+                f"Derived implicit conversion rate for {extracted_data.symbol}. "
+                f"Using 1 / exit_price ({extracted_data.exit_price}) = {implicit_rate:.6f}"
+            )
+        except ZeroDivisionError:
+             # This is guarded by the if-condition but included for robustness.
+            logger.warning("Attempted to derive conversion rate with exit_price of zero. Skipping.")
+
+    # --- End Derivation ---
+
     logger.info(f"Step 3: Calculating additional financial metrics for symbol: {extracted_data.symbol}...")
     calculated_data = calculate_additional_trade_data(extracted_data)
     logger.info(f"Calculations complete for symbol: {extracted_data.symbol}. PNL USD: {calculated_data.final_pnl_usd}, Status: {calculated_data.status}")
